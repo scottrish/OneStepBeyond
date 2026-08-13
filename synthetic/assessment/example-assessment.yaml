@@ -1,0 +1,27 @@
+# EXAMPLE assessment definition — copy this file, rename it, and point it
+# at a real persona and mission for this application. This is the entry
+# point passed to the run-synthetic-persona-assessment skill.
+
+id: example-first-time-user-assessment
+code: EX
+
+persona: personas/example-first-time-user.yaml
+
+mission: missions/example-evaluate-core-workflow.yaml
+
+protocol: protocol/persona-assessment.md
+
+authentication:
+  account: default
+
+browser:
+  viewport: mobile
+  browser: chromium
+
+outputs:
+  directory: reports/example-first-time-user-assessment
+  report: assessment-report.md
+  findings: findings.yaml
+  screenshots: screenshots/
+  transcript: transcript.md
+  trace: trace.zip

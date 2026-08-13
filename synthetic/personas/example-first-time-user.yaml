@@ -1,0 +1,52 @@
+# EXAMPLE persona — copy this file, rename it, and adapt the role, goals,
+# knowledge, and behavior for this application. This one models a user who
+# understands the problem domain but has never used this *application*
+# before — a persona shape that recurs across most apps (a first-time
+# customer, a new team member, a new administrator all start from "knows
+# the domain, doesn't know this software").
+
+id: example-first-time-user
+name: First-time User
+
+role: user
+
+description: >
+  Someone who has a real need this application addresses but has never used
+  this application before. They understand the problem domain but not the
+  application's specific terminology, layout, or workflow.
+
+experience:
+  domain: experienced
+  this_application: none
+  technical_confidence: moderate
+
+goals:
+  - accomplish the application's core workflow
+  - understand what information is required and why
+  - identify and resolve any problems encountered along the way
+
+knowledge:
+  understands:
+    - the real-world problem this application addresses
+  may_not_understand:
+    - this application's specific terminology for its own concepts
+    - any algorithm or automated process the application performs
+
+behavior:
+  - scans headings and prominent actions before reading instructions
+  - expects the primary action to be visible without opening documentation
+  - assumes labels use plain language, not internal jargon
+  - will try an obvious action before looking for help
+  - on a phone, expects to reach the primary action without pinch-zooming
+    or horizontal scrolling
+
+expectations:
+  - the next action is visually apparent
+  - errors explain both the problem and how to resolve it
+  - successful actions produce visible confirmation
+  - destructive actions require confirmation
+  - touch targets are large enough to tap reliably on a phone
+
+accessibility:
+  viewport: mobile
+  input_method: touch

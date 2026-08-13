@@ -1,0 +1,60 @@
+# EXAMPLE mission — copy this file, rename it, and point it at a real
+# feature specification and a real persona for this application.
+
+id: example-evaluate-core-workflow
+name: Evaluate the core workflow
+
+persona: example-first-time-user
+
+feature:
+  name: "[Name of the feature under assessment]"
+  specification: docs/features/[feature-name].md
+
+starting_point:
+  authentication: authenticated
+  page: application-home
+
+mission: >
+  Explore the application and determine how to complete its core workflow.
+  Proceed far enough to understand the experience and assess whether you
+  would feel confident completing it without assistance.
+
+evaluation_focus:
+  - discoverability of the capability under assessment
+  - clarity of terminology
+  - clarity of required information
+  - organization and sequencing of the workflow
+  - confidence that entered information is correct
+  - confirmation and guidance after completion
+  - usability on a small (mobile) viewport specifically
+  - points where the persona would seek help or abandon the task
+
+interaction_rules:
+  - interact only through the visible user interface
+  - do not inspect source code, database records, or network requests
+  - do not use knowledge of the application's implementation
+  - do not follow a predetermined click sequence
+  - make choices consistent with the persona definition
+  - record uncertainty before attempting an action
+  - do not invent information that the interface does not provide
+  - stop if the persona would realistically seek help or abandon the task
+
+data:
+  # Replace with realistic sample data for this application's core workflow.
+  example_field: example_value
+
+completion_condition: >
+  Stop after the core workflow has been completed, or earlier if the
+  persona cannot confidently determine how to proceed.
+
+report_sections:
+  - overall reaction
+  - initial interpretation of the page
+  - actions attempted
+  - what was clear
+  - sources of uncertainty
+  - incorrect assumptions
+  - points of friction
+  - confidence at the end of the assessment
+  - likely feedback in the persona's own words
+  - recommendations
