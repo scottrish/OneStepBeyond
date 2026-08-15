@@ -4,7 +4,13 @@ import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 import HomePage from "./HomePage";
 
-const user = { email: "person@example.com" } as User;
+vi.mock("../services/courseService", () => ({
+  listCourses: vi.fn().mockResolvedValue([]),
+  createCourse: vi.fn(),
+  renameCourse: vi.fn(),
+}));
+
+const user = { id: "student-1", email: "person@example.com" } as User;
 
 describe("HomePage", () => {
   it("renders the logged-in user's email", () => {
@@ -20,5 +26,13 @@ describe("HomePage", () => {
     await userEvent.click(screen.getByRole("button", { name: /sign out/i }));
 
     expect(signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("navigates to Courses when the settings button is clicked", async () => {
+    render(<HomePage user={user} signOut={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /settings/i }));
+
+    expect(await screen.findByRole("heading", { name: /courses/i })).toBeInTheDocument();
   });
 });

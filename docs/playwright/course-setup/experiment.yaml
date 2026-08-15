@@ -1,0 +1,24 @@
+feature_slug: course-setup
+feature_spec: docs/features/course-setup.md
+assessment: synthetic/assessment/initial-setup-assessment.yaml
+worktree_path: ../OneStepBeyond-experiments/course-setup
+branch: experiment/course-setup
+iterations:
+  - number: 1
+    tag: dev-course-setup-i1-start
+    spec: docs/features/course-setup.md
+    commit: ecd97df
+    status: complete
+    stop_after: false
+    findings_summary: >
+      Feature non-functional: courses table missing GRANT to authenticated
+      role (403 on every request); compounding error-handling defects
+      (raw "[object Object]" alert, input clears on failed save, failed
+      fetch indistinguishable from empty state). Derived iteration 2 spec.
+  - number: 2
+    tag: dev-course-setup-i2-start
+    spec: docs/features/iterations/course-setup/course-setup.i02.md
+    commit: null
+    status: in-progress
+    stop_after: null
+status: in-progress
