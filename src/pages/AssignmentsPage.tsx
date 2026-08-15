@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Pencil, Trash2 } from "lucide-react";
@@ -28,6 +28,12 @@ type View = { name: "list" } | { name: "detail"; assignmentId: string };
 const errorBoxStyle =
   "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
 
+// How long a delete with no completed steps stays reversible before it's
+// sent to the server. docs/features/iterations/assignment-management/
+// assignment-management.i02.md FR-1 — exact duration left to
+// implementation judgment.
+const UNDO_WINDOW_MS = 5000;
+
 function effortLabel(minutes: number): string {
   return EFFORT_PRESETS.find((preset) => preset.minutes === minutes)?.label
     ?? `${minutes} min`;
@@ -39,7 +45,12 @@ type AssignmentCardProps = {
   items: WorkItem[];
   onOpen: () => void;
   onEdit: (patch: AssignmentEdit) => Promise<boolean>;
-  onDelete: () => Promise<boolean>;
+  // No completed steps: soft-deletes with a brief Undo window, no
+  // confirmation prompt (see UNDO_WINDOW_MS).
+  onDeleteImmediate: () => void;
+  // Has completed steps: real, immediate delete after the in-card
+  // confirmation below — deleting completed work is never undoable.
+  onDeleteConfirmed: () => Promise<boolean>;
 };
 
 function AssignmentCard({
@@ -48,7 +59,8 @@ function AssignmentCard({
   items,
   onOpen,
   onEdit,
-  onDelete,
+  onDeleteImmediate,
+  onDeleteConfirmed,
 }: AssignmentCardProps) {
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -74,7 +86,7 @@ function AssignmentCard({
     if (hasCompletedSteps) {
       setConfirmingDelete(true);
     } else {
-      onDelete();
+      onDeleteImmediate();
     }
   }
 
@@ -154,7 +166,7 @@ function AssignmentCard({
           >
             Cancel
           </Button>
-          <Button variant="destructive" className="flex-1" onClick={onDelete}>
+          <Button variant="destructive" className="flex-1" onClick={onDeleteConfirmed}>
             Delete
           </Button>
         </div>
@@ -187,7 +199,9 @@ function AssignmentCard({
           <p className="mt-1 text-xs text-muted-foreground">
             {structured
               ? `${doneCount} of ${items.length} steps complete · about ${effortLabel(remaining)} left`
-              : `About ${effortLabel(remaining)} left`}
+              : items.length > 0
+                ? `About ${effortLabel(remaining)} left of ${effortLabel(assignment.effortMinutes)} planned`
+                : `About ${effortLabel(remaining)} left`}
           </p>
           {structured && (
             <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -223,6 +237,8 @@ function AssignmentCard({
 
 export default function AssignmentsPage({ user, onGoToHome }: AssignmentsPageProps) {
   const [view, setView] = useState<View>({ name: "list" });
+  const [pendingDelete, setPendingDelete] = useState<Assignment | null>(null);
+  const pendingDeleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     assignments,
     workItems,
@@ -235,11 +251,34 @@ export default function AssignmentsPage({ user, onGoToHome }: AssignmentsPagePro
   } = useAssignmentsList(user.id);
   const { courses } = useCourses(user.id);
 
+  function requestDeleteWithUndo(assignment: Assignment) {
+    // Only one undo window is meaningful at a time in this UI — if
+    // another delete is already pending, let it go through immediately
+    // rather than silently losing track of it.
+    if (pendingDeleteTimer.current) {
+      clearTimeout(pendingDeleteTimer.current);
+      if (pendingDelete) removeAssignment(pendingDelete.id);
+    }
+    setPendingDelete(assignment);
+    pendingDeleteTimer.current = setTimeout(() => {
+      removeAssignment(assignment.id);
+      pendingDeleteTimer.current = null;
+      setPendingDelete(null);
+    }, UNDO_WINDOW_MS);
+  }
+
+  function undoDelete() {
+    if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
+    pendingDeleteTimer.current = null;
+    setPendingDelete(null);
+  }
+
   if (view.name === "detail") {
     return (
       <AssignmentDetailPage
         user={user}
         assignmentId={view.assignmentId}
+        onDeleteImmediate={requestDeleteWithUndo}
         onBack={() => {
           // Detail has its own hooks (useAssignment/useWorkItems) — any
           // edit/delete/complete/add-step made there doesn't touch this
@@ -253,13 +292,25 @@ export default function AssignmentsPage({ user, onGoToHome }: AssignmentsPagePro
   }
 
   const open = assignments
-    .filter((a) => !a.completedAt)
+    .filter((a) => !a.completedAt && a.id !== pendingDelete?.id)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  const done = assignments.filter((a) => a.completedAt);
+  const done = assignments.filter((a) => a.completedAt && a.id !== pendingDelete?.id);
 
   return (
     <main className="p-8">
       <h1 className="mb-4 text-3xl">Assignments</h1>
+
+      {pendingDelete && (
+        <div
+          role="status"
+          className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-sm"
+        >
+          <span>&ldquo;{pendingDelete.title}&rdquo; deleted.</span>
+          <Button variant="ghost" size="sm" onClick={undoDelete}>
+            Undo
+          </Button>
+        </div>
+      )}
 
       {loadError && (
         <div role="alert" className={errorBoxStyle}>
@@ -292,7 +343,8 @@ export default function AssignmentsPage({ user, onGoToHome }: AssignmentsPagePro
                 items={workItems.filter((w) => w.assignmentId === assignment.id)}
                 onOpen={() => setView({ name: "detail", assignmentId: assignment.id })}
                 onEdit={(patch) => editAssignment(assignment.id, patch)}
-                onDelete={() => removeAssignment(assignment.id)}
+                onDeleteImmediate={() => requestDeleteWithUndo(assignment)}
+                onDeleteConfirmed={() => removeAssignment(assignment.id)}
               />
             </li>
           ))}

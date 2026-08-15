@@ -108,6 +108,20 @@ describe("AssignmentsPage", () => {
     expect(document.querySelector(".bg-primary.h-full")).not.toBeInTheDocument();
   });
 
+  it("shows the assignment's original estimate alongside a single step's remaining time", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([course]);
+    mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
+    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+      { id: "w1", assignmentId: "a1", title: "Step 1", effortMinutes: 15, completedAt: null },
+    ]);
+
+    render(<AssignmentsPage user={user} onGoToHome={vi.fn()} />);
+
+    expect(
+      await screen.findByText(/about 15m left of 30m planned/i),
+    ).toBeInTheDocument();
+  });
+
   it("opens the detail screen when a card is tapped, and back returns to the list", async () => {
     mockedCourseService.listCourses.mockResolvedValue([course]);
     mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
@@ -127,6 +141,27 @@ describe("AssignmentsPage", () => {
 
     await userEventInstance.click(screen.getByRole("button", { name: /back/i }));
     expect(await screen.findByRole("heading", { name: /^assignments$/i })).toBeInTheDocument();
+  });
+
+  it("deleting from Detail with no completed steps returns to the list with an Undo affordance, deferring the real delete", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([course]);
+    mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
+    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
+    mockedAssignmentService.getAssignment.mockResolvedValue(openAssignment);
+    mockedWorkItemService.listWorkItems.mockResolvedValue([]);
+    mockedAssignmentService.deleteAssignment.mockResolvedValue(undefined);
+    const userEventInstance = userEvent.setup();
+
+    render(<AssignmentsPage user={user} onGoToHome={vi.fn()} />);
+    const title = await screen.findByText("Chapter 7 problem set");
+    await userEventInstance.click(title.closest("button")!);
+    await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+
+    await userEventInstance.click(screen.getByRole("button", { name: /delete assignment/i }));
+
+    expect(await screen.findByRole("heading", { name: /^assignments$/i })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/chapter 7 problem set.*deleted/i);
+    expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
   });
 
   it("shows step progress and a progress bar when the assignment has more than one work item", async () => {
@@ -186,7 +221,7 @@ describe("AssignmentsPage", () => {
     expect(await screen.findByText("Chapter 8 problem set")).toBeInTheDocument();
   });
 
-  it("deletes an assignment immediately when it has no completed steps", async () => {
+  it("deleting an assignment with no completed steps hides it immediately and offers Undo, without calling delete yet", async () => {
     mockedCourseService.listCourses.mockResolvedValue([course]);
     mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
     mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
@@ -200,10 +235,65 @@ describe("AssignmentsPage", () => {
       screen.getByRole("button", { name: /delete chapter 7 problem set/i }),
     );
 
+    expect(screen.queryByText("Chapter 7 problem set")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/chapter 7 problem set.*deleted/i);
+    expect(screen.queryByText(/delete this assignment\?/i)).not.toBeInTheDocument();
+    expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
+  });
+
+  it("commits the delete once the Undo window elapses", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([course]);
+    mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
+    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
+    mockedAssignmentService.deleteAssignment.mockResolvedValue(undefined);
+    const userEventInstance = userEvent.setup();
+    // Spy on the real setTimeout rather than replacing the whole timer
+    // subsystem (vi.useFakeTimers) — this avoids interfering with
+    // user-event's and React's own internal scheduling.
+    const setTimeoutSpy = vi.spyOn(window, "setTimeout");
+
+    render(<AssignmentsPage user={user} onGoToHome={vi.fn()} />);
+    await screen.findByText("Chapter 7 problem set");
+
+    await userEventInstance.click(
+      screen.getByRole("button", { name: /delete chapter 7 problem set/i }),
+    );
+    expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
+
+    const undoTimerCall = setTimeoutSpy.mock.calls.find(([, ms]) => ms === 5000);
+    (undoTimerCall![0] as () => void)();
+
     await waitFor(() =>
       expect(mockedAssignmentService.deleteAssignment).toHaveBeenCalledWith("a1"),
     );
-    expect(screen.queryByText(/delete this assignment\?/i)).not.toBeInTheDocument();
+    setTimeoutSpy.mockRestore();
+  });
+
+  it("Undo restores the assignment and never calls delete", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([course]);
+    mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
+    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
+    const userEventInstance = userEvent.setup();
+    const setTimeoutSpy = vi.spyOn(window, "setTimeout");
+    const clearTimeoutSpy = vi.spyOn(window, "clearTimeout");
+
+    render(<AssignmentsPage user={user} onGoToHome={vi.fn()} />);
+    await screen.findByText("Chapter 7 problem set");
+
+    await userEventInstance.click(
+      screen.getByRole("button", { name: /delete chapter 7 problem set/i }),
+    );
+    await userEventInstance.click(screen.getByRole("button", { name: /^undo$/i }));
+
+    expect(screen.getByText("Chapter 7 problem set")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    const undoTimerIndex = setTimeoutSpy.mock.calls.findIndex(([, ms]) => ms === 5000);
+    expect(clearTimeoutSpy).toHaveBeenCalledWith(
+      setTimeoutSpy.mock.results[undoTimerIndex].value,
+    );
+    expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
+    setTimeoutSpy.mockRestore();
+    clearTimeoutSpy.mockRestore();
   });
 
   it("requires confirmation to delete an assignment with completed steps", async () => {

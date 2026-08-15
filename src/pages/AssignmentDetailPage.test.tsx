@@ -80,6 +80,24 @@ describe("AssignmentDetailPage", () => {
     expect(screen.getByText("Bring a calculator")).toBeInTheDocument();
   });
 
+  it("shows the original estimate alongside remaining time once a step exists", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([
+      { id: "course-1", name: "Biology", colorIndex: 0 },
+    ]);
+    mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+    mockedWorkItemService.listWorkItems.mockResolvedValue([
+      { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 15, completedAt: null },
+    ]);
+
+    render(
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} />,
+    );
+
+    expect(
+      await screen.findByText(/15m of work left · you estimated 30m in total/i),
+    ).toBeInTheDocument();
+  });
+
   it("omits the notes section when there are no notes", async () => {
     mockedCourseService.listCourses.mockResolvedValue([
       { id: "course-1", name: "Biology", colorIndex: 0 },
@@ -177,6 +195,30 @@ describe("AssignmentDetailPage", () => {
       ),
     );
     await waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+  });
+
+  it("defers the delete to onDeleteImmediate when provided, instead of deleting directly", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([]);
+    mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+    const onBack = vi.fn();
+    const onDeleteImmediate = vi.fn();
+    const userEventInstance = userEvent.setup();
+
+    render(
+      <AssignmentDetailPage
+        user={user}
+        assignmentId="assignment-1"
+        onBack={onBack}
+        onDeleteImmediate={onDeleteImmediate}
+      />,
+    );
+    await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+
+    await userEventInstance.click(screen.getByRole("button", { name: /delete assignment/i }));
+
+    expect(onDeleteImmediate).toHaveBeenCalledWith(assignment);
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
   });
 
   it("requires confirmation to delete when a step is already complete", async () => {

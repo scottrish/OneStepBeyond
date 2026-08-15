@@ -10,4 +10,10 @@ iterations:
     commit: b620e42
     status: complete
     stop_after: false
+  - number: 2
+    tag: dev-assignment-management-i2-start
+    spec: docs/features/iterations/assignment-management/assignment-management.i02.md
+    commit: null
+    status: in-progress
+    stop_after: null
 status: in-progress

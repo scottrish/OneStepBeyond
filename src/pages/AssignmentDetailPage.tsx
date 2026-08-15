@@ -13,11 +13,17 @@ import { remainingMinutes } from "../domain/remainingMinutes";
 import { useAssignment } from "../hooks/useAssignment";
 import { useCourses } from "../hooks/useCourses";
 import { useWorkItems } from "../hooks/useWorkItems";
+import type { Assignment } from "../services/assignmentService";
 
 type AssignmentDetailPageProps = {
   user: User;
   assignmentId: string;
   onBack: () => void;
+  // When provided, a delete with no completed steps is handed to the
+  // caller (which owns a brief Undo window) instead of being sent to the
+  // server immediately. Omitted when this screen is reached somewhere
+  // with no list to return an undo affordance to.
+  onDeleteImmediate?: (assignment: Assignment) => void;
 };
 
 const errorBoxStyle =
@@ -32,6 +38,7 @@ export default function AssignmentDetailPage({
   user,
   assignmentId,
   onBack,
+  onDeleteImmediate,
 }: AssignmentDetailPageProps) {
   const {
     assignment,
@@ -82,6 +89,9 @@ export default function AssignmentDetailPage({
   function handleDeleteClick() {
     if (hasCompletedSteps) {
       setConfirmingDelete(true);
+    } else if (onDeleteImmediate && assignment) {
+      onDeleteImmediate(assignment);
+      onBack();
     } else {
       deleteAssignment().then((succeeded) => {
         if (succeeded) onBack();
@@ -241,11 +251,11 @@ export default function AssignmentDetailPage({
                 {assignment.completedAt ? "Estimated time" : "Remaining"}
               </dt>
               <dd>
-                {effortLabel(
-                  assignment.completedAt
-                    ? assignment.effortMinutes
-                    : remainingMinutes(assignment, workItems),
-                )}
+                {assignment.completedAt
+                  ? effortLabel(assignment.effortMinutes)
+                  : workItems.length > 0
+                    ? `${effortLabel(remainingMinutes(assignment, workItems))} of work left · you estimated ${effortLabel(assignment.effortMinutes)} in total`
+                    : effortLabel(remainingMinutes(assignment, workItems))}
               </dd>
             </div>
             {assignment.notes && (
