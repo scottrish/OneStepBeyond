@@ -1,5 +1,25 @@
 # Feature: Assignment Management
 
+**Status:** Implemented (2026-08-15), merged to `main` via
+`experiment/assignment-management` after two development iterations (see
+`docs/playwright/assignment-management/`). The Assignments list and
+Assignment Detail screen are built and tested: view, inline edit,
+complete, and delete, matching this spec's Acceptance Criteria. Iteration
+2 added two behaviors beyond this spec's literal text, driven by
+persona-assessment findings: a brief "Undo" affordance after an
+unconfirmed delete (no completed steps), and the Detail/list screens now
+always show the assignment's own estimate alongside the itemized-steps
+remaining total once any step exists, rather than one silently replacing
+the other. Two things are deliberately not built yet, both because they
+depend on features not yet started (see `docs/Roadmap.md`): the "Plan
+work for today" action and the Assignment Brief/"What this needs" card
+(depend on Daily Planning and Assignment Understanding & Guided
+Breakdown), and — as a consequence — the confirmation-required delete
+path (an assignment with at least one completed step) exists in the code
+and is tested, but has no way to be reached through today's UI, since
+per-step completion only happens via Today Execution, also not yet
+built.
+
 ## Summary
 
 View, edit, complete, and delete Assignments. Covers the Assignments list

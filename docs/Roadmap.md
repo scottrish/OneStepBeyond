@@ -73,10 +73,12 @@ honest "coming soon" placeholders until Phases 2–5 give them real content.
 
 # Phase 2 — Commitments: capture and manage
 
+**Status: done (2026-08-15).**
+
 | Feature | Spec | Status |
 |---|---|---|
 | Assignment Capture | [assignment-capture.md](features/assignment-capture.md) | Done |
-| Assignment Management | [assignment-management.md](features/assignment-management.md) | Not started |
+| Assignment Management | [assignment-management.md](features/assignment-management.md) | Done |
 
 **Why next:** Assignment Capture explicitly depends on Course Setup
 (Phase 1). Assignment Management (list + detail) is the natural
@@ -85,10 +87,10 @@ complete what you captured is not independently useful. Both predate
 Planning in the domain model's own learning loop (`External Reality →
 Commitments → ...`).
 
-**Demoable at the end of this phase:** a student can log an assignment in
-under a minute, see it in a sorted list, open its detail, edit it, and mark
-it complete — the full basic commitment-tracking loop, with no planning or
-coaching yet.
+**Demoable at the end of this phase (achieved):** a student can log an
+assignment in under a minute, see it in a sorted list, open its detail,
+edit it, and mark it complete — the full basic commitment-tracking loop,
+with no planning or coaching yet.
 
 ---
 
