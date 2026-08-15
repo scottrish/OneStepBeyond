@@ -1,0 +1,161 @@
+assessment_id: assignment-management-assessment
+persona: student-alex-carter
+mission: evaluate-assignment-management
+feature: assignment-management
+date: 2026-08-15
+iteration: 2
+
+# This iteration targeted the three findings that drove iteration 2
+# (docs/features/iterations/assignment-management/assignment-management.i02.md),
+# plus a general regression check. Stable identifiers from iteration 1
+# are preserved and re-affirmed below rather than duplicated.
+
+findings:
+  - id: FINDING-AM-001
+    title: Bottom-nav "Home" tab is a no-op while nested in Assignment Detail reached from Home's "+"
+    status: resolved
+    verification: >
+      Reproduced the exact iteration-1 repro (Home → "+" → capture an
+      assignment → tap the bottom-nav "Home" tab). The app now correctly
+      returns to Home's landing view every time. Fixed by remounting
+      HomePage (via a key that increments whenever "Home" is tapped) so
+      its internal navigation state can never disagree with the tab bar.
+    perspective: persona
+    type: implementation_defect
+    severity: high
+    confidence: high
+    persona_observation: >
+      "That's a real fix. I don't have to remember to use the back arrow
+      instead anymore — the Home tab does what I'd expect a tab to do."
+    evidence:
+      - synthetic/reports/assignment-management-assessment/screenshots/i02-01-home-tab-fixed.png
+
+  - id: FINDING-AM-005
+    title: Deleting an assignment with no completed steps is instant, with no confirmation and no undo
+    status: resolved
+    verification: >
+      Deleted a fresh assignment with no completed steps: it still
+      disappears immediately (no confirmation prompt added, matching the
+      spec's existing rule), but now shows a "'{title}' deleted." message
+      with an "Undo" button. Confirmed separately (unit tests
+      AssignmentsPage.test.tsx) that tapping Undo before the window
+      elapses restores the assignment without ever calling the delete
+      service, and that the delete is only sent to the server once the
+      window elapses. Live-observed the window elapsing: the banner
+      cleared on its own and the assignment stayed deleted.
+    perspective: both
+    type: ux_improvement
+    severity: medium
+    confidence: high
+    persona_observation: >
+      "That's exactly what I wanted last time. If I'd hit that by
+      accident, I'd have a few seconds to fix it instead of it just being
+      gone."
+    evidence:
+      - synthetic/reports/assignment-management-assessment/screenshots/i02-02-undo-banner.png
+      - synthetic/reports/assignment-management-assessment/screenshots/i02-03-delete-committed-after-window.png
+
+  - id: FINDING-AM-006
+    title: Adding a single step silently drops the assignment's overall time estimate
+    status: resolved
+    verification: >
+      "Worksheet 12" (from iteration 1, one 15m step against a 45m
+      estimate) now shows "15m of work left · you estimated 45m in
+      total" on Detail, and "About 15m left of 45m planned" on the list
+      — both numbers visible together instead of the smaller one silently
+      replacing the larger one.
+    perspective: both
+    type: ux_improvement
+    severity: medium
+    confidence: high
+    persona_observation: >
+      "That actually makes sense now. I can see it's only counting the
+      one step I've written down so far, and it's not pretending the
+      rest of the worksheet doesn't exist anymore."
+    evidence: []
+
+  - id: FINDING-AM-002
+    title: Assignments list shows exactly what's needed at a glance, no progress bar when unstructured
+    status: reaffirmed
+    verification: >
+      Unchanged this iteration — list content for zero- and multi-item
+      assignments still matches iteration 1's observed behavior.
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    evidence: []
+
+  - id: FINDING-AM-003
+    title: Inline edit gave immediate, unambiguous confirmation
+    status: reaffirmed
+    verification: Unchanged this iteration.
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    evidence: []
+
+  - id: FINDING-AM-004
+    title: "Mark assignment complete" was unambiguous and moved the item to a distinct Finished section"
+    status: reaffirmed
+    verification: >
+      "Cell structure reading," completed in iteration 1, is still shown
+      correctly under "Finished" with its title struck through.
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    evidence: []
+
+  - id: FINDING-AM-007
+    title: The "confirm before delete" path for assignments with completed steps cannot currently be reached through the UI
+    status: unresolved-deferred
+    verification: >
+      Not re-tested this iteration — unchanged and intentionally out of
+      scope per assignment-management.i02.md ("Out of Scope"). Still
+      blocked on per-step completion, which belongs to the
+      Today-execution/Planning feature.
+    perspective: evaluator
+    type: specification_gap
+    severity: low
+    confidence: high
+    evidence: []
+
+summary:
+  assessment:
+    id: assignment-management-assessment
+    feature: assignment-management
+    persona: student-alex-carter
+
+  outcome:
+    status: completed
+    completion: true
+    final_confidence: high
+
+  findings:
+    total: 7
+    issues: 1
+    positives: 6
+    hypotheses: 0
+
+  recommendations:
+    implementation_defects: 0
+    specification_gaps: 1
+    ux_improvements: 0
+    validation_items: 0
+    preserved_behaviour: 6
+
+  highest_severity: low
+
+  supporting_findings:
+    resolved:
+      - FINDING-AM-001
+      - FINDING-AM-005
+      - FINDING-AM-006
+    preserved_behaviour:
+      - FINDING-AM-002
+      - FINDING-AM-003
+      - FINDING-AM-004
+    specification_gaps:
+      - FINDING-AM-007

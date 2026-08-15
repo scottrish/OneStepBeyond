@@ -7,7 +7,14 @@ vi.mock("../lib/supabase", () => ({
 }));
 
 import { supabase } from "../lib/supabase";
-import { createAssignment, getAssignment } from "./assignmentService";
+import {
+  completeAssignment,
+  createAssignment,
+  deleteAssignment,
+  getAssignment,
+  listAssignments,
+  updateAssignment,
+} from "./assignmentService";
 
 type QueryResult = { data: unknown; error: unknown };
 
@@ -19,7 +26,10 @@ function mockQuery(result: QueryResult) {
   const returnsBuilder = vi.fn(() => builder);
   builder.select = returnsBuilder;
   builder.eq = returnsBuilder;
+  builder.order = returnsBuilder;
   builder.insert = returnsBuilder;
+  builder.update = returnsBuilder;
+  builder.delete = returnsBuilder;
   builder.single = returnsBuilder;
   builder.maybeSingle = returnsBuilder;
   builder.then = (resolve: (value: QueryResult) => unknown) =>
@@ -33,21 +43,48 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+const row = {
+  id: "1",
+  course_id: "course-1",
+  title: "Chapter 7 problem set",
+  due_date: "2026-03-15",
+  effort_minutes: 30,
+  notes: null,
+  completed_at: null,
+};
+
+describe("listAssignments", () => {
+  it("maps rows into Assignment objects ordered by due date", async () => {
+    mockedFrom.mockReturnValue(mockQuery({ data: [row], error: null }));
+
+    const assignments = await listAssignments("student-1");
+
+    expect(mockedFrom).toHaveBeenCalledWith("assignments");
+    expect(assignments).toEqual([
+      {
+        id: "1",
+        courseId: "course-1",
+        title: "Chapter 7 problem set",
+        dueDate: "2026-03-15",
+        effortMinutes: 30,
+        notes: null,
+        completedAt: null,
+      },
+    ]);
+  });
+
+  it("throws when the query errors", async () => {
+    mockedFrom.mockReturnValue(
+      mockQuery({ data: null, error: new Error("boom") }),
+    );
+
+    await expect(listAssignments("student-1")).rejects.toThrow("boom");
+  });
+});
+
 describe("createAssignment", () => {
   it("inserts and returns the created assignment, trimming blank notes to null", async () => {
-    mockedFrom.mockReturnValue(
-      mockQuery({
-        data: {
-          id: "1",
-          course_id: "course-1",
-          title: "Chapter 7 problem set",
-          due_date: "2026-03-15",
-          effort_minutes: 30,
-          notes: null,
-        },
-        error: null,
-      }),
-    );
+    mockedFrom.mockReturnValue(mockQuery({ data: row, error: null }));
 
     const assignment = await createAssignment("student-1", {
       courseId: "course-1",
@@ -65,6 +102,7 @@ describe("createAssignment", () => {
       dueDate: "2026-03-15",
       effortMinutes: 30,
       notes: null,
+      completedAt: null,
     });
   });
 
@@ -89,14 +127,7 @@ describe("getAssignment", () => {
   it("returns the mapped assignment when found", async () => {
     mockedFrom.mockReturnValue(
       mockQuery({
-        data: {
-          id: "1",
-          course_id: "course-1",
-          title: "Chapter 7 problem set",
-          due_date: "2026-03-15",
-          effort_minutes: 30,
-          notes: "Bring calculator",
-        },
+        data: { ...row, notes: "Bring calculator" },
         error: null,
       }),
     );
@@ -108,6 +139,7 @@ describe("getAssignment", () => {
       dueDate: "2026-03-15",
       effortMinutes: 30,
       notes: "Bring calculator",
+      completedAt: null,
     });
   });
 
@@ -123,5 +155,67 @@ describe("getAssignment", () => {
     );
 
     await expect(getAssignment("1")).rejects.toThrow("boom");
+  });
+});
+
+describe("updateAssignment", () => {
+  it("updates the assignment's editable fields", async () => {
+    mockedFrom.mockReturnValue(mockQuery({ data: null, error: null }));
+
+    await expect(
+      updateAssignment("1", {
+        title: "Chapter 8 problem set",
+        dueDate: "2026-03-20",
+        effortMinutes: 45,
+        notes: "",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("throws when the update errors", async () => {
+    mockedFrom.mockReturnValue(
+      mockQuery({ data: null, error: new Error("boom") }),
+    );
+
+    await expect(
+      updateAssignment("1", {
+        title: "Chapter 8 problem set",
+        dueDate: "2026-03-20",
+        effortMinutes: 45,
+        notes: "",
+      }),
+    ).rejects.toThrow("boom");
+  });
+});
+
+describe("deleteAssignment", () => {
+  it("deletes the assignment", async () => {
+    mockedFrom.mockReturnValue(mockQuery({ data: null, error: null }));
+
+    await expect(deleteAssignment("1")).resolves.toBeUndefined();
+  });
+
+  it("throws when the delete errors", async () => {
+    mockedFrom.mockReturnValue(
+      mockQuery({ data: null, error: new Error("boom") }),
+    );
+
+    await expect(deleteAssignment("1")).rejects.toThrow("boom");
+  });
+});
+
+describe("completeAssignment", () => {
+  it("marks the assignment complete", async () => {
+    mockedFrom.mockReturnValue(mockQuery({ data: null, error: null }));
+
+    await expect(completeAssignment("1")).resolves.toBeUndefined();
+  });
+
+  it("throws when the update errors", async () => {
+    mockedFrom.mockReturnValue(
+      mockQuery({ data: null, error: new Error("boom") }),
+    );
+
+    await expect(completeAssignment("1")).rejects.toThrow("boom");
   });
 });

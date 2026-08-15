@@ -72,4 +72,25 @@ describe("App", () => {
       screen.getByRole("heading", { name: /^assignments$/i }),
     ).toBeInTheDocument();
   });
+
+  it("tapping the Home tab returns to Home's landing view even when already on the Home tab", async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { email: "person@example.com" } as User,
+      signIn: vi.fn(),
+      signUp: vi.fn(),
+      signOut: vi.fn(),
+    });
+
+    render(<App />);
+
+    // Navigate into a nested view within Home (Settings), without ever
+    // leaving the "home" tab — this is what FINDING-AM-001 exercised via
+    // Assignment Detail, reproduced here without extra service mocking.
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("heading", { name: /^settings$/i })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Home" }));
+
+    expect(screen.getByRole("heading", { name: /^home$/i })).toBeInTheDocument();
+  });
 });

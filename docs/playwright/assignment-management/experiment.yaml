@@ -1,0 +1,19 @@
+feature_slug: assignment-management
+feature_spec: docs/features/assignment-management.md
+assessment: synthetic/assessment/assignment-management-assessment.yaml
+worktree_path: ../OneStepBeyond-experiments/assignment-management
+branch: experiment/assignment-management
+iterations:
+  - number: 1
+    tag: dev-assignment-management-i1-start
+    spec: docs/features/assignment-management.md
+    commit: b620e42
+    status: complete
+    stop_after: false
+  - number: 2
+    tag: dev-assignment-management-i2-start
+    spec: docs/features/iterations/assignment-management/assignment-management.i02.md
+    commit: 4ae097a
+    status: complete
+    stop_after: true
+status: stopped-complete

@@ -1,0 +1,212 @@
+assessment_id: assignment-management-assessment
+persona: student-alex-carter
+mission: evaluate-assignment-management
+feature: assignment-management
+date: 2026-08-15
+iteration: 1
+
+findings:
+  - id: FINDING-AM-001
+    title: Bottom-nav "Home" tab is a no-op while nested in Assignment Detail reached from Home's "+"
+    perspective: both
+    type: implementation_defect
+    severity: high
+    confidence: high
+    description: >
+      After capturing a new assignment via Home's "+" button, the app lands
+      on that assignment's Detail screen. From there, tapping the "Home"
+      tab in the bottom navigation bar does nothing — the tab bar shows
+      "Home" as the active tab, but the on-screen content stays on the
+      Assignment Detail view. The in-screen "← Back" button works
+      correctly and is the only way back to Home from this state.
+    persona_observation: >
+      "I tapped Home to add my next assignment and nothing happened. I
+      tried again in case I mis-tapped, still nothing. It looked like it
+      thought I was on Home already even though I clearly wasn't. I ended
+      up using the back arrow instead, which did work, but for a second I
+      thought I was stuck."
+    evaluator_observation: >
+      Root cause is state, not routing: HomePage owns its own internal
+      "view" state (home / capture-assignment / assignment-detail), and
+      that state persists across tab switches because React does not
+      remount HomePage just because the parent's activeTab prop cycles
+      through "home" while HomePage is already mounted. The nav bar
+      correctly reflects activeTab, but the visible content is whatever
+      HomePage's internal view still is. This is a genuine navigation
+      dead end for any user relying on the tab bar rather than the
+      in-page Back button.
+    evidence:
+      - synthetic/reports/assignment-management-assessment/screenshots/i01-03-home-tab-noop.png
+
+  - id: FINDING-AM-002
+    title: Assignments list shows exactly what's needed at a glance, no progress bar when unstructured
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    description: >
+      Each open assignment on the list shows its course, due date, title,
+      and a plain "About {time} left" line. None of the three sample
+      assignments had more than one Work Item, so none showed a progress
+      bar — matching the spec's rule that a bar only appears when there is
+      real step data behind it.
+    evidence:
+      - synthetic/reports/assignment-management-assessment/screenshots/i01-04-assignments-list.png
+
+  - id: FINDING-AM-003
+    title: Inline edit gave immediate, unambiguous confirmation
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    description: >
+      Editing "Worksheet 12"'s due date from the pencil icon on Detail
+      opened a small form pre-filled with current values; after Save, the
+      screen immediately showed the new date. Alex never doubted whether
+      the change had taken effect.
+    evidence: []
+
+  - id: FINDING-AM-004
+    title: "Mark assignment complete" was unambiguous and moved the item to a distinct Finished section"
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    description: >
+      Tapping "Mark assignment complete" replaced the button with the word
+      "Completed" on Detail, and on returning to the list the assignment
+      had moved out of the open list into a separate "Finished" section
+      with its title struck through. No doubt it worked.
+    evidence:
+      - synthetic/reports/assignment-management-assessment/screenshots/i01-05-assignment-completed.png
+
+  - id: FINDING-AM-005
+    title: Deleting an assignment with no completed steps is instant, with no confirmation and no undo
+    perspective: both
+    type: ux_improvement
+    severity: medium
+    confidence: medium
+    description: >
+      Tapping the trash icon on an assignment with zero completed steps
+      deletes it immediately, with no "are you sure?" step and no way to
+      recover it afterward. This matches assignment-management.md's
+      acceptance criterion exactly ("deleting one with no completed steps
+      does not [require confirmation]") — it is not a deviation from
+      spec. The finding is about the complete absence of any recovery
+      path (no undo toast, no trash/archive), not about the confirmation
+      rule itself.
+    persona_observation: >
+      "That was faster than I expected — no warning at all. Kind of nice
+      that it didn't make me tap through something obvious, but if I hit
+      that by accident there'd be no way to get it back. I'm someone who
+      taps things fast without always reading them first."
+    evaluator_observation: >
+      The persona's own definition (ADHD, "prefers simple interfaces and
+      will not read instructions before trying the obvious thing") makes
+      this a realistic risk for exactly this user population, even though
+      the current behavior is spec-compliant. Worth a low-cost mitigation
+      (e.g. a short-lived "Assignment deleted — Undo" toast) rather than
+      changing the confirmation rule itself.
+    evidence:
+      - synthetic/reports/assignment-management-assessment/screenshots/i01-06-after-delete.png
+
+  - id: FINDING-AM-006
+    title: Adding a single step silently drops the assignment's overall time estimate
+    perspective: both
+    type: ux_improvement
+    severity: medium
+    confidence: medium
+    description: >
+      Before any steps existed, "Worksheet 12" showed "Remaining: 45m"
+      (the assignment's own estimate). After adding one step estimated at
+      15m, "Remaining" changed to 15m — the original 45m estimate is no
+      longer reflected anywhere on screen. This matches
+      assignment-management.md's functional requirement exactly
+      ("Remaining effort is computed... from open Work Items' estimates
+      when a breakdown exists, otherwise from the assignment's own
+      estimate") — it is intentional, not a bug. The finding is that nothing
+      on screen signals *why* the number changed, which reads as data loss
+      to a student who only itemized part of the assignment.
+    persona_observation: >
+      "Wait, I only broke off one small piece and now it says the whole
+      thing only takes 15 minutes? I know there's more to it than that.
+      Where did the other 30 minutes go?"
+    evaluator_observation: >
+      This will likely worsen once the breakdown/coaching feature
+      (risk-detection.md's referenced flow) is built and steps are added
+      incrementally rather than all at once — the gap between "assignment
+      estimate" and "sum of steps logged so far" will be common, not an
+      edge case.
+    evidence:
+      - synthetic/reports/assignment-management-assessment/screenshots/i01-07-step-shrinks-remaining.png
+
+  - id: FINDING-AM-007
+    title: The "confirm before delete" path for assignments with completed steps cannot currently be reached through the UI
+    perspective: evaluator
+    type: specification_gap
+    severity: low
+    scope_note: >
+      Expected and already scoped by the Roadmap, following the same
+      precedent as FINDING-AC-005 in assignment-capture's own assessment.
+      assignment-management.md itself states Work Item checkboxes on
+      Detail are "read-only here — completion actually happens during
+      Today execution, not from this screen," which is a separate,
+      unbuilt feature. Kept at low severity so it does not by itself force
+      another assignment-management iteration.
+    confidence: high
+    description: >
+      Deleting an assignment is supposed to require confirmation once it
+      has at least one completed step. In the current build, the only way
+      any Work Item becomes completed is via "Mark assignment complete,"
+      which completes the assignment itself in the same action — and
+      completed assignments in the Finished section show no edit or
+      delete controls at all. There is currently no reachable state where
+      a student can trigger the confirmation-required delete path.
+    evaluator_observation: >
+      Not a defect in this feature — per-step completion is explicitly
+      deferred to the Today-execution/Planning feature per the spec's own
+      language. Flagging so the confirmation-required delete path gets
+      exercised (manually or via an assessment) once that feature ships
+      and steps can be completed independently of the whole assignment.
+    evidence:
+      - synthetic/reports/assignment-management-assessment/screenshots/i01-07-step-shrinks-remaining.png
+
+summary:
+  assessment:
+    id: assignment-management-assessment
+    feature: assignment-management
+    persona: student-alex-carter
+
+  outcome:
+    status: completed-with-friction
+    completion: true
+    final_confidence: moderate
+
+  findings:
+    total: 7
+    issues: 4
+    positives: 3
+    hypotheses: 0
+
+  recommendations:
+    implementation_defects: 1
+    specification_gaps: 1
+    ux_improvements: 2
+    validation_items: 0
+    preserved_behaviour: 3
+
+  highest_severity: high
+
+  supporting_findings:
+    implementation_defects:
+      - FINDING-AM-001
+    specification_gaps:
+      - FINDING-AM-007
+    ux_improvements:
+      - FINDING-AM-005
+      - FINDING-AM-006
+    validation_items: []
+    preserved_behaviour:
+      - FINDING-AM-002
+      - FINDING-AM-003
+      - FINDING-AM-004
