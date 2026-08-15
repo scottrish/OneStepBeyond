@@ -17,3 +17,5 @@ directory.
 
 | # | Decision | Date |
 |---|----------|------|
+| 1 | [Student-only first increment](20260813-student-only-first-increment.md) | 2026-08-13 |
+| 2 | [Local Supabase for initial development](20260814-local-supabase-for-initial-development.md) | 2026-08-14 |

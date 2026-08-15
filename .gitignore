@@ -37,3 +37,6 @@ coverage
 
 tests/.auth
 synthetic/reports
+
+# Claude Code local settings (personal, may include permission relaxations)
+.claude/settings.local.json

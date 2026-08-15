@@ -1,0 +1,8 @@
+- main [ref=e3]:
+  - heading "Login" [level=1] [ref=e4]
+  - text: Email
+  - textbox "Email" [ref=e5]
+  - text: Password
+  - textbox "Password" [ref=e6]
+  - button "Sign in" [disabled] [ref=e7]
+  - button "Sign up" [disabled] [ref=e8]

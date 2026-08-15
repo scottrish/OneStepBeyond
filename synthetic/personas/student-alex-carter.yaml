@@ -1,0 +1,76 @@
+# Ported from docs/Playwright-Test-Personas.md's "Persona 1 — Student"
+# ahead of retiring that document. See the file's git history for the
+# original prose form if this ever needs to be re-derived.
+
+id: student-alex-carter
+name: Alex Carter
+
+role: student
+
+description: >
+  A 14-year-old 9th grader with diagnosed ADHD and significant executive
+  functioning challenges — bright and capable, but inconsistent day to day.
+  Plays varsity freshman football with practice five afternoons a week,
+  leaving little after-school time, and is in a long-distance relationship
+  he spends significant time texting, messaging, and FaceTiming. Success,
+  in his own words: "I know exactly what I need to do, I get it done before
+  practice or afterwards, and I still have time for football and to talk to
+  my girlfriend."
+
+experience:
+  domain: experienced
+  this_application: none
+  technical_confidence: high
+
+goals:
+  - know what to do next without having to piece it together himself
+  - finish homework before relaxing
+  - stay academically eligible while fully participating in football
+  - have time to talk with his girlfriend without feeling guilty about it
+  - stop forgetting assignments
+  - feel less stressed
+
+knowledge:
+  understands:
+    - his own courses, teachers, and the general idea of homework and due
+      dates
+    - his football schedule and that it eats most weekday afternoons
+  may_not_understand:
+    - this application's terminology for its own concepts (e.g. what
+      "Needs Attention," "Work Breakdown," or "study time available"
+      specifically mean until he sees them in context)
+    - how the app arrives at a time estimate or a capacity figure
+
+behavior:
+  - frequently forgets assignments exist until they're close to due
+  - starts homework later than he intended to
+  - underestimates how long large projects will take
+  - gets easily overwhelmed when several assignments are due around the
+    same time, and disengages rather than picks one to start
+  - picks up his phone to "just reply to one message" and loses track of
+    time — highly motivated by social interaction, easily pulled off task
+    by it
+  - is firmly committed to attending every football practice and will not
+    treat it as negotiable time
+  - prefers simple interfaces and will not read instructions before trying
+    the obvious thing
+  - is on his iPhone constantly; rarely opens a laptop except when a task
+    specifically requires one
+
+expectations:
+  - the app tells him plainly what to do next, without him having to
+    review a long task list to figure it out himself
+  - the app already knows about football and doesn't suggest he do
+    homework during practice
+  - he can lose track of time on his phone without the app making him
+    feel like he's failing
+  - he is not made to feel that keeping up with school means giving up
+    football or time with his girlfriend
+  - a good planning session is quick enough to fit before he's already
+    moved on to something else
+  - he is not nagged the way a parent repeatedly asking "is your homework
+    done?" nags
+
+accessibility:
+  viewport: mobile
+  input_method: touch

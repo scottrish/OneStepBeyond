@@ -7,9 +7,14 @@ standards, UI quality bar, and Claude Code tooling) this project follows.
 
 ## Getting started
 
+This project develops against a **local Supabase stack**, not a hosted
+project (see `docs/decisions/20260814-local-supabase-for-initial-development.md`).
+Full setup instructions, including the one-time local Supabase setup, are
+in [`DEVELOPMENT.md`](DEVELOPMENT.md).
+
 ```bash
 npm install
-cp .env.example .env.local   # then fill in your Supabase project's URL and anon key
+# then follow DEVELOPMENT.md to start the local Supabase stack and configure .env.local
 npm run dev
 ```
 

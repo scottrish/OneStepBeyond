@@ -1,26 +1,28 @@
-# EXAMPLE mission — copy this file, rename it, point it at a real persona for this application,
-# and describe the mission
+# feature specification and a real persona for this application.
 
-id: evaluate-initial-setup
-name: Evaluate setting up courses, 
+id: example-evaluate-core-workflow
+name: Evaluate the workflow to create courses and assignments.
 
-persona: example-first-time-user
+persona: student-alex-carter
 
 feature:
-  name: "[Name of the feature under assessment]"
-  specification: docs/features/[feature-name].md
+  name: "Course and Assignment Setup"
+  specifications:
+  - docs/features/course-setup.md
+  - docs/features/assignment-capture.md
 
 starting_point:
   authentication: authenticated
   page: application-home
 
 mission: >
-  Explore the application and determine how to complete its core workflow.
+  Explore the application and determine how to create course and assignments.
+  Then create sample courses typical for a 9th grader. Finally create some assignments.
   Proceed far enough to understand the experience and assess whether you
   would feel confident completing it without assistance.
 
 evaluation_focus:
-  - discoverability of the capability under assessment
+  - discoverability of the course and assignment creation capabilities
   - clarity of terminology
   - clarity of required information
   - organization and sequencing of the workflow
@@ -41,7 +43,13 @@ interaction_rules:
 
 data:
   # Replace with realistic sample data for this application's core workflow.
-  example_field: example_value
+  courses:
+    - name: "Algebra I"
+      teacher: "Mr. Smith"
+    - name: "Biology"
+      teacher: "Ms. Johnson"
+    - name: "English Literature"
+      teacher: "Mrs. Lee"
 
 completion_condition: >
   Stop after the core workflow has been completed, or earlier if the

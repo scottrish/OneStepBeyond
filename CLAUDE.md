@@ -2,17 +2,16 @@
 
 ## Purpose
 
-Replace this section with a one- or two-sentence description of the
-application once its purpose is settled. This file otherwise stays as-is
-as the project grows.
-
+One Step Beyond is a mobile-first web application that helps secondary school students (Grades 8–12) develop independent executive functioning skills through planning, organization, task management, reflection, and coaching.
 ---
 
 # Project Documentation
 
 Read these documents if they exist:
 
-- `docs/requirements.md`
+- `docs/Product-Vision.md`
+- `docs/Domain-Model.md`
+- `docs/Design-Principles.md`
 - `docs/decisions/README.md`
 
 Feature specifications are stored under:
@@ -38,7 +37,7 @@ Before making a significant product, domain, or architectural decision:
 Before implementing any feature:
 
 1. Read the feature specification.
-2. Verify it is consistent with `docs/requirements.md`.
+2. Verify it is consistent with `docs/ProductVision.md`.
 3. If requirements are ambiguous, stop and ask.
 4. Do not implement functionality outside the feature scope.
 5. Preserve existing behaviour unless requirements explicitly change it.
@@ -74,23 +73,19 @@ feature.
 
 ## You Aren't Going to Need It
 
+The shared domain model describes concepts and relationships that matter — it is a guide to correctness, not a prescription for what to implement today.
+
 Before introducing a new table, entity, or abstraction, confirm that the
 current feature genuinely requires it. A concept can be acknowledged in a
 decision record or code comment without becoming a database table this
 increment. If a future feature needs a richer model, introduce it then.
 
-This applies directly to the app's eventual platform direction: this is a
-mobile-first web app that **may** later become a PWA and/or get wrapped in
-something like Capacitor for native distribution. Don't install PWA
-tooling, service workers, or Capacitor speculatively — build the web app
-well (mobile-first, responsive, accessible) and add that tooling as its own
-increment if and when it's actually needed. If a decision is made to move
+This applies directly to the app's eventual platform direction: this is a mobile-first web app that **may** later become a PWA and/or get wrapped in something like Capacitor for native distribution. Don't install PWA tooling, service workers, or Capacitor speculatively — build the web app well (mobile-first, responsive, accessible) and add that tooling as its own increment if and when it's actually needed. If a decision is made to move
 in that direction, record it in `docs/decisions/`.
 
 Ask before building:
 - Does any acceptance criterion in the current feature require this?
-- Would omitting it force a correctness-breaking workaround, or just defer
-  work?
+- Would omitting it force a correctness-breaking workaround, or just defer work?
 - Can the simpler approach be migrated cleanly if the need arises later?
 
 If the answers are no, no, and yes — keep it simple.
@@ -193,7 +188,7 @@ They are generic — none assume any specific application's data model.
 
 ## Skills
 
-- **`analyze-feature`** (`.claude/commands/analyze-feature/`) — produces a
+- **`analyze-feature`** (`.claude/skills/analyze-feature/`) — produces a
   read-only build plan for a `docs/features/*.md` spec (feature summary,
   requirements review, domain review, architecture review, implementation
   plan, testing plan, risks) without modifying any files. Use this before
@@ -208,6 +203,14 @@ They are generic — none assume any specific application's data model.
   Mermaid diagrams) for this application. Useful periodically as the
   application grows, and especially before a significant refactor or
   before onboarding to an unfamiliar part of the codebase.
+- **`run-iterative-playwright-development`** (`.claude/skills/`) —
+  **experimental, not the normal development process.** Runs
+  `docs/iterative-development-playwright-process.md`'s unattended
+  analyze/tag/build/evaluate/commit loop (up to 3 iterations) inside an
+  isolated git worktree, driven by an independent synthetic persona
+  assessment rather than the feature spec itself. Only invoke this when
+  explicitly asked to run that experiment — normal feature work uses
+  `analyze-feature` and the ordinary tagging/commit rules in this file.
 
 ## Agents
 
