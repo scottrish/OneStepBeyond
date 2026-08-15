@@ -7,7 +7,23 @@ iterations:
   - number: 1
     tag: dev-assignment-capture-i1-start
     spec: docs/features/assignment-capture.md
-    commit: null
-    status: in-progress
-    stop_after: null
-status: in-progress
+    commit: 8d07589
+    status: complete
+    stop_after: true
+    findings_summary: >
+      Zero implementation defects. Capture form, chip semantics, and the
+      "+" entry point all worked cleanly (preserved_behaviour). One
+      specification_gap (FINDING-AC-005, no post-save visibility on Home
+      or Courses) is explicitly out of scope for assignment-capture.md by
+      design — depends on assignment-management.md and home-dashboard.md,
+      neither built yet — kept at low severity so it does not drive
+      another iteration. FINDING-AC-004 (zero-courses redirect) is a
+      minor spec-documentation opportunity (the UX Flow doesn't describe
+      this case, though the built behavior is good) — informational
+      severity, not blocking, optionally worth folding into the spec text
+      directly rather than a derived iteration.
+    unresolved_out_of_scope:
+      - FINDING-AC-005: No post-save visibility on Home or Courses;
+          tracked by Roadmap Phase 2 (assignment-management.md) and
+          Phase 5 (home-dashboard.md), not this feature.
+status: stopped-complete
