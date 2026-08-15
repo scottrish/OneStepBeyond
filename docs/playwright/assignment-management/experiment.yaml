@@ -7,7 +7,7 @@ iterations:
   - number: 1
     tag: dev-assignment-management-i1-start
     spec: docs/features/assignment-management.md
-    commit: null
-    status: in-progress
-    stop_after: null
+    commit: b620e42
+    status: complete
+    stop_after: false
 status: in-progress
