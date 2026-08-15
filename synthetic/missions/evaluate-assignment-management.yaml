@@ -1,0 +1,94 @@
+# A real mission for this application, evaluated by a real persona
+# (synthetic/personas/student-alex-carter.yaml) — independent of the
+# feature specification it's assessed against, per
+# synthetic/protocol/persona-assessment.md.
+
+id: evaluate-assignment-management
+name: Evaluate the workflow to view, edit, complete, and delete assignments.
+
+persona: student-alex-carter
+
+feature:
+  name: "Assignment Management"
+  specifications:
+  - docs/features/assignment-management.md
+  - docs/features/assignment-capture.md
+  - docs/features/course-setup.md
+
+starting_point:
+  authentication: authenticated
+  page: application-home
+
+mission: >
+  Explore the application and figure out where your assignments live once
+  you've captured them. If you don't already have any courses or
+  assignments, set up a couple of classes and log a few assignments first
+  — you already know how to do that. Then find your list of assignments,
+  open one to see what's left on it, change something about one (its due
+  date, its title, or something else), mark one assignment as fully done,
+  and see what it takes to remove an assignment you no longer need.
+  Proceed far enough to understand the experience and assess whether you
+  would feel confident managing your assignments without assistance.
+
+evaluation_focus:
+  - discoverability of where the assignment list lives
+  - clarity of what's shown for each assignment (what's left, due date, course)
+  - clarity of the distinction between editing an assignment and marking it complete
+  - confidence that an edit actually saved
+  - confidence that "mark complete" did what was expected
+  - whether deleting an assignment feels safe (confirmation when it should
+    ask, no confirmation when it shouldn't)
+  - clarity of adding a step ("Add another step") versus the assignment itself
+  - organization and sequencing of the workflow
+  - usability on a small (mobile) viewport specifically
+  - points where the persona would seek help or abandon the task
+
+interaction_rules:
+  - interact only through the visible user interface
+  - do not inspect source code, database records, or network requests
+  - do not use knowledge of the application's implementation
+  - do not follow a predetermined click sequence
+  - make choices consistent with the persona definition
+  - record uncertainty before attempting an action
+  - do not invent information that the interface does not provide
+  - stop if the persona would realistically seek help or abandon the task
+
+data:
+  # Replace with realistic sample data for this application's core workflow.
+  courses:
+    - name: "Algebra I"
+      teacher: "Mr. Smith"
+    - name: "Biology"
+      teacher: "Ms. Johnson"
+    - name: "English Literature"
+      teacher: "Mrs. Lee"
+  assignments:
+    - title: "Worksheet 12"
+      course: "Algebra I"
+      due_in_days: 2
+      effort: "45m"
+    - title: "Cell structure reading"
+      course: "Biology"
+      due_in_days: 5
+      effort: "30m"
+    - title: "Essay outline"
+      course: "English Literature"
+      due_in_days: 1
+      effort: "1h"
+
+completion_condition: >
+  Stop once the persona has viewed the assignment list, edited one
+  assignment, marked one complete, and attempted to delete one — or
+  earlier if the persona cannot confidently determine how to proceed.
+
+report_sections:
+  - overall reaction
+  - initial interpretation of the page
+  - actions attempted
+  - what was clear
+  - sources of uncertainty
+  - incorrect assumptions
+  - points of friction
+  - confidence at the end of the assessment
+  - likely feedback in the persona's own words
+  - recommendations

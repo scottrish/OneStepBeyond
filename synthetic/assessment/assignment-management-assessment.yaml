@@ -1,0 +1,23 @@
+id: assignment-management-assessment
+code: AM
+
+persona: personas/student-alex-carter.yaml
+
+mission: missions/evaluate-assignment-management.yaml
+
+protocol: protocol/persona-assessment.md
+
+authentication:
+  account: default
+
+browser:
+  viewport: mobile
+  browser: chromium
+
+outputs:
+  directory: reports/assignment-management-assessment
+  report: report.md
+  findings: findings.yaml
+  screenshots: screenshots/
+  transcript: transcript.md
+  trace: trace.zip
