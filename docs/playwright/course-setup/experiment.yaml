@@ -18,7 +18,18 @@ iterations:
   - number: 2
     tag: dev-course-setup-i2-start
     spec: docs/features/iterations/course-setup/course-setup.i02.md
-    commit: null
-    status: in-progress
-    stop_after: null
-status: in-progress
+    commit: 07309d4
+    status: complete
+    stop_after: true
+    findings_summary: >
+      All four iteration 1 defects (FINDING-IS-001 through 004) confirmed
+      resolved. Persona completed course creation (x3) and in-place rename
+      with no friction. Only remaining open finding is FINDING-IS-005
+      (no assignment-creation path), severity low and explicitly out of
+      scope for course-setup — belongs to assignment-capture.md. Stop
+      rule: no open finding at {implementation_defect, specification_gap,
+      ux_improvement} x {high, medium} — stopping.
+    unresolved_out_of_scope:
+      - FINDING-IS-005: No assignment-creation path exists; tracked under
+          docs/features/assignment-capture.md, not this feature.
+status: stopped-complete
