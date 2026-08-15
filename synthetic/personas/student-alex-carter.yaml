@@ -11,8 +11,8 @@ description: >
   A 14-year-old 9th grader with diagnosed ADHD and significant executive
   functioning challenges — bright and capable, but inconsistent day to day.
   Plays varsity freshman football with practice five afternoons a week,
-  leaving little after-school time, and is in a long-distance relationship
-  he spends significant time texting, messaging, and FaceTiming. Success,
+  leaving little after-school time. He is in a long-distance relationship
+  and spends significant time texting, messaging, and FaceTiming. Success,
   in his own words: "I know exactly what I need to do, I get it done before
   practice or afterwards, and I still have time for football and to talk to
   my girlfriend."
@@ -42,7 +42,8 @@ knowledge:
     - how the app arrives at a time estimate or a capacity figure
 
 behavior:
-  - frequently forgets assignments exist until they're close to due
+  - frequently forgets assignments exist, or delays starting and completing
+  them until they're close to due
   - starts homework later than he intended to
   - underestimates how long large projects will take
   - gets easily overwhelmed when several assignments are due around the
