@@ -1,0 +1,177 @@
+assessment_id: initial-setup-assessment
+persona: student-alex-carter
+mission: evaluate-initial-setup
+date: 2026-08-14
+iteration: 1
+
+findings:
+  - id: FINDING-IS-001
+    title: Loading and creating courses fails outright (HTTP 403)
+    perspective: evaluator
+    type: implementation_defect
+    severity: high
+    confidence: high
+    description: >
+      Every request to the `courses` table (the initial list fetch, and the
+      insert on Add) returns HTTP 403 Forbidden from PostgREST. RLS policies
+      on `public.courses` are correctly scoped to `auth.uid() = student_id`,
+      but no explicit `GRANT` was added for the `authenticated` role. Local
+      Supabase's `auto_expose_new_tables` legacy behavior is off by default
+      (see supabase/config.toml's comment on that setting), so a table with
+      RLS enabled but no grant denies every request outright rather than
+      RLS silently filtering rows.
+    evidence:
+      - synthetic/reports/initial-setup-assessment/screenshots/i01-02-courses-after-failed-add.png
+      - "Console: 'Failed to load resource: the server responded with a status of 403 (Forbidden)' on GET and POST to /rest/v1/courses"
+    impact: >
+      The entire Course Setup feature is non-functional as deployed to the
+      local stack — a student cannot view, create, or (by extension) rename
+      any course.
+    recommendation: >
+      Add explicit GRANTs (select, insert, update on public.courses to
+      authenticated) to the migration, or set auto_expose_new_tables — the
+      former is more explicit and matches the RLS-driven access model
+      already in place.
+
+  - id: FINDING-IS-002
+    title: Failures surface to the student as a raw "[object Object]" alert
+    perspective: both
+    type: implementation_defect
+    severity: high
+    confidence: high
+    description: >
+      `useCourses.ts`'s error handler falls back to `String(error)` when the
+      caught value isn't an `Error` instance. Supabase/PostgREST errors are
+      plain objects, not `Error` instances, so `String(error)` produces the
+      literal text "[object Object]" instead of the underlying message.
+    persona_observation: >
+      Alex saw a popup flash the text "[object Object]" twice in a row after
+      trying to add a class. He had no idea what it meant — it didn't look
+      like a real message, just broken text — and it made him trust the app
+      less rather than telling him what to do differently.
+    evaluator_observation: >
+      This is independent of FINDING-IS-001: even once the 403 is fixed,
+      any future error (network blip, validation failure, etc.) would still
+      render this same unhelpful text, because the fallback path itself is
+      broken, not just its current trigger.
+    evidence:
+      - "Alert dialog text observed twice: '[object Object]'"
+    recommendation: >
+      Fix the fallback to read `error.message` when present on any
+      error-like object, not only on `instanceof Error`. Longer term,
+      replace `alert()`-based error surfacing with an in-page, calmer
+      error state consistent with Design-Principles.md's "Design for Calm."
+
+  - id: FINDING-IS-003
+    title: Failed "Add course" clears the input as if it had succeeded
+    perspective: both
+    type: implementation_defect
+    severity: medium
+    confidence: high
+    description: >
+      `CoursesPage`'s `handleAdd` clears `newCourseName` unconditionally
+      after calling `addCourse`, even though `addCourse` swallows its own
+      error (alerts and returns). The typed course name disappears from the
+      field while nothing was actually saved.
+    persona_observation: >
+      After the popup, Alex's typed course name was gone from the box and
+      the "Add course" button greyed out again — the same as what happens
+      right after a successful add would look like. He said "wait, did that
+      work?" and went to double check by leaving and coming back to the
+      Courses screen.
+    evidence:
+      - synthetic/reports/initial-setup-assessment/screenshots/i01-02-courses-after-failed-add.png
+    recommendation: >
+      Only clear the input when `addCourse` actually succeeds — have it
+      report success/failure to the caller rather than swallowing the
+      error internally.
+
+  - id: FINDING-IS-004
+    title: A failed course list fetch renders the same as a genuinely empty list
+    perspective: evaluator
+    type: implementation_defect
+    severity: medium
+    confidence: high
+    description: >
+      When `listCourses` rejects, the hook alerts once and then sets
+      `loading` to false while `courses` stays `[]` — visually
+      indistinguishable from a new student who has zero courses. There is
+      no persistent error state on the page itself.
+    evidence:
+      - synthetic/reports/initial-setup-assessment/screenshots/i01-02-courses-after-failed-add.png
+    recommendation: >
+      Track a distinct error state and render it instead of (or alongside)
+      the empty-state copy when the initial fetch fails.
+
+  - id: FINDING-IS-005
+    title: No path to create an assignment exists yet
+    perspective: persona
+    type: specification_gap
+    severity: low
+    confidence: high
+    scope_note: >
+      Out of scope for docs/features/course-setup.md — belongs to
+      docs/features/assignment-capture.md, which has not been built. Noted
+      for completeness since the mission asked Alex to also create
+      assignments; should not drive course-setup's own iteration decision.
+    persona_observation: >
+      Even setting the broken course creation aside, Alex never saw
+      anything on the Home screen referencing assignments, homework, or a
+      "+" button — nothing to explore in that direction yet.
+    evidence:
+      - synthetic/reports/initial-setup-assessment/screenshots/i01-03-home-after-abandon.png
+
+  - id: FINDING-IS-006
+    title: The gear icon was the only affordance, and Alex found it
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: medium
+    description: >
+      Home's only interactive elements are the gear icon and Sign out.
+      Alex tapped the gear fairly directly and it led to a screen labeled
+      "Courses," which read as a reasonable destination once there.
+    caveat: >
+      Low confidence this generalizes — with only one plausible button to
+      try, this doesn't yet demonstrate real discoverability against
+      competing options (e.g. once Activities or other settings exist
+      alongside it).
+    evidence:
+      - synthetic/reports/initial-setup-assessment/screenshots/i01-01-home-initial.png
+
+summary:
+  assessment:
+    id: initial-setup-assessment
+    feature: course-setup
+    persona: student-alex-carter
+
+  outcome:
+    status: blocked
+    completion: false
+    final_confidence: very-low
+
+  findings:
+    total: 6
+    issues: 4
+    positives: 1
+    hypotheses: 0
+
+  recommendations:
+    implementation_defects: 4
+    specification_gaps: 1
+    ux_improvements: 0
+    validation_items: 0
+    preserved_behaviour: 1
+
+  highest_severity: high
+
+  supporting_findings:
+    implementation_defects:
+      - FINDING-IS-001
+      - FINDING-IS-002
+      - FINDING-IS-003
+      - FINDING-IS-004
+    specification_gaps:
+      - FINDING-IS-005
+    preserved_behaviour:
+      - FINDING-IS-006

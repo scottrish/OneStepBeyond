@@ -1,0 +1,13 @@
+feature_slug: course-setup
+feature_spec: docs/features/course-setup.md
+assessment: synthetic/assessment/initial-setup-assessment.yaml
+worktree_path: ../OneStepBeyond-experiments/course-setup
+branch: experiment/course-setup
+iterations:
+  - number: 1
+    tag: dev-course-setup-i1-start
+    spec: docs/features/course-setup.md
+    commit: null
+    status: in-progress
+    stop_after: null
+status: in-progress
