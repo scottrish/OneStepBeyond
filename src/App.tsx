@@ -19,7 +19,9 @@ export default function App() {
     <AppShell activeTab={activeTab} onTabChange={setActiveTab}>
       {activeTab === "home" && <HomePage user={user} signOut={signOut} />}
       {activeTab === "plan" && <PlanPage />}
-      {activeTab === "assignments" && <AssignmentsPage />}
+      {activeTab === "assignments" && (
+        <AssignmentsPage user={user} onGoToHome={() => setActiveTab("home")} />
+      )}
     </AppShell>
   );
 }

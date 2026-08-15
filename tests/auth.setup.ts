@@ -20,8 +20,11 @@ setup("authenticate administrator", async ({ page }) => {
   // No router in the app yet (added when a feature needs one, per
   // CLAUDE.md) — App.tsx swaps rendered content on auth state without
   // changing the URL, so success is signaled by content, not navigation.
+  // Sign out lives behind Settings now (see docs/features/home-dashboard.md's
+  // Navigation section), so the Home heading — always visible right after
+  // login — is the stable signal instead.
   await expect(
-    page.getByRole("button", { name: /sign out/i }),
+    page.getByRole("heading", { name: /home/i }),
   ).toBeVisible();
 
   await page.context().storageState({
