@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { Button } from "@/components/ui/button";
 import CoursesPage from "./CoursesPage";
 
 type HomePageProps = {
@@ -15,32 +16,23 @@ export default function HomePage({ user, signOut }: HomePageProps) {
   }
 
   return (
-    <main style={{ padding: 32 }}>
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <h1>Home</h1>
-        <button
+    <main className="p-8">
+      <header className="flex items-center justify-between">
+        <h1 className="text-3xl">Home</h1>
+        <Button
           aria-label="Settings"
+          variant="ghost"
+          size="icon"
           onClick={() => setView("courses")}
-          style={{
-            minWidth: 44,
-            minHeight: 44,
-            background: "none",
-            border: "none",
-            fontSize: 24,
-            cursor: "pointer",
-          }}
+          className="text-2xl"
         >
           ⚙️
-        </button>
+        </Button>
       </header>
-      <p>You are logged in as {user.email}</p>
-      <button onClick={signOut}>Sign out</button>
+      <p className="mt-4">You are logged in as {user.email}</p>
+      <Button variant="outline" onClick={signOut} className="mt-6">
+        Sign out
+      </Button>
     </main>
   );
 }

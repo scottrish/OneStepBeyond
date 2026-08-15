@@ -1,42 +1,133 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens ported verbatim (oklch values, radius scale, fonts) from
+ * ../OneStepBeyondPrototype/src/styles.css — see
+ * docs/decisions/20260814-adopt-prototype-visual-design-toolchain.md and
+ * docs/features/design-system-adoption.md. Do not convert these to hex;
+ * the prototype defines its whole palette in oklch.
+ *
+ * Dark mode is wired via `prefers-color-scheme`, not the prototype's
+ * `.dark` class toggle — a manual light/dark switch is out of scope for
+ * this increment (design-system-adoption.md), so there's nothing to add
+ * the class. Automatic system-preference switching matches this file's
+ * previous behavior, which a class-only approach would have regressed.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-course-1: var(--course-1);
+  --color-course-2: var(--course-2);
+  --color-course-3: var(--course-3);
+  --color-course-4: var(--course-4);
+  --color-course-5: var(--course-5);
+  --color-attention: var(--attention);
+  --color-attention-foreground: var(--attention-foreground);
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+}
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  --radius: 1rem;
+  --background: oklch(0.982 0.008 88);
+  --foreground: oklch(0.28 0.022 210);
+  --card: oklch(0.998 0.004 88);
+  --card-foreground: oklch(0.28 0.022 210);
+  --popover: oklch(0.998 0.004 88);
+  --popover-foreground: oklch(0.28 0.022 210);
+  --primary: oklch(0.52 0.068 188);
+  --primary-foreground: oklch(0.99 0.006 88);
+  --secondary: oklch(0.945 0.012 88);
+  --secondary-foreground: oklch(0.33 0.024 210);
+  --muted: oklch(0.948 0.01 88);
+  --muted-foreground: oklch(0.52 0.018 215);
+  --accent: oklch(0.93 0.028 185);
+  --accent-foreground: oklch(0.33 0.05 195);
+  --destructive: oklch(0.55 0.16 28);
+  --destructive-foreground: oklch(0.99 0.006 88);
+  --border: oklch(0.9 0.012 88);
+  --input: oklch(0.9 0.012 88);
+  --ring: oklch(0.52 0.068 188);
+  --attention: oklch(0.94 0.05 70);
+  --attention-foreground: oklch(0.42 0.1 55);
+  --course-1: oklch(0.6 0.09 25);
+  --course-2: oklch(0.55 0.09 155);
+  --course-3: oklch(0.55 0.08 65);
+  --course-4: oklch(0.55 0.09 300);
+  --course-5: oklch(0.55 0.09 245);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
+    --background: oklch(0.129 0.042 264.695);
+    --foreground: oklch(0.984 0.003 247.858);
+    --card: oklch(0.208 0.042 265.755);
+    --card-foreground: oklch(0.984 0.003 247.858);
+    --popover: oklch(0.208 0.042 265.755);
+    --popover-foreground: oklch(0.984 0.003 247.858);
+    --primary: oklch(0.929 0.013 255.508);
+    --primary-foreground: oklch(0.208 0.042 265.755);
+    --secondary: oklch(0.279 0.041 260.031);
+    --secondary-foreground: oklch(0.984 0.003 247.858);
+    --muted: oklch(0.279 0.041 260.031);
+    --muted-foreground: oklch(0.704 0.04 256.788);
+    --accent: oklch(0.279 0.041 260.031);
+    --accent-foreground: oklch(0.984 0.003 247.858);
+    --destructive: oklch(0.704 0.191 22.216);
+    --destructive-foreground: oklch(0.984 0.003 247.858);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.551 0.027 264.364);
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  .font-display {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
   }
 }
 
@@ -50,43 +141,4 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 36px;
-  letter-spacing: -1.08px;
-  margin: 20px 0;
-}
-
-h2 {
-  font-size: 20px;
-  line-height: 118%;
-  letter-spacing: -0.2px;
-  margin: 0 0 8px;
-}
-
-p {
-  margin: 0;
-}
-
-code {
-  font-family: var(--mono);
-  font-size: 15px;
-  line-height: 135%;
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-  padding: 4px 8px;
-  background: var(--code-bg);
 }

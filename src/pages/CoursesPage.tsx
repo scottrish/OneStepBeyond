@@ -1,20 +1,15 @@
 import { useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import type { User } from "@supabase/supabase-js";
-import { courseColorHex } from "../domain/courseColor";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { courseColorValue } from "../domain/courseColor";
 import { useCourses } from "../hooks/useCourses";
 
 type CoursesPageProps = {
   user: User;
   onBack: () => void;
-};
-
-const errorBoxStyle = {
-  border: "1px solid var(--border)",
-  borderRadius: 4,
-  padding: 12,
-  marginBottom: 16,
-  color: "var(--text-h)",
 };
 
 export default function CoursesPage({ user, onBack }: CoursesPageProps) {
@@ -63,40 +58,25 @@ export default function CoursesPage({ user, onBack }: CoursesPageProps) {
   }
 
   return (
-    <main style={{ padding: 32, maxWidth: 420 }}>
-      <button
-        onClick={onBack}
-        style={{
-          minHeight: 44,
-          minWidth: 44,
-          background: "none",
-          border: "none",
-          color: "var(--text-h)",
-          font: "inherit",
-          padding: 0,
-          marginBottom: 12,
-          cursor: "pointer",
-        }}
-      >
+    <main className="mx-auto w-full max-w-[420px] p-8">
+      <Button variant="ghost" onClick={onBack} className="mb-3 -ml-3 px-3">
         ← Back
-      </button>
+      </Button>
 
-      <h1>Courses</h1>
+      <h1 className="mb-4 text-3xl">Courses</h1>
 
       {loadError && (
-        <div role="alert" style={errorBoxStyle}>
-          <p style={{ marginBottom: 8 }}>Couldn&rsquo;t load your courses.</p>
-          <button
-            onClick={retry}
-            style={{ minHeight: 44, minWidth: 44 }}
-          >
-            Try again
-          </button>
+        <div
+          role="alert"
+          className="mb-4 rounded-lg border border-destructive bg-card p-3 text-card-foreground"
+        >
+          <p className="mb-2 text-sm">Couldn&rsquo;t load your courses.</p>
+          <Button onClick={retry}>Try again</Button>
         </div>
       )}
 
       {!loading && !loadError && courses.length === 0 && (
-        <p style={{ marginBottom: 16 }}>
+        <p className="mb-4 text-muted-foreground">
           No courses yet.
           <br />
           Add your first class so you can start capturing assignments.
@@ -104,59 +84,36 @@ export default function CoursesPage({ user, onBack }: CoursesPageProps) {
       )}
 
       {courses.length > 0 && (
-        <ul style={{ listStyle: "none", padding: 0, margin: "0 0 16px" }}>
+        <ul className="mb-4 list-none p-0">
           {courses.map((course) => (
             <li
               key={course.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                borderBottom: "1px solid var(--border)",
-              }}
+              className="flex items-center gap-3 border-b border-border py-1"
             >
               <span
                 aria-hidden="true"
-                style={{
-                  width: 16,
-                  height: 16,
-                  borderRadius: "50%",
-                  flexShrink: 0,
-                  background: courseColorHex(course.colorIndex),
-                }}
+                className="h-4 w-4 shrink-0 rounded-full"
+                style={{ background: courseColorValue(course.colorIndex) }}
               />
 
               {editingId === course.id ? (
-                <input
+                <Input
                   aria-label={`Rename ${course.name}`}
                   value={editingName}
                   onChange={(event) => setEditingName(event.target.value)}
                   onBlur={commitEdit}
                   onKeyDown={handleEditKeyDown}
                   autoFocus
-                  style={{
-                    flex: 1,
-                    minHeight: 44,
-                    font: "inherit",
-                    color: "var(--text-h)",
-                  }}
+                  className="flex-1"
                 />
               ) : (
-                <button
+                <Button
+                  variant="ghost"
                   onClick={() => startEditing(course.id, course.name)}
-                  style={{
-                    flex: 1,
-                    minHeight: 44,
-                    textAlign: "left",
-                    background: "none",
-                    border: "none",
-                    font: "inherit",
-                    color: "var(--text-h)",
-                    cursor: "pointer",
-                  }}
+                  className="h-11 flex-1 justify-start px-2 font-normal"
                 >
                   {course.name}
-                </button>
+                </Button>
               )}
             </li>
           ))}
@@ -164,33 +121,27 @@ export default function CoursesPage({ user, onBack }: CoursesPageProps) {
       )}
 
       <form onSubmit={handleAdd}>
-        <label htmlFor="new-course-name" style={{ display: "block", marginBottom: 4 }}>
-          What&rsquo;s it called?
-        </label>
-        <input
-          id="new-course-name"
-          value={newCourseName}
-          onChange={(event) => setNewCourseName(event.target.value)}
-          style={{
-            display: "block",
-            width: "100%",
-            minHeight: 44,
-            marginBottom: 8,
-            boxSizing: "border-box",
-          }}
-        />
+        <div className="mb-2 flex flex-col gap-1.5">
+          <Label htmlFor="new-course-name">What&rsquo;s it called?</Label>
+          <Input
+            id="new-course-name"
+            value={newCourseName}
+            onChange={(event) => setNewCourseName(event.target.value)}
+          />
+        </div>
+
         {actionError && (
-          <p role="alert" style={{ ...errorBoxStyle, marginBottom: 8 }}>
+          <p
+            role="alert"
+            className="mb-2 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground"
+          >
             {actionError}
           </p>
         )}
-        <button
-          type="submit"
-          disabled={newCourseName.trim() === ""}
-          style={{ minHeight: 44, minWidth: 44 }}
-        >
+
+        <Button type="submit" disabled={newCourseName.trim() === ""}>
           Add course
-        </button>
+        </Button>
       </form>
     </main>
   );

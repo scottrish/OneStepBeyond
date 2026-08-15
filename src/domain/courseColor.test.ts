@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   COURSE_COLOR_PALETTE,
   assignCourseColor,
-  courseColorHex,
+  courseColorValue,
 } from "./courseColor";
 
 describe("assignCourseColor", () => {
@@ -21,13 +21,13 @@ describe("assignCourseColor", () => {
   });
 });
 
-describe("courseColorHex", () => {
-  it("returns the hex value for a color index", () => {
-    expect(courseColorHex(0)).toBe(COURSE_COLOR_PALETTE[0]);
+describe("courseColorValue", () => {
+  it("returns the CSS color value for a color index", () => {
+    expect(courseColorValue(0)).toBe(COURSE_COLOR_PALETTE[0]);
   });
 
   it("wraps out-of-range indexes back into the palette", () => {
-    expect(courseColorHex(COURSE_COLOR_PALETTE.length)).toBe(
+    expect(courseColorValue(COURSE_COLOR_PALETTE.length)).toBe(
       COURSE_COLOR_PALETTE[0],
     );
   });

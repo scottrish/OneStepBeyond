@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type LoginPageProps = {
   signIn: (email: string, password: string) => Promise<void>;
@@ -12,37 +15,46 @@ export default function LoginPage({ signIn, signUp }: LoginPageProps) {
   const isValid = email.trim() !== "" && password.trim() !== "";
 
   return (
-    <main style={{ padding: 32, maxWidth: 420 }}>
-      <h1>Login</h1>
+    <main className="mx-auto w-full max-w-[420px] p-8">
+      <h1 className="mb-6 text-3xl">Login</h1>
 
-      <label htmlFor="email">Email</label>
-      <input
-        id="email"
-        type="email"
-        style={{ display: "block", width: "100%", marginBottom: 12 }}
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
+      <div className="mb-4 flex flex-col gap-1.5">
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </div>
 
-      <label htmlFor="password">Password</label>
-      <input
-        id="password"
-        style={{ display: "block", width: "100%", marginBottom: 12 }}
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+      <div className="mb-6 flex flex-col gap-1.5">
+        <Label htmlFor="password">Password</Label>
+        <Input
+          id="password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      </div>
 
-      <button disabled={!isValid} onClick={() => signIn(email, password)}>
-        Sign in
-      </button>
-      <button
-        disabled={!isValid}
-        onClick={() => signUp(email, password)}
-        style={{ marginLeft: 8 }}
-      >
-        Sign up
-      </button>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button
+          disabled={!isValid}
+          onClick={() => signIn(email, password)}
+          className="w-full sm:w-auto"
+        >
+          Sign in
+        </Button>
+        <Button
+          variant="outline"
+          disabled={!isValid}
+          onClick={() => signUp(email, password)}
+          className="w-full sm:w-auto"
+        >
+          Sign up
+        </Button>
+      </div>
     </main>
   );
 }
