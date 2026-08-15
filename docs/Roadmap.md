@@ -38,11 +38,13 @@ starts, matching CLAUDE.md's "small, independently testable increments."
 
 # Phase 1 — Foundations (no feature dependencies)
 
-| Feature | Spec |
-|---|---|
-| Course Setup | [course-setup.md](features/course-setup.md) |
-| Activities | [activities.md](features/activities.md) |
-| Navigation shell (bottom tab bar + header, no content yet) | subset of [home-dashboard.md](features/home-dashboard.md) |
+**Status: done (2026-08-15).**
+
+| Feature | Spec | Status |
+|---|---|---|
+| Course Setup | [course-setup.md](features/course-setup.md) | Done |
+| Activities | [activities.md](features/activities.md) | Done |
+| Navigation shell (bottom tab bar + header, no content yet) | subset of [home-dashboard.md](features/home-dashboard.md) | Done |
 
 **Why first:** both features are leaves in the dependency graph — nothing
 in Increment 1 depends on anything *they* depend on, and two other specs
@@ -61,18 +63,20 @@ cascading delete — this phase ships create/rename/list only. See
 `course-setup.md`'s "Deviation from the prototype — resolved" section and
 Backlog below.
 
-**Demoable at the end of this phase:** a signed-in student can manage
-their course list and weekly activities; the app shell renders with empty
-Home content.
+**Demoable at the end of this phase (achieved):** a signed-in student can
+manage their course list and weekly activities, reached through a
+Settings list behind Home's header gear icon; the bottom tab bar (Home /
+Plan / Assignments) renders everywhere, with Plan and Assignments showing
+honest "coming soon" placeholders until Phases 2–5 give them real content.
 
 ---
 
 # Phase 2 — Commitments: capture and manage
 
-| Feature | Spec |
-|---|---|
-| Assignment Capture | [assignment-capture.md](features/assignment-capture.md) |
-| Assignment Management | [assignment-management.md](features/assignment-management.md) |
+| Feature | Spec | Status |
+|---|---|---|
+| Assignment Capture | [assignment-capture.md](features/assignment-capture.md) | Done |
+| Assignment Management | [assignment-management.md](features/assignment-management.md) | Not started |
 
 **Why next:** Assignment Capture explicitly depends on Course Setup
 (Phase 1). Assignment Management (list + detail) is the natural
@@ -90,9 +94,9 @@ coaching yet.
 
 # Phase 3 — Understanding & guided breakdown
 
-| Feature | Spec |
-|---|---|
-| Assignment Understanding & Guided Breakdown | [assignment-understanding-and-breakdown.md](features/assignment-understanding-and-breakdown.md) |
+| Feature | Spec | Status |
+|---|---|---|
+| Assignment Understanding & Guided Breakdown | [assignment-understanding-and-breakdown.md](features/assignment-understanding-and-breakdown.md) | Not started |
 
 **Why its own phase:** flagged in its own spec as "the most domain-rich
 feature in this increment" and "the prototype's most sophisticated and
@@ -112,11 +116,11 @@ graduated scaffold ladder, without ever seeing an internal score or level.
 
 # Phase 4 — Planning and execution
 
-| Feature | Spec |
-|---|---|
-| Daily Planning | [daily-planning.md](features/daily-planning.md) |
-| Today Execution (incl. reflection Loop 1) | [today-execution.md](features/today-execution.md) |
-| Week Look-Ahead | [week-lookahead.md](features/week-lookahead.md) |
+| Feature | Spec | Status |
+|---|---|---|
+| Daily Planning | [daily-planning.md](features/daily-planning.md) | Not started |
+| Today Execution (incl. reflection Loop 1) | [today-execution.md](features/today-execution.md) | Not started |
+| Week Look-Ahead | [week-lookahead.md](features/week-lookahead.md) | Not started |
 
 **Why next:** Daily Planning needs open Work Items (Phase 2/3) and
 Activities (Phase 1) to compute realistic capacity. Today Execution is
@@ -145,10 +149,10 @@ week to see where it's crowded.
 
 # Phase 5 — Cross-cutting intelligence and Home
 
-| Feature | Spec |
-|---|---|
-| Risk Detection | [risk-detection.md](features/risk-detection.md) |
-| Home Dashboard (full content) | [home-dashboard.md](features/home-dashboard.md) |
+| Feature | Spec | Status |
+|---|---|---|
+| Risk Detection | [risk-detection.md](features/risk-detection.md) | Not started |
+| Home Dashboard (full content) | [home-dashboard.md](features/home-dashboard.md) | Not started (nav shell already done — Phase 1) |
 
 **Why last:** Risk Detection is a derived read-time computation over
 Assignments, Work Items, Activities, and Planning signals — it has nothing

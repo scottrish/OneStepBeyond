@@ -1,5 +1,15 @@
 # Feature: Home Dashboard & Navigation Shell
 
+**Status:** Partially implemented (2026-08-15). The "Navigation" section
+below — bottom tab bar and the header's Settings list — is built and
+tested (`docs/Roadmap.md` Phase 1). The rest of this spec (the "UX Flow"
+section: Next card, Today's plan summary, Needs Attention, Today's
+activities, Coming up, Ownership note) is **not built** — it's Phase 5,
+deliberately last, since it composes data from Daily Planning, Risk
+Detection, and Activities working end-to-end. Home currently renders only
+its header; the body is still the bare "You are logged in as..." text
+from the auth skeleton.
+
 ## Summary
 
 The student's landing screen and the app shell around every other student

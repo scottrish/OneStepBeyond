@@ -1,5 +1,16 @@
 # Feature: Activities
 
+**Status:** Implemented (2026-08-15). List, add, in-place day-toggle, and
+delete are built and tested. Two things this spec describes aren't yet
+true, both because of what they depend on rather than a gap in this
+feature itself: the "immediately changes... computed study capacity in
+both Planning and Week Look-Ahead" acceptance criterion isn't verifiable
+until `daily-planning.md`/`week-lookahead.md` exist (Phase 4), and only
+the day selection is directly editable in place — changing an existing
+activity's name, times, or travel minutes currently requires delete and
+re-add, since the spec's own UX Flow only calls out day-editing as
+in-place. See `docs/Roadmap.md` Phase 1.
+
 ## Summary
 
 Let a student record recurring non-academic commitments (sports, jobs,

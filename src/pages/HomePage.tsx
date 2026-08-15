@@ -1,9 +1,12 @@
 import { useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { Plus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ActivitiesPage from "./ActivitiesPage";
 import AssignmentCapturePage from "./AssignmentCapturePage";
 import AssignmentDetailPage from "./AssignmentDetailPage";
 import CoursesPage from "./CoursesPage";
+import SettingsPage from "./SettingsPage";
 
 type HomePageProps = {
   user: User;
@@ -12,12 +15,31 @@ type HomePageProps = {
 
 type View =
   | { name: "home" }
+  | { name: "settings" }
+  | { name: "activities" }
   | { name: "courses" }
   | { name: "capture-assignment" }
   | { name: "assignment-detail"; assignmentId: string };
 
 export default function HomePage({ user, signOut }: HomePageProps) {
   const [view, setView] = useState<View>({ name: "home" });
+
+  if (view.name === "settings") {
+    return (
+      <SettingsPage
+        onBack={() => setView({ name: "home" })}
+        onGoToActivities={() => setView({ name: "activities" })}
+        onGoToCourses={() => setView({ name: "courses" })}
+        signOut={signOut}
+      />
+    );
+  }
+
+  if (view.name === "activities") {
+    return (
+      <ActivitiesPage user={user} onBack={() => setView({ name: "home" })} />
+    );
+  }
 
   if (view.name === "courses") {
     return (
@@ -58,25 +80,20 @@ export default function HomePage({ user, signOut }: HomePageProps) {
             variant="ghost"
             size="icon"
             onClick={() => setView({ name: "capture-assignment" })}
-            className="text-2xl"
           >
-            +
+            <Plus className="size-5" />
           </Button>
           <Button
             aria-label="Settings"
             variant="ghost"
             size="icon"
-            onClick={() => setView({ name: "courses" })}
-            className="text-2xl"
+            onClick={() => setView({ name: "settings" })}
           >
-            ⚙️
+            <Settings2 className="size-5" />
           </Button>
         </div>
       </header>
       <p className="mt-4">You are logged in as {user.email}</p>
-      <Button variant="outline" onClick={signOut} className="mt-6">
-        Sign out
-      </Button>
     </main>
   );
 }

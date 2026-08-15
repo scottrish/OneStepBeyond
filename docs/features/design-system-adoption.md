@@ -1,5 +1,11 @@
 # Feature: Design System Adoption
 
+**Status:** Implemented (2026-08-14). Tailwind CSS + shadcn/ui adopted;
+`LoginPage`, `HomePage`, and `CoursesPage` retrofitted. Every screen built
+since (Assignment Capture, Assignment Detail, Activities, Settings, the
+nav shell) was built directly on this toolchain rather than needing its
+own retrofit.
+
 ## Summary
 
 Adopt Tailwind CSS + shadcn/ui — the toolchain `../OneStepBeyondPrototype`

@@ -1,5 +1,13 @@
 # Feature: Assignment Capture
 
+**Status:** Implemented (2026-08-14), merged to `main`. The capture form
+and a minimal read-only detail screen are built and tested, reached from
+Home's "+". One Acceptance Criterion below isn't met yet, deliberately:
+"the assignment appears in Assignments and... Home's 'Coming up'" depends
+on `assignment-management.md` (Phase 2, not started) and
+`home-dashboard.md`'s full content (Phase 5, not started) — see
+`docs/Roadmap.md`.
+
 ## Summary
 
 Let a student record a new academic commitment (an Assignment) in under a

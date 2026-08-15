@@ -1,5 +1,9 @@
 # Feature: Course Setup
 
+**Status:** Implemented (2026-08-15). Create, rename, and list are built
+and tested, matching this spec exactly — deletion remains deferred, as
+specified. See `docs/Roadmap.md` Phase 1.
+
 ## Summary
 
 Let a student maintain their own list of courses, so Assignment Capture has

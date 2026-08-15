@@ -15,6 +15,13 @@ vi.mock("../services/assignmentService", () => ({
   getAssignment: vi.fn(),
 }));
 
+vi.mock("../services/activityService", () => ({
+  listActivities: vi.fn().mockResolvedValue([]),
+  createActivity: vi.fn(),
+  updateActivityDays: vi.fn(),
+  deleteActivity: vi.fn(),
+}));
+
 const user = { id: "student-1", email: "person@example.com" } as User;
 
 describe("HomePage", () => {
@@ -24,21 +31,44 @@ describe("HomePage", () => {
     expect(screen.getByText(/person@example.com/)).toBeInTheDocument();
   });
 
-  it("calls signOut when the sign out button is clicked", async () => {
-    const signOut = vi.fn();
-    render(<HomePage user={user} signOut={signOut} />);
-
-    await userEvent.click(screen.getByRole("button", { name: /sign out/i }));
-
-    expect(signOut).toHaveBeenCalledTimes(1);
-  });
-
-  it("navigates to Courses when the settings button is clicked", async () => {
+  it("navigates to Settings when the settings button is clicked", async () => {
     render(<HomePage user={user} signOut={vi.fn()} />);
 
     await userEvent.click(screen.getByRole("button", { name: /settings/i }));
 
+    expect(
+      await screen.findByRole("heading", { name: /settings/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("navigates to Courses from Settings", async () => {
+    render(<HomePage user={user} signOut={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /settings/i }));
+    await userEvent.click(screen.getByRole("button", { name: /courses/i }));
+
     expect(await screen.findByRole("heading", { name: /courses/i })).toBeInTheDocument();
+  });
+
+  it("navigates to Activities from Settings", async () => {
+    render(<HomePage user={user} signOut={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /settings/i }));
+    await userEvent.click(screen.getByRole("button", { name: /activities/i }));
+
+    expect(
+      await screen.findByRole("heading", { name: /activities/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("calls signOut from Settings", async () => {
+    const signOut = vi.fn();
+    render(<HomePage user={user} signOut={signOut} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /settings/i }));
+    await userEvent.click(screen.getByRole("button", { name: /sign out/i }));
+
+    expect(signOut).toHaveBeenCalledTimes(1);
   });
 
   it("navigates to New Assignment when the + button is clicked", async () => {
