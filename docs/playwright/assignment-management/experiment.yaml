@@ -13,7 +13,7 @@ iterations:
   - number: 2
     tag: dev-assignment-management-i2-start
     spec: docs/features/iterations/assignment-management/assignment-management.i02.md
-    commit: null
-    status: in-progress
-    stop_after: null
-status: in-progress
+    commit: 4ae097a
+    status: complete
+    stop_after: true
+status: stopped-complete
