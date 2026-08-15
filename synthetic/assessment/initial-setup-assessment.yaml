@@ -1,0 +1,23 @@
+id: initial-setup-assessment
+code: IS
+
+persona: personas/student-alex-carter.yaml
+
+mission: missions/evaluate-initial-setup.yaml
+
+protocol: protocol/persona-assessment.md
+
+authentication:
+  account: default
+
+browser:
+  viewport: mobile
+  browser: chromium
+
+outputs:
+  directory: reports/initial-setup-assessment
+  report: report.md
+  findings: findings.yaml
+  screenshots: screenshots/
+  transcript: transcript.md
+  trace: trace.zip

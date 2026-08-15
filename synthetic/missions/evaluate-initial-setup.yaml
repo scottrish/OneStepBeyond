@@ -1,6 +1,9 @@
-# feature specification and a real persona for this application.
+# A real mission for this application, evaluated by a real persona
+# (synthetic/personas/student-alex-carter.yaml) — independent of the
+# feature specification it's assessed against, per
+# synthetic/protocol/persona-assessment.md.
 
-id: example-evaluate-core-workflow
+id: evaluate-initial-setup
 name: Evaluate the workflow to create courses and assignments.
 
 persona: student-alex-carter
