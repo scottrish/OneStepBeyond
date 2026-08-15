@@ -390,6 +390,10 @@ Every screen should answer
 
 "What is the most useful thing this student needs right now?"
 
+The prototype (`OneStepBeyondPrototype`) is the concrete reference for
+what this looks like in practice — new UI should feel like it belongs in
+the same application, not like a different one bolted on beside it.
+
 ---
 
 # Fourteenth Principle

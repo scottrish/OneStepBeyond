@@ -32,18 +32,43 @@ Before making a significant product, domain, or architectural decision:
 
 ---
 
+# Visual & Aesthetic Reference
+
+The sibling repository `../OneStepBeyondPrototype` (a Lovable-built
+prototype) is this application's source of truth for visual design —
+colors, spacing, typography, component chrome, and interaction patterns —
+not just behavior.
+
+Feature specifications under `docs/features/` name a specific prototype
+route as "Source" when a directly matching screen exists (e.g.
+`src/routes/activities.tsx`). When a feature has **no** matching prototype
+screen — as with `course-setup.md` — its UI must still adopt the
+prototype's overall look and feel (component style, spacing scale, color
+tokens) rather than inventing a new aesthetic or falling back to bare,
+unstyled markup.
+
+The prototype is built with Tailwind CSS and shadcn/ui. See
+`docs/decisions/20260814-adopt-prototype-visual-design-toolchain.md` for
+how that interacts with this file's YAGNI guidance on introducing that
+tooling.
+
+---
+
 # Development Workflow
 
 Before implementing any feature:
 
 1. Read the feature specification.
 2. Verify it is consistent with `docs/ProductVision.md`.
-3. If requirements are ambiguous, stop and ask.
-4. Do not implement functionality outside the feature scope.
-5. Preserve existing behaviour unless requirements explicitly change it.
-6. Prefer incremental refactoring over rewrites.
-7. Explain significant architectural changes before implementing them.
-8. Never commit secrets or `.env` files.
+3. Check `../OneStepBeyondPrototype` for a matching screen — or, absent
+   one, its general visual patterns — per "Visual & Aesthetic Reference"
+   above.
+4. If requirements are ambiguous, stop and ask.
+5. Do not implement functionality outside the feature scope.
+6. Preserve existing behaviour unless requirements explicitly change it.
+7. Prefer incremental refactoring over rewrites.
+8. Explain significant architectural changes before implementing them.
+9. Never commit secrets or `.env` files.
 
 ---
 
@@ -111,9 +136,13 @@ Technology stack:
   — see `synthetic/README.md`)
 
 Only React, TypeScript, Vite, and Supabase are installed at the base of
-this template. Add React Router, TanStack Query, Tailwind CSS, shadcn/ui,
-and Oxlint when a feature actually needs them, rather than installing the
-whole list up front.
+this template. Tailwind CSS and shadcn/ui are the exception to "add it
+when a feature needs it": adopt them as soon as UI work begins, since
+they're what `../OneStepBeyondPrototype`'s design system is built on (see
+"Visual & Aesthetic Reference" above and
+`docs/decisions/20260814-adopt-prototype-visual-design-toolchain.md`). Add
+React Router, TanStack Query, and Oxlint separately, only when a feature
+actually needs them.
 
 ---
 
