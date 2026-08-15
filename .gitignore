@@ -38,5 +38,9 @@ coverage
 tests/.auth
 synthetic/reports
 
+# Persona-assessment evidence: keep findings/report/transcript text, not
+# the screenshot binaries — don't commit screenshots to git.
+docs/playwright/**/screenshots/
+
 # Claude Code local settings (personal, may include permission relaxations)
 .claude/settings.local.json
