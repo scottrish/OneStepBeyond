@@ -10,6 +10,11 @@ vi.mock("../services/courseService", () => ({
   renameCourse: vi.fn(),
 }));
 
+vi.mock("../services/assignmentService", () => ({
+  createAssignment: vi.fn(),
+  getAssignment: vi.fn(),
+}));
+
 const user = { id: "student-1", email: "person@example.com" } as User;
 
 describe("HomePage", () => {
@@ -34,5 +39,17 @@ describe("HomePage", () => {
     await userEvent.click(screen.getByRole("button", { name: /settings/i }));
 
     expect(await screen.findByRole("heading", { name: /courses/i })).toBeInTheDocument();
+  });
+
+  it("navigates to New Assignment when the + button is clicked", async () => {
+    render(<HomePage user={user} signOut={vi.fn()} />);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /new assignment/i }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: /new assignment/i }),
+    ).toBeInTheDocument();
   });
 });

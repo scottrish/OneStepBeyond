@@ -1,0 +1,136 @@
+assessment_id: initial-setup-assessment
+persona: student-alex-carter
+mission: evaluate-initial-setup
+feature: assignment-capture
+date: 2026-08-14
+iteration: 1
+
+findings:
+  - id: FINDING-AC-001
+    title: Assignment capture form completed smoothly with no errors
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    description: >
+      Alex selected a course, typed a title, left the due date at its
+      tomorrow default, picked an effort estimate, and saved — all without
+      error, confusion, or needing to backtrack. Clear labels ("What is
+      it?", "How long do you think it will take?"), sensible defaults, and
+      immediate visible confirmation (the detail screen) made this feel
+      fast, matching the spec's "under a minute" goal.
+    persona_observation: >
+      "That was quick. I picked my class, typed what it was, and there was
+      already a date filled in so I didn't have to think about that. The
+      time buttons were easy too, I just picked the one that felt right."
+    evidence:
+      - synthetic/reports/initial-setup-assessment/screenshots/i01-04-capture-form.png
+      - synthetic/reports/initial-setup-assessment/screenshots/i01-05-assignment-detail.png
+
+  - id: FINDING-AC-002
+    title: Course and effort chips behaved as clear single-select groups
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    description: >
+      Tapping a course or effort chip clearly selected it and deselected
+      any other — Alex never tapped more than one by mistake or seemed
+      unsure which one was currently chosen.
+    evidence:
+      - synthetic/reports/initial-setup-assessment/screenshots/i01-04-capture-form.png
+
+  - id: FINDING-AC-003
+    title: The "+" button was correctly understood as "add an assignment"
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: medium
+    description: >
+      With two icons now present (gear and "+"), Alex went straight for
+      "+" as the way to add something new, without hesitating between the
+      two. Stronger discoverability signal than a single-icon screen would
+      give, though still only two options — not yet tested against a
+      busier header.
+    evidence:
+      - synthetic/reports/initial-setup-assessment/screenshots/i01-01-home-initial.png
+
+  - id: FINDING-AC-004
+    title: Zero-courses redirect from New Assignment was clear and actionable
+    perspective: both
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    description: >
+      Reaching New Assignment before any course existed showed a plain
+      explanation and a direct "Add a course" button rather than a dead
+      end or a disabled form with no explanation.
+    evaluator_observation: >
+      This state isn't explicitly specified in assignment-capture.md's UX
+      Flow — it's an inferred addition for a real gap (a new student who
+      taps "+" before "gear"). Worth confirming this is the intended
+      design, not just an implementation default, since a future
+      iteration of the spec itself could describe it explicitly.
+    evidence:
+      - synthetic/reports/initial-setup-assessment/screenshots/i01-02-new-assignment-empty-courses.png
+
+  - id: FINDING-AC-005
+    title: After saving, the assignment is not visible anywhere except the detail screen just shown
+    perspective: persona
+    type: specification_gap
+    severity: low
+    confidence: high
+    scope_note: >
+      Explicitly out of scope for assignment-capture.md by design — the
+      spec's own acceptance criterion ("appears in Assignments and, if due
+      soon, in Home's 'Coming up'") depends on assignment-management.md
+      and home-dashboard.md, neither built yet (Roadmap Phase 2 and 5
+      respectively; this increment's spec explicitly deferred both). Kept
+      at low severity so it does not drive another assignment-capture
+      iteration — the underlying data is correctly saved (confirmed via
+      the detail screen and via re-opening Settings, where the course list
+      was unaffected); only the *surfacing* of it elsewhere is missing,
+      and that's the next planned feature's job, not this one's.
+    persona_observation: >
+      "Wait, I don't see my worksheet anywhere on the home screen now.
+      Did it actually save? I saw it right after I hit save but now
+      it's like it disappeared. I checked the classes page too, just in
+      case, but nothing there either."
+    evidence:
+      - synthetic/reports/initial-setup-assessment/screenshots/i01-06-home-after-save.png
+      - synthetic/reports/initial-setup-assessment/screenshots/i01-07-courses-check.png
+
+summary:
+  assessment:
+    id: initial-setup-assessment
+    feature: assignment-capture
+    persona: student-alex-carter
+
+  outcome:
+    status: completed
+    completion: true
+    final_confidence: high-with-one-doubt
+
+  findings:
+    total: 5
+    issues: 0
+    positives: 4
+    hypotheses: 0
+
+  recommendations:
+    implementation_defects: 0
+    specification_gaps: 1
+    ux_improvements: 0
+    validation_items: 0
+    preserved_behaviour: 4
+
+  highest_severity: low
+
+  supporting_findings:
+    specification_gaps:
+      - FINDING-AC-005
+    preserved_behaviour:
+      - FINDING-AC-001
+      - FINDING-AC-002
+      - FINDING-AC-003
+      - FINDING-AC-004

@@ -1,0 +1,13 @@
+feature_slug: assignment-capture
+feature_spec: docs/features/assignment-capture.md
+assessment: synthetic/assessment/initial-setup-assessment.yaml
+worktree_path: ../OneStepBeyond-experiments/assignment-capture
+branch: experiment/assignment-capture
+iterations:
+  - number: 1
+    tag: dev-assignment-capture-i1-start
+    spec: docs/features/assignment-capture.md
+    commit: null
+    status: in-progress
+    stop_after: null
+status: in-progress

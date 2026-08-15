@@ -1,19 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { assignCourseColor } from "../domain/courseColor";
+import { errorMessage } from "../lib/errorMessage";
 import * as courseService from "../services/courseService";
 import type { Course } from "../services/courseService";
-
-function errorMessage(error: unknown): string {
-  if (
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof (error as { message: unknown }).message === "string"
-  ) {
-    return (error as { message: string }).message;
-  }
-  return String(error);
-}
 
 export function useCourses(studentId: string) {
   const [courses, setCourses] = useState<Course[]>([]);
