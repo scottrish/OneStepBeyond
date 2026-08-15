@@ -33,6 +33,35 @@ describe("useCourses", () => {
     expect(result.current.courses).toEqual([
       { id: "1", name: "Biology", colorIndex: 0 },
     ]);
+    expect(result.current.loadError).toBeNull();
+  });
+
+  it("sets loadError instead of throwing when the initial fetch fails", async () => {
+    mockedService.listCourses.mockRejectedValue(new Error("network down"));
+
+    const { result } = renderHook(() => useCourses("student-1"));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.loadError).toBe("network down");
+    expect(result.current.courses).toEqual([]);
+  });
+
+  it("retry re-fetches and clears loadError", async () => {
+    mockedService.listCourses.mockRejectedValueOnce(new Error("network down"));
+    mockedService.listCourses.mockResolvedValueOnce([
+      { id: "1", name: "Biology", colorIndex: 0 },
+    ]);
+
+    const { result } = renderHook(() => useCourses("student-1"));
+    await waitFor(() => expect(result.current.loadError).toBe("network down"));
+
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.loadError).toBeNull();
+    expect(result.current.courses).toEqual([
+      { id: "1", name: "Biology", colorIndex: 0 },
+    ]);
   });
 
   it("adds a course with the next palette color and appends it locally", async () => {
@@ -48,8 +77,12 @@ describe("useCourses", () => {
     const { result } = renderHook(() => useCourses("student-1"));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(() => result.current.addCourse("Algebra I"));
+    let succeeded: boolean = false;
+    await act(async () => {
+      succeeded = await result.current.addCourse("Algebra I");
+    });
 
+    expect(succeeded).toBe(true);
     expect(mockedService.createCourse).toHaveBeenCalledWith(
       "student-1",
       "Algebra I",
@@ -67,8 +100,12 @@ describe("useCourses", () => {
     const { result } = renderHook(() => useCourses("student-1"));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(() => result.current.addCourse("   "));
+    let succeeded: boolean = true;
+    await act(async () => {
+      succeeded = await result.current.addCourse("   ");
+    });
 
+    expect(succeeded).toBe(false);
     expect(mockedService.createCourse).not.toHaveBeenCalled();
   });
 
@@ -89,17 +126,34 @@ describe("useCourses", () => {
     ]);
   });
 
-  it("alerts and keeps state unchanged when adding fails", async () => {
+  it("sets actionError and returns false when adding fails, using the real error message", async () => {
     mockedService.listCourses.mockResolvedValue([]);
-    mockedService.createCourse.mockRejectedValue(new Error("boom"));
-    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    mockedService.createCourse.mockRejectedValue({ message: "permission denied" });
 
     const { result } = renderHook(() => useCourses("student-1"));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(() => result.current.addCourse("Biology"));
+    let succeeded: boolean = true;
+    await act(async () => {
+      succeeded = await result.current.addCourse("Biology");
+    });
 
-    expect(alertSpy).toHaveBeenCalledWith("boom");
+    expect(succeeded).toBe(false);
+    expect(result.current.actionError).toBe("permission denied");
     expect(result.current.courses).toEqual([]);
+  });
+
+  it("falls back to a stringified error only when no message is present", async () => {
+    mockedService.listCourses.mockResolvedValue([]);
+    mockedService.createCourse.mockRejectedValue("plain string failure");
+
+    const { result } = renderHook(() => useCourses("student-1"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.addCourse("Biology");
+    });
+
+    expect(result.current.actionError).toBe("plain string failure");
   });
 });

@@ -9,8 +9,24 @@ type CoursesPageProps = {
   onBack: () => void;
 };
 
+const errorBoxStyle = {
+  border: "1px solid var(--border)",
+  borderRadius: 4,
+  padding: 12,
+  marginBottom: 16,
+  color: "var(--text-h)",
+};
+
 export default function CoursesPage({ user, onBack }: CoursesPageProps) {
-  const { courses, loading, addCourse, renameCourse } = useCourses(user.id);
+  const {
+    courses,
+    loading,
+    loadError,
+    actionError,
+    retry,
+    addCourse,
+    renameCourse,
+  } = useCourses(user.id);
   const [newCourseName, setNewCourseName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
@@ -18,8 +34,8 @@ export default function CoursesPage({ user, onBack }: CoursesPageProps) {
   async function handleAdd(event: FormEvent) {
     event.preventDefault();
     if (newCourseName.trim() === "") return;
-    await addCourse(newCourseName);
-    setNewCourseName("");
+    const succeeded = await addCourse(newCourseName);
+    if (succeeded) setNewCourseName("");
   }
 
   function startEditing(id: string, currentName: string) {
@@ -28,10 +44,13 @@ export default function CoursesPage({ user, onBack }: CoursesPageProps) {
   }
 
   async function commitEdit() {
-    if (editingId && editingName.trim() !== "") {
-      await renameCourse(editingId, editingName);
+    if (!editingId) return;
+    if (editingName.trim() === "") {
+      setEditingId(null);
+      return;
     }
-    setEditingId(null);
+    const succeeded = await renameCourse(editingId, editingName);
+    if (succeeded) setEditingId(null);
   }
 
   function handleEditKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -64,7 +83,19 @@ export default function CoursesPage({ user, onBack }: CoursesPageProps) {
 
       <h1>Courses</h1>
 
-      {!loading && courses.length === 0 && (
+      {loadError && (
+        <div role="alert" style={errorBoxStyle}>
+          <p style={{ marginBottom: 8 }}>Couldn&rsquo;t load your courses.</p>
+          <button
+            onClick={retry}
+            style={{ minHeight: 44, minWidth: 44 }}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
+      {!loading && !loadError && courses.length === 0 && (
         <p style={{ marginBottom: 16 }}>
           No courses yet.
           <br />
@@ -148,6 +179,11 @@ export default function CoursesPage({ user, onBack }: CoursesPageProps) {
             boxSizing: "border-box",
           }}
         />
+        {actionError && (
+          <p role="alert" style={{ ...errorBoxStyle, marginBottom: 8 }}>
+            {actionError}
+          </p>
+        )}
         <button
           type="submit"
           disabled={newCourseName.trim() === ""}

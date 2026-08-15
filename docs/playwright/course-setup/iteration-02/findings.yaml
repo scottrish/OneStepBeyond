@@ -1,0 +1,152 @@
+assessment_id: initial-setup-assessment
+persona: student-alex-carter
+mission: evaluate-initial-setup
+date: 2026-08-14
+iteration: 2
+
+findings:
+  - id: FINDING-IS-001
+    title: Loading and creating courses fails outright (HTTP 403)
+    perspective: evaluator
+    type: implementation_defect
+    severity: high
+    confidence: high
+    status: resolved
+    reassessment: >
+      Re-tested against a freshly reset local stack with the iteration 2
+      GRANT migration applied. Course list loaded cleanly and three
+      courses were created successfully with no errors. Root cause fix
+      confirmed working.
+    evidence:
+      - synthetic/reports/initial-setup-assessment/screenshots/i02-02-first-course-added.png
+      - synthetic/reports/initial-setup-assessment/screenshots/i02-03-three-courses.png
+
+  - id: FINDING-IS-002
+    title: Failures surface to the student as a raw "[object Object]" alert
+    perspective: both
+    type: implementation_defect
+    severity: high
+    confidence: high
+    status: resolved
+    reassessment: >
+      No alert dialogs of any kind appeared during this iteration's run —
+      error surfacing now goes through in-page state (see FR-2). Not
+      re-exercised against a live failure this iteration (the GRANT fix
+      means nothing failed to trigger it), but covered by
+      src/hooks/useCourses.test.ts's actionError/errorMessage tests, which
+      assert a real object with a `.message` property (not an `Error`
+      instance) is read correctly rather than stringified as
+      "[object Object]".
+
+  - id: FINDING-IS-003
+    title: Failed "Add course" clears the input as if it had succeeded
+    perspective: both
+    type: implementation_defect
+    severity: medium
+    confidence: high
+    status: resolved
+    reassessment: >
+      Code now only clears the input when addCourse resolves true.
+      Confirmed via successful adds in this run (input correctly cleared
+      after each of the three successful saves) and via
+      CoursesPage.test.tsx's "keeps the typed name... when adding fails"
+      test; not re-exercised against a live failure this iteration.
+
+  - id: FINDING-IS-004
+    title: A failed course list fetch renders the same as a genuinely empty list
+    perspective: evaluator
+    type: implementation_defect
+    severity: medium
+    confidence: high
+    status: resolved
+    reassessment: >
+      CoursesPage now renders a distinct role="alert" error state with a
+      "Try again" action instead of the empty-state copy on a failed
+      fetch. Not observed live this iteration (no fetch failed); covered
+      by CoursesPage.test.tsx's dedicated error-state and retry tests.
+
+  - id: FINDING-IS-005
+    title: No path to create an assignment exists yet
+    perspective: persona
+    type: specification_gap
+    severity: low
+    confidence: high
+    status: open
+    scope_note: >
+      Still out of scope for course-setup.md — belongs to
+      assignment-capture.md. Re-confirmed unchanged in iteration 2: Home
+      still has no assignment-related affordance.
+    evidence:
+      - synthetic/reports/initial-setup-assessment/screenshots/i02-05-home-no-assignment-path.png
+
+  - id: FINDING-IS-006
+    title: The gear icon was the only affordance, and Alex found it
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: medium
+    status: open
+    reassessment: >
+      Same low-confidence caveat as iteration 1 — still the only control
+      available, so this doesn't yet test discoverability against
+      competing options.
+    evidence:
+      - synthetic/reports/initial-setup-assessment/screenshots/i02-01-home-initial.png
+
+  - id: FINDING-IS-007
+    title: Full course-setup workflow (create x3, rename in place) completed with no friction
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    description: >
+      Alex created three sample courses (Algebra I, Biology, English
+      Literature) and used the tap-to-rename affordance on Biology, all
+      without hesitation, error, or needing to re-read anything. The
+      list updating immediately after each add/rename was sufficient
+      confirmation on its own — no separate success message was needed
+      or missed.
+    persona_observation: >
+      "That was easy — I typed the name, hit add, and it just showed up.
+      Same with fixing the name, I just tapped it and typed over it."
+    evidence:
+      - synthetic/reports/initial-setup-assessment/screenshots/i02-03-three-courses.png
+      - synthetic/reports/initial-setup-assessment/screenshots/i02-04-rename-fixed.png
+
+summary:
+  assessment:
+    id: initial-setup-assessment
+    feature: course-setup
+    persona: student-alex-carter
+
+  outcome:
+    status: completed
+    completion: true
+    final_confidence: high
+
+  findings:
+    total: 7
+    issues: 0
+    positives: 3
+    hypotheses: 0
+
+  recommendations:
+    implementation_defects: 0
+    specification_gaps: 1
+    ux_improvements: 0
+    validation_items: 0
+    preserved_behaviour: 3
+
+  highest_severity: low
+
+  supporting_findings:
+    specification_gaps:
+      - FINDING-IS-005
+    preserved_behaviour:
+      - FINDING-IS-006
+      - FINDING-IS-007
+    resolved_since_last_iteration:
+      - FINDING-IS-001
+      - FINDING-IS-002
+      - FINDING-IS-003
+      - FINDING-IS-004

@@ -1,36 +1,49 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { assignCourseColor } from "../domain/courseColor";
 import * as courseService from "../services/courseService";
 import type { Course } from "../services/courseService";
 
+function errorMessage(error: unknown): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+  return String(error);
+}
+
 export function useCourses(studentId: string) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    courseService
+  const fetchCourses = useCallback(() => {
+    return courseService
       .listCourses(studentId)
-      .then((data) => {
-        if (!cancelled) setCourses(data);
-      })
-      .catch((error) => {
-        alert(error instanceof Error ? error.message : String(error));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+      .then((data) => setCourses(data))
+      .catch((error) => setLoadError(errorMessage(error)))
+      .finally(() => setLoading(false));
   }, [studentId]);
 
-  async function addCourse(name: string) {
-    const trimmed = name.trim();
-    if (trimmed === "") return;
+  useEffect(() => {
+    fetchCourses();
+  }, [fetchCourses]);
 
+  function retry() {
+    setLoading(true);
+    setLoadError(null);
+    fetchCourses();
+  }
+
+  async function addCourse(name: string): Promise<boolean> {
+    const trimmed = name.trim();
+    if (trimmed === "") return false;
+
+    setActionError(null);
     try {
       const colorIndex = assignCourseColor(courses.length);
       const course = await courseService.createCourse(
@@ -39,15 +52,18 @@ export function useCourses(studentId: string) {
         colorIndex,
       );
       setCourses((prev) => [...prev, course]);
+      return true;
     } catch (error) {
-      alert(error instanceof Error ? error.message : String(error));
+      setActionError(errorMessage(error));
+      return false;
     }
   }
 
-  async function renameCourse(id: string, name: string) {
+  async function renameCourse(id: string, name: string): Promise<boolean> {
     const trimmed = name.trim();
-    if (trimmed === "") return;
+    if (trimmed === "") return false;
 
+    setActionError(null);
     try {
       await courseService.renameCourse(id, trimmed);
       setCourses((prev) =>
@@ -55,10 +71,20 @@ export function useCourses(studentId: string) {
           course.id === id ? { ...course, name: trimmed } : course,
         ),
       );
+      return true;
     } catch (error) {
-      alert(error instanceof Error ? error.message : String(error));
+      setActionError(errorMessage(error));
+      return false;
     }
   }
 
-  return { courses, loading, addCourse, renameCourse };
+  return {
+    courses,
+    loading,
+    loadError,
+    actionError,
+    retry,
+    addCourse,
+    renameCourse,
+  };
 }
