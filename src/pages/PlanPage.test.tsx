@@ -488,6 +488,105 @@ describe("PlanPage", () => {
     });
   });
 
+  // docs/decisions/20260816-plan-directly-without-breakdown.md — not every
+  // assignment is meaningfully decomposable, so the breakdown signal also
+  // offers a one-click alternative that skips the multi-step wizard.
+  describe("planning an assignment directly without a breakdown", () => {
+    it("creates a single Work Item matching the assignment and makes it selectable, without entering the breakdown wizard", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        assignment({ id: "a1", title: "Read chapter 1", effortMinutes: 60 }),
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent
+        .mockResolvedValueOnce([])
+        .mockResolvedValue([
+          workItem({ id: "w1", assignmentId: "a1", title: "Read chapter 1", effortMinutes: 60 }),
+        ]);
+      mockedWorkItemService.createWorkItems.mockResolvedValue([
+        {
+          id: "w1",
+          assignmentId: "a1",
+          title: "Read chapter 1",
+          effortMinutes: 60,
+          completedAt: null,
+          position: 0,
+        },
+      ]);
+      mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+      mockedDecompositionAttemptService.recordDecompositionAttempt.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByText(/step 1 of 5/i);
+      expect(
+        screen.getByText(/read chapter 1.*needs to be broken into steps/i),
+      ).toBeInTheDocument();
+
+      await userEventInstance.click(
+        screen.getByRole("button", { name: /plan .read chapter 1. as one task instead/i }),
+      );
+
+      expect(mockedWorkItemService.createWorkItems).toHaveBeenCalledWith("student-1", [
+        { assignmentId: "a1", title: "Read chapter 1", effortMinutes: 60, position: 0 },
+      ]);
+      expect(mockedAssignmentService.updateAssignment).toHaveBeenCalledWith("a1", {
+        title: "Read chapter 1",
+        dueDate: "2026-03-20",
+        notes: "",
+        effortMinutes: 60,
+      });
+      expect(mockedDecompositionAttemptService.recordDecompositionAttempt).toHaveBeenCalledWith(
+        "student-1",
+        {
+          assignmentId: "a1",
+          initialWorkItems: [],
+          resultingWorkItems: ["Read chapter 1"],
+          revisionCount: 0,
+          outcome: "confirmed",
+        },
+      );
+
+      // The signal clears once the assignment has a Work Item, and the
+      // wizard never left the Day step's own screen (no breakdown wizard
+      // was ever rendered).
+      await waitFor(() =>
+        expect(
+          screen.queryByText(/read chapter 1.*needs to be broken into steps/i),
+        ).not.toBeInTheDocument(),
+      );
+      expect(screen.queryByText(/what are the main pieces/i)).not.toBeInTheDocument();
+
+      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
+      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+      expect(screen.getByText("Read chapter 1")).toBeInTheDocument();
+      expect(screen.queryByText(/nothing to plan yet/i)).not.toBeInTheDocument();
+    });
+
+    it("shows an error and re-enables the action if planning directly fails", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        assignment({ id: "a1", title: "Essay" }),
+      ]);
+      mockedWorkItemService.createWorkItems.mockRejectedValue(new Error("network down"));
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByText(/step 1 of 5/i);
+
+      const planButton = screen.getByRole("button", {
+        name: /plan .essay. as one task instead/i,
+      });
+      await userEventInstance.click(planButton);
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/network down/i);
+      expect(
+        screen.getByRole("button", { name: /plan .essay. as one task instead/i }),
+      ).not.toBeDisabled();
+    });
+  });
+
   // docs/features/iterations/daily-planning/daily-planning.i03.md —
   // Problem A: the breakdown signal must not be silently omitted when
   // some (not all) of the day's assignments already have Work Items.

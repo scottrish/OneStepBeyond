@@ -3,6 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import { Check, Minus, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/EmptyState";
+import { errorMessage } from "../lib/errorMessage";
 import { effortLabel } from "../domain/effortPresets";
 import {
   addDaysISODate,
@@ -21,6 +22,7 @@ import { useAssignmentsList } from "../hooks/useAssignmentsList";
 import { useCourses } from "../hooks/useCourses";
 import { useDailyPlanning } from "../hooks/useDailyPlanning";
 import { useEstimationDrift } from "../hooks/useEstimationDrift";
+import * as workBreakdownService from "../services/workBreakdownService";
 import type { Assignment } from "../services/assignmentService";
 import WorkBreakdownPage from "./WorkBreakdownPage";
 
@@ -104,28 +106,51 @@ function assignDefaultTimes(
   return next;
 }
 
-// The list of direct "start the breakdown" actions shown by FR-1's
-// signal, shared between the Day step's notice and Select's own notice
-// (both the all-candidates-need-it dead end and the mixed case) so the
-// markup isn't duplicated.
+// The pair of actions shown by FR-1's signal for each assignment that
+// hasn't been broken down yet, shared between the Day step's notice and
+// Select's own notice (both the all-candidates-need-it dead end and the
+// mixed case) so the markup isn't duplicated. Not every assignment
+// benefits from decomposition — a short, atomic task ("Read chapter 1 by
+// Tuesday") gains nothing from a forced multi-step breakdown, so
+// "Plan ... as one task" is offered as an equally direct alternative to
+// "Break down ...", not buried behind it. It creates a single Work Item
+// matching the assignment's own title/estimate via the same
+// workBreakdownService.confirmWorkBreakdown the full breakdown flow uses
+// (see planWithoutBreakdown below) — reusing the existing abstraction
+// rather than a parallel "unbroken-down schedulable assignment" concept.
 function BreakdownList({
   assignments,
-  onSelect,
+  onBreakdown,
+  onPlanDirectly,
+  planningAssignmentId,
 }: {
   assignments: Assignment[];
-  onSelect: (assignmentId: string) => void;
+  onBreakdown: (assignmentId: string) => void;
+  onPlanDirectly: (assignment: Assignment) => void;
+  planningAssignmentId: string | null;
 }) {
   return (
     <ul className="flex flex-col gap-2">
       {assignments.map((assignment) => (
-        <li key={assignment.id}>
+        <li key={assignment.id} className="flex flex-col gap-2">
           <Button
             type="button"
             variant="outline"
             className="min-h-11 w-full justify-start rounded-2xl text-left"
-            onClick={() => onSelect(assignment.id)}
+            onClick={() => onBreakdown(assignment.id)}
           >
             Break down &ldquo;{assignment.title}&rdquo;
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={planningAssignmentId === assignment.id}
+            className="min-h-11 w-full justify-start rounded-2xl text-left text-muted-foreground"
+            onClick={() => onPlanDirectly(assignment)}
+          >
+            {planningAssignmentId === assignment.id
+              ? "Planning…"
+              : `Plan “${assignment.title}” as one task instead`}
           </Button>
         </li>
       ))}
@@ -145,10 +170,14 @@ function BreakdownList({
 // of whether other, already-selectable candidates also exist.
 function BreakdownNotice({
   assignments,
-  onSelect,
+  onBreakdown,
+  onPlanDirectly,
+  planningAssignmentId,
 }: {
   assignments: Assignment[];
-  onSelect: (assignmentId: string) => void;
+  onBreakdown: (assignmentId: string) => void;
+  onPlanDirectly: (assignment: Assignment) => void;
+  planningAssignmentId: string | null;
 }) {
   if (assignments.length === 0) return null;
   return (
@@ -157,13 +186,21 @@ function BreakdownNotice({
         {assignments.length === 1 ? (
           <>
             &ldquo;{assignments[0].title}&rdquo; needs to be broken into steps before it can be
-            scheduled.
+            scheduled &mdash; or, if it&rsquo;s not worth breaking down, plan it as one task.
           </>
         ) : (
-          <>{assignments.length} assignments need to be broken into steps before they can be scheduled.</>
+          <>
+            {assignments.length} assignments need to be broken into steps before they can be
+            scheduled &mdash; or plan any of them as one task instead.
+          </>
         )}
       </p>
-      <BreakdownList assignments={assignments} onSelect={onSelect} />
+      <BreakdownList
+        assignments={assignments}
+        onBreakdown={onBreakdown}
+        onPlanDirectly={onPlanDirectly}
+        planningAssignmentId={planningAssignmentId}
+      />
     </div>
   );
 }
@@ -177,6 +214,8 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
   const [times, setTimes] = useState<Record<string, string>>({});
   const [showAll, setShowAll] = useState(false);
   const [justConfirmed, setJustConfirmed] = useState(false);
+  const [planningAssignmentId, setPlanningAssignmentId] = useState<string | null>(null);
+  const [planDirectlyError, setPlanDirectlyError] = useState<string | null>(null);
 
   const {
     activities,
@@ -287,6 +326,34 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
     setJustConfirmed(false);
   }
 
+  // The alternative to "Break down ..." offered by BreakdownList/Notice:
+  // not every assignment is meaningfully decomposable ("Read chapter 1 by
+  // Tuesday"), so this creates a single Work Item mirroring the
+  // assignment's own title/estimate via the same service the full
+  // breakdown flow's confirm step uses, skipping the multi-step wizard
+  // entirely. Recorded as a (trivial, one-item) confirmed Work Breakdown
+  // like any other, rather than a separate "unbroken-down but schedulable
+  // assignment" concept — see docs/decisions/
+  // 20260816-plan-directly-without-breakdown.md.
+  async function planWithoutBreakdown(assignment: Assignment) {
+    setPlanningAssignmentId(assignment.id);
+    setPlanDirectlyError(null);
+    try {
+      await workBreakdownService.confirmWorkBreakdown(
+        studentId,
+        assignment,
+        [],
+        [{ title: assignment.title, effortMinutes: assignment.effortMinutes }],
+        0,
+      );
+      retryAssignments();
+    } catch (error) {
+      setPlanDirectlyError(errorMessage(error));
+    } finally {
+      setPlanningAssignmentId(null);
+    }
+  }
+
   function toggleCandidate(itemId: string, estimateMinutes: number) {
     setChosen((prev) => {
       const next = { ...prev };
@@ -394,6 +461,12 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
         </p>
       )}
 
+      {planDirectlyError && (
+        <p role="alert" className={errorBoxStyle}>
+          {planDirectlyError}
+        </p>
+      )}
+
       {!loading && !loadError && (
         <>
           <p className="mb-6 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
@@ -408,7 +481,9 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
 
               <BreakdownNotice
                 assignments={assignmentsNeedingBreakdown}
-                onSelect={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                onBreakdown={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                onPlanDirectly={planWithoutBreakdown}
+                planningAssignmentId={planningAssignmentId}
               />
 
               {dueThatDay.length > 0 && (
@@ -522,7 +597,9 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
                 </p>
                 <BreakdownList
                   assignments={assignmentsNeedingBreakdown}
-                  onSelect={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                  onBreakdown={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                  onPlanDirectly={planWithoutBreakdown}
+                  planningAssignmentId={planningAssignmentId}
                 />
                 <Button
                   variant="ghost"
@@ -545,7 +622,9 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
               </h2>
               <BreakdownNotice
                 assignments={assignmentsNeedingBreakdown}
-                onSelect={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                onBreakdown={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                onPlanDirectly={planWithoutBreakdown}
+                planningAssignmentId={planningAssignmentId}
               />
               <ul className="flex flex-col gap-2">
                 {visibleCandidates.map(({ assignment, workItem }) => {
