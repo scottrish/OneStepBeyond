@@ -10,7 +10,7 @@ Version 0.1
 
 This increment is an implementation slice of the following canonical documents:
 
-1. `reference/Domain-Model-v1.1.md`
+1. `reference/Domain-Model.md`
    - Defines ubiquitous language, bounded contexts, domain invariants, ownership rules, and the shared Scaffold / ZPD model.
 
 2. `reference/work-breakdown-coaching-feature-spec-v0.2.md`
@@ -90,6 +90,12 @@ Its purpose is to:
 - validate how students naturally break down Assignments
 - begin collecting behavioral and reflection evidence
 - create a stable foundation for later heuristic, AI-assisted, and adaptive coaching
+
+## User Story
+
+> As a student, I want to turn an Assignment into a short list of things I can actually start doing, without the app doing the planning for me.
+
+This is also an implementation test for the increment: the experience should make decomposition easier to express and use without introducing decomposition assistance.
 
 ---
 
@@ -174,6 +180,21 @@ Actions:
 
 Only after confirmation does the Work Breakdown become the active breakdown for the Assignment.
 
+### Draft vs Confirmed Semantics
+
+Work Items being created or edited in this flow form a **draft Work Breakdown** until the student explicitly confirms them.
+
+Technical persistence of draft state is allowed, but draft Work Items must not be treated as the authoritative Work Breakdown for planning or execution.
+
+If the Assignment already has a confirmed Work Breakdown:
+
+- the existing confirmed Work Breakdown remains authoritative while the student edits a revision
+- the revision remains draft until explicitly confirmed
+- confirmation replaces or versions the active Work Breakdown according to the implementation's persistence model
+- cancelling or abandoning the edit must not silently replace the existing confirmed Work Breakdown
+
+From the domain perspective, confirmation should be treated as one logical transaction.
+
 ---
 
 # 5. Domain Behavior
@@ -183,6 +204,10 @@ Only after confirmation does the Work Breakdown become the active breakdown for 
 Create one Work Breakdown associated with the Assignment.
 
 The student owns it.
+
+The implementation must distinguish draft Work Breakdown state from the confirmed active Work Breakdown.
+
+Only a confirmed Work Breakdown is authoritative for later planning and execution.
 
 ## Work Item
 
@@ -195,6 +220,22 @@ Work Items should support:
 - estimated duration
 - status as required by the existing application
 
+## Assignment Estimated Effort
+
+When a Work Breakdown is confirmed, the Assignment's total estimated effort should be derived from the confirmed Work Items:
+
+```text
+Assignment estimated effort
+=
+sum(confirmed Work Item estimated durations)
+```
+
+If the current application stores an Assignment-level estimate, prefer treating that value as derived from the confirmed Work Breakdown rather than maintaining two independently editable estimates that can drift apart.
+
+Draft Work Item estimates must not change the authoritative Assignment estimate until the revised Work Breakdown is confirmed.
+
+If an Assignment has no confirmed Work Breakdown, the existing Assignment estimate behavior may remain unchanged.
+
 ## Decomposition Attempt
 
 Record a `DecompositionAttempt` for the interaction.
@@ -206,7 +247,10 @@ assignmentId
 initialWorkItems
 resultingWorkItems
 revisionCount
+assistanceRequested = false
+initialScaffoldIntensity = None
 highestScaffoldIntensity = None
+scaffoldsProvided = []
 outcome
 occurredAt
 ```
@@ -435,6 +479,14 @@ The student can estimate each Work Item.
 
 Nothing becomes the confirmed Work Breakdown until the student confirms it.
 
+If a confirmed Work Breakdown already exists, editing a draft revision does not replace the active breakdown until the student confirms the revision.
+
+## Derived Effort
+
+When a Work Breakdown is confirmed, the Assignment's estimated effort reflects the sum of the confirmed Work Item estimates where the current data model supports an Assignment-level estimate.
+
+Draft estimates do not change the authoritative Assignment estimate.
+
 ## No Coaching
 
 The system does not evaluate, improve, or generate the student's Work Breakdown.
@@ -505,7 +557,23 @@ After the Assignment is completed, the student may reflect:
 
 This provides useful evidence for future feature development.
 
-## Scenario C — Reflection
+## Scenario C — Edit Existing Confirmed Breakdown
+
+Assignment already has a confirmed Work Breakdown.
+
+Student opens it and changes the steps.
+
+Until the student confirms the revision:
+
+- the existing confirmed Work Breakdown remains authoritative
+- draft changes do not replace active Work Items
+- draft estimates do not change the Assignment's authoritative estimated effort
+
+Student cancels.
+
+The existing confirmed Work Breakdown remains unchanged.
+
+## Scenario D — Reflection
 
 Assignment had four Work Items.
 

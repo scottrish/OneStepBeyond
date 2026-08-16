@@ -1,5 +1,13 @@
 # Feature: Assignment Understanding & Guided Breakdown
 
+**Status:** Superseded. Retained for prototype/history only.
+
+Current Work Breakdown strategy:
+- manual-work-breakdown-coaching-feature-spec-v0.2.md.
+
+Current implementation scope:
+- reference/work-breakdown-coaching-feature-spec-v0.2.md.
+
 ## Summary
 
 The most domain-rich feature in this increment. Helps a student turn an
