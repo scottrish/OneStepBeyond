@@ -4,6 +4,19 @@
 
 Version 0.1
 
+**Status:** Implemented (2026-08-16), merged to `main`. The "Break this
+down" flow (create → estimate → confirm, with reorder) and the Work
+Breakdown Reflection prompt (primary question + optional adjustment
+follow-up) are built and tested, including the draft-vs-confirmed
+semantics (§4 "Draft vs Confirmed Semantics") and Assignment Estimated
+Effort derivation (§5) — see
+`docs/decisions/20260815-manual-work-breakdown-draft-state.md` for how
+draft state is kept client-side-only rather than persisted. `DecompositionAttempt`
+and `Reflection` are both recorded with `ScaffoldIntensity = None` per
+§5/§12, as specified. AssignmentType (§6), Assignment Brief (§7), and
+everything else this spec marks explicitly out of scope (§14) were not
+built. See `docs/Roadmap.md` Phase 3.
+
 ---
 
 # Authoritative References

@@ -96,9 +96,11 @@ with no planning or coaching yet.
 
 # Phase 3 — Manual work breakdown + reflection foundation
 
+**Status: done (2026-08-16).**
+
 | Feature | Spec | Status |
 |---|---|---|
-| Manual Work Breakdown + Reflection | [manual-work-breakdown-reflection-v0.1.md](features/manual-work-breakdown-reflection-v0.1.md) | Not started |
+| Manual Work Breakdown + Reflection | [manual-work-breakdown-reflection-v0.1.md](features/manual-work-breakdown-reflection-v0.1.md) | Done |
 
 **Supersedes:** the old `assignment-understanding-and-breakdown.md` plan
 for this phase (now marked Superseded in that file) — it described the
@@ -123,10 +125,10 @@ never went through a breakdown. The scaffold ladder, archetype detection,
 and AI-assisted coaching described in the old spec are deliberately
 **not** part of this phase; see Backlog below for where those live now.
 
-**Demoable at the end of this phase:** a student can turn an Assignment
-into their own ordered, estimated Work Breakdown with no system-generated
-suggestions, and — after completing it — answer one question about
-whether their breakdown actually worked.
+**Demoable at the end of this phase (achieved):** a student can turn an
+Assignment into their own ordered, estimated Work Breakdown with no
+system-generated suggestions, and — after completing it — answer one
+question about whether their breakdown actually worked.
 
 ---
 
@@ -196,13 +198,26 @@ it isn't lost, not because it's scheduled next.
 
 ## Increment 2+ — multi-role (highest-value next increment)
 
-- **Parent Dashboard**, **Coach Dashboard**, **Support Relationships**
-  (inviting/connecting a parent or coach to a student) — deferred by
-  `docs/decisions/20260813-student-only-first-increment.md` pending
-  validation of the student experience above. Depends on multi-user
-  accounts and per-role auth that Increment 1 does not build.
+- **Support Relationships** (inviting/connecting a parent or coach to a
+  student, per-role authentication, a real second account type) —
+  deferred by `docs/decisions/20260813-student-only-first-increment.md`
+  pending validation of the student experience above. Depends on
+  multi-user accounts and per-role auth that Increment 1 does not build.
   `Playwright-Test-Personas.md` already has parent/coach acceptance
   criteria drafted for when this starts.
+- **Coach / Parent / Diagnostic Dashboard — Phase 1: done (2026-08-16),
+  built ahead of Support Relationships above.** See
+  [coach-parent-dashboard-feature-spec-v0.1.md](features/coach-parent-dashboard-feature-spec-v0.1.md)
+  and `docs/decisions/20260816-dashboard-reuses-student-auth.md`. Reached
+  at its own desktop-oriented `/dashboard` URL, entirely outside the
+  mobile `AppShell`; signs in with the *same* student account rather than
+  a real coach/parent identity, and Coach/Parent/Diagnostic are a
+  client-side display toggle only — not backend-enforced access levels.
+  Real third-party parent/coach access remains blocked on Support
+  Relationships above. The dashboard's own Phases 2–6 (Skills &
+  Capability, Behavior Trends, Scaffolding, AI-assisted sections) stay
+  not-yet-scheduled, same as the strategy docs' own later phases below —
+  no real data exists yet for any of them.
 
 ## Work Breakdown Coaching — Phases 2–6
 

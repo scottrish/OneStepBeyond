@@ -4,6 +4,21 @@
 
 Version 0.1
 
+**Status:** Implemented (2026-08-16), merged to `main`. The Phase 1
+screen set (§30) is built and tested: Overview, Assignments & Work +
+Assignment Detail, Reflections, Evidence Timeline, and Diagnostics, all
+projecting this app's real Supabase data (`assignments`, `work_items`,
+`decomposition_attempts`, `reflections`) rather than fixtures, with the
+Coach/Parent/Diagnostic mode toggle and its per-mode visibility rules
+(§5, §20) working as specified. Everything from §23's Phase 2 onward
+(Skills & Capability, Behavior Trends, Scaffolding, Model Decision
+Explanation, AI-assisted sections, write-capable Coach Actions, Test Data
+Controls) is intentionally not built — no real data exists yet for any of
+it. See the Implementation Note immediately below for the auth
+simplification this increment ships with, and §23's "Known gap" note for
+the one Acceptance Criterion (draft-vs-confirmed distinction, §28 #4)
+that can't be satisfied under the current manual-work-breakdown design.
+
 ---
 
 # Implementation Note (this increment)
