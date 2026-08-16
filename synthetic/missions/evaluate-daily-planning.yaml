@@ -1,0 +1,119 @@
+# A real mission for this application, evaluated by a real persona
+# (synthetic/personas/student-alex-carter.yaml) — independent of the
+# feature specification it's assessed against, per
+# synthetic/protocol/persona-assessment.md.
+
+id: evaluate-daily-planning
+name: Evaluate deciding what to actually work on today, around a real schedule.
+
+persona: student-alex-carter
+
+feature:
+  name: "Daily Planning"
+  specifications:
+  - docs/features/daily-planning.md
+  - docs/features/activities.md
+  - docs/features/assignment-management.md
+
+starting_point:
+  authentication: authenticated
+  page: application-home
+
+mission: >
+  It's a weekday and you have more open assignments than you can realistically
+  get to today between football practice, everything else going on, and
+  actually wanting a little time tonight to talk to your girlfriend. You don't
+  want to sit down and puzzle this out yourself — you want the app to help you
+  land on a real plan for today fast. If your weekly schedule (football
+  practice) isn't already set up, add it first so the app actually knows about
+  it — you already know how to do that. If you don't already have a few open
+  assignments across a couple of classes, add what you need. Then find
+  whatever the app offers for deciding what to work on today, work through it
+  honestly the way you actually would, and end up with something you'd call a
+  real plan — or figure out why you couldn't. If it's fast, notice that it's
+  fast. If you get asked to commit to more than seems realistic given
+  football, notice how that's handled. Proceed far enough to form a real
+  opinion on whether this actually beats just winging it.
+
+evaluation_focus:
+  - discoverability of where to start planning today
+  - whether the flow feels fast enough for someone who won't tolerate a long process
+  - whether it's obvious the app already knows about football and isn't
+    suggesting time that's actually spoken for
+  - clarity of how much open work exists versus what's realistically shown
+    (not an overwhelming full list)
+  - whether adjusting a time estimate feels optional and low-stakes, not like
+    a test
+  - how a selection that exceeds realistic capacity for the day is
+    communicated — calm and informative versus alarming or blocking
+  - clarity of the suggested schedule/time slots and how easy they are to
+    change
+  - confidence that confirming a plan actually committed to something real
+  - whether the whole thing plausibly finishes in well under five minutes for
+    someone with no patience for a long process
+  - usability on a small (mobile) viewport specifically
+  - points where the persona would seek help or abandon the task
+
+interaction_rules:
+  - interact only through the visible user interface
+  - do not inspect source code, database records, or network requests
+  - do not use knowledge of the application's implementation
+  - do not follow a predetermined click sequence
+  - make choices consistent with the persona definition
+  - record uncertainty before attempting an action
+  - do not invent information that the interface does not provide
+  - stop if the persona would realistically seek help or abandon the task
+
+data:
+  activities:
+    - name: "Football practice"
+      days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+      start_time: "15:30"
+      end_time: "17:30"
+  courses:
+    - name: "Biology"
+      teacher: "Ms. Johnson"
+    - name: "Algebra I"
+      teacher: "Mr. Smith"
+    - name: "English Literature"
+      teacher: "Mrs. Lee"
+  assignments:
+    - title: "Cell structure reading"
+      course: "Biology"
+      due_in_days: 1
+      effort: "45m"
+    - title: "Worksheet 15"
+      course: "Algebra I"
+      due_in_days: 2
+      effort: "30m"
+    - title: "Essay draft"
+      course: "English Literature"
+      due_in_days: 1
+      effort: "1.5h"
+    - title: "Reading response — Chapter 10"
+      course: "English Literature"
+      due_in_days: 4
+      effort: "30m"
+  # Deliberately more open work (about 3h15m across four assignments, three
+  # due within two days) than a realistic weekday evening leaves room for
+  # once football and a protected downtime block are accounted for — this
+  # is meant to actually exercise the over-capacity case, not just the
+  # comfortable one.
+
+completion_condition: >
+  Stop once the persona has reached a confirmed plan for today (or a
+  deliberate decision not to plan everything), and has formed a clear
+  opinion on speed and trustworthiness of the result — or earlier if the
+  persona cannot confidently determine how to proceed.
+
+report_sections:
+  - overall reaction
+  - initial interpretation of the page
+  - actions attempted
+  - what was clear
+  - sources of uncertainty
+  - incorrect assumptions
+  - points of friction
+  - confidence at the end of the assessment
+  - likely feedback in the persona's own words
+  - recommendations

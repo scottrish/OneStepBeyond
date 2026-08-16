@@ -38,6 +38,27 @@ vi.mock("./services/reflectionService", () => ({
   recordReflection: vi.fn(),
 }));
 
+// Needed only for the "switches to the Plan tab" test below, which now
+// mounts PlanPage (docs/features/daily-planning.md) — every other test
+// in this file never visits that tab, so these all default to
+// resolving empty.
+vi.mock("./services/activityService", () => ({
+  listActivities: vi.fn().mockResolvedValue([]),
+  createActivity: vi.fn(),
+  updateActivityDays: vi.fn(),
+  deleteActivity: vi.fn(),
+}));
+vi.mock("./services/workSessionService", () => ({
+  listWorkSessionsForDate: vi.fn().mockResolvedValue([]),
+  listWorkSessionsForStudent: vi.fn().mockResolvedValue([]),
+  createWorkSessions: vi.fn(),
+  deletePlannedSessionsForDate: vi.fn(),
+  deleteWorkSession: vi.fn(),
+}));
+vi.mock("./services/planningSessionService", () => ({
+  recordPlanningSession: vi.fn(),
+}));
+
 import * as courseService from "./services/courseService";
 import * as assignmentService from "./services/assignmentService";
 import * as workItemService from "./services/workItemService";
@@ -91,7 +112,7 @@ describe("App", () => {
 
   it("switches to the Plan tab", async () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { email: "person@example.com" } as User,
+      user: { id: "student-1", email: "person@example.com" } as User,
       signIn: vi.fn(),
       signUp: vi.fn(),
       signOut: vi.fn(),
@@ -102,7 +123,7 @@ describe("App", () => {
     await userEvent.click(screen.getByRole("button", { name: "Plan" }));
 
     expect(
-      screen.getByRole("heading", { name: /^plan$/i }),
+      await screen.findByRole("heading", { name: /^plan$/i }),
     ).toBeInTheDocument();
   });
 

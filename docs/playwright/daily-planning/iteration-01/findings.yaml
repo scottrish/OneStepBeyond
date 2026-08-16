@@ -1,0 +1,293 @@
+assessment_id: daily-planning-assessment
+persona: student-alex-carter
+mission: evaluate-daily-planning
+feature: daily-planning
+date: 2026-08-16
+iteration: 1
+
+# Corrected re-run. The previous run of this assessment hit the wrong dev
+# server (port 5173, an unrelated app showing an unbuilt "coming soon"
+# placeholder) due to a port collision between two Vite dev servers on this
+# machine. This run verified port 5174 serves this worktree's real
+# implementation before proceeding, and every finding below is a fresh
+# observation from that corrected run. Numbering restarts at
+# FINDING-DP-001 since the prior findings.yaml was invalid (wrong app).
+
+findings:
+  - id: FINDING-DP-001
+    title: Browser session opened on the Login screen instead of the pre-authenticated state described for this assessment
+    status: observed
+    verification: >
+      Navigated to http://localhost:5174/ per the assessment's starting
+      point (authenticated, application-home). Instead landed on a bare
+      "Login" screen with disabled Sign in/Sign up buttons until email and
+      password were filled. Signed in manually with the supplied test
+      credentials, which worked on the first attempt and reached Home.
+    perspective: evaluator
+    type: validation_item
+    severity: low
+    confidence: high
+    persona_observation: >
+      "Wait, I have to log in? I thought I was already signed in on this
+      thing." (Alex would not dwell on this - he'd just type the login in
+      and move on - but it's not what the assessment setup described.)
+    evidence:
+      - screenshots/i01-01-plan-tab-today-sunday.png
+
+  - id: FINDING-DP-002
+    title: Daily Planning refuses to schedule an assignment until it has been separately broken into steps via a 4-screen "Break this down" flow
+    status: observed
+    verification: >
+      Selected "Mon" (the next school day, with football practice and two
+      assignments due) in the Plan wizard's day picker. Step 1 correctly
+      summarized the day (due items, football practice, remaining study
+      time). Advancing to Step 2 ("What should you work on?") showed
+      "Nothing to plan yet. Break an assignment into steps first, then come
+      back." - a dead end with no way forward from inside Plan. Had to leave
+      Plan, open each assignment individually from the Assignments tab, tap
+      "Break this down," and complete a separate 4-screen wizard (list
+      pieces -> estimate each piece's time -> confirm) for both
+      "Cell structure reading" and "Essay draft" before Plan's Step 2 would
+      show anything selectable. This took roughly 15 additional taps/screens
+      across the two assignments before the actual 5-step Plan wizard could
+      even begin picking work for the day.
+    perspective: persona
+    type: specification_gap
+    severity: high
+    confidence: high
+    persona_observation: >
+      "I just wanted it to tell me what to do. Instead it sent me back to
+      go do homework on the homework before I could even start the
+      homework. That's the opposite of fast - if I hadn't already known
+      these assignments existed I'd have just given up right here."
+    evidence:
+      - screenshots/i01-04-plan-step2-nothing-to-plan-dead-end.png
+      - screenshots/i01-05-assignment-detail-no-steps.png
+      - screenshots/i01-06-break-down-flow-start.png
+      - screenshots/i01-11-essay-breakdown-two-pieces.png
+
+  - id: FINDING-DP-003
+    title: Plan's day overview correctly treats football practice as fixed, spoken-for time and subtracts it from available study time
+    status: observed
+    verification: >
+      Plan Step 1 for Monday listed "Football practice - 3:30 PM-5:30 PM"
+      alongside the day's due assignments, and computed "That leaves about
+      2h of study time" (versus 8h30m on a football-free day). Later steps'
+      suggested start times ("After football practice - 5:45 PM") built
+      directly on top of the practice's end time plus travel.
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: >
+      "Okay, that's actually what I wanted - it already knew about
+      practice and didn't try to put homework in the middle of it."
+    evidence:
+      - screenshots/i01-03-plan-step1-monday-overview.png
+      - screenshots/i01-16-plan-step4-suggested-times.png
+
+  - id: FINDING-DP-004
+    title: Exceeding the day's realistic capacity is communicated calmly and remains adjustable, not blocking or alarming
+    status: observed
+    verification: >
+      After selecting all three available steps (2h15m total against ~2h
+      available), Step 3 showed "Selected: 2h 15m" with the plain-language
+      note "This is 15m more than you have that day. That is worth knowing
+      now rather than at 10pm." Each step had working +/- controls that
+      live-updated the total and the message as time was adjusted (tested
+      by decreasing one step, which recalculated to "10m more"). No error
+      styling, no blocked "Next" button at any point - over-capacity was
+      informative, not gating.
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: >
+      "That's actually kind of nice? It's not yelling at me, it's just
+      telling me the math doesn't quite work and letting me decide."
+    evidence:
+      - screenshots/i01-14-plan-step3-time-overcapacity-message.png
+      - screenshots/i01-15-plan-step3-adjusted-time.png
+
+  - id: FINDING-DP-005
+    title: A confirmed plan is durably saved and reappears as "Already planned" with remove controls when the day is revisited
+    status: observed
+    verification: >
+      After confirming ("Plan confirmed. 2h 10m planned for Monday. You can
+      come back anytime to adjust it."), navigated away to Home and back
+      into Plan, re-selecting "Mon." Step 1 now showed a new "Already
+      planned" section listing all three scheduled steps with their times
+      and a "Remove ... from Monday's plan" button each, and recalculated
+      remaining study time to "about 0m." This is real, persisted state, not
+      a one-time confirmation screen that vanishes.
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: >
+      "Good - I can check this actually stuck without having to just trust
+      it blindly."
+    evidence:
+      - screenshots/i01-18-plan-confirmed.png
+      - screenshots/i01-19-plan-monday-persisted-with-already-planned.png
+
+  - id: FINDING-DP-006
+    title: Home shows no trace of the confirmed plan or any "what to do next" summary
+    status: observed
+    verification: >
+      After confirming Monday's plan, navigated to the Home tab. Home
+      displayed only the page heading, "New assignment"/"Settings" buttons,
+      and the text "You are logged in as playwright-test-student@local.test"
+      - unchanged from before any planning occurred. No reference to the
+      just-confirmed plan, next step, or any indication that planning had
+      happened at all. Recovering the plan required navigating back into
+      Plan and re-selecting the correct day.
+    perspective: persona
+    type: specification_gap
+    severity: medium
+    confidence: medium
+    persona_observation: >
+      "I just spent all that time making a plan and the first screen I see
+      doesn't even mention it. I'd want it staring at me the second I open
+      the app, not buried a tab away."
+    evidence:
+      - screenshots/i01-18-plan-confirmed.png
+
+  - id: FINDING-DP-007
+    title: The Plan wizard silently discards in-progress day/step selection when the user navigates to another tab and back
+    status: observed
+    verification: >
+      With "Mon" selected and Step 1 in view, navigated to Assignments (to
+      break down an assignment) and back to Plan: the wizard had reverted to
+      "Today" (Sunday, which has no football and no due items) at Step 1,
+      requiring "Mon" to be re-selected from scratch. This happened twice
+      during the session, once directly interrupting the task the app
+      itself had just told the persona to go do ("Break an assignment into
+      steps first, then come back").
+    perspective: both
+    type: implementation_defect
+    severity: medium
+    confidence: high
+    persona_observation: >
+      "It sent me to go fix my assignments, and when I came back it forgot
+      what day I was even looking at. I had to pick Monday again."
+    evidence:
+      - screenshots/i01-01-plan-tab-today-sunday.png
+
+  - id: FINDING-DP-008
+    title: A step's completion checkbox is present but disabled on the assignment detail view, with no visible way to mark a step done
+    status: observed
+    verification: >
+      After breaking "Cell structure reading" into one step, its detail
+      page showed a checkbox labeled "Read the chapter not yet complete" in
+      a disabled state under Steps. No other control for marking that
+      specific step complete was found on the screens visited during this
+      assessment. Whether step completion is handled elsewhere (e.g. a
+      not-yet-explored execution/today view) could not be confirmed without
+      going further than the mission required.
+    perspective: evaluator
+    type: specification_gap
+    severity: low
+    confidence: low
+    persona_observation: null
+    evidence:
+      - screenshots/i01-10-cell-structure-steps-added.png
+
+  - id: FINDING-DP-009
+    title: The system clock's "Today" fell on a football-free Sunday, so the mission's weekday scenario had to be exercised via the day-selector rather than the literal "Today" tab
+    status: observed
+    verification: >
+      Plan's "Today" (Sunday, August 16) showed "Nothing else on that day...
+      about 8h 30m of study time," which does not exercise the mission's
+      football/over-capacity scenario at all. The four seeded assignments'
+      due dates (Aug 17, 17, 18, 20) and football's Mon-Fri schedule meant
+      the weekday scenario the mission describes was reachable by selecting
+      "Mon" in Plan's own day picker instead - used for the remainder of
+      this assessment as the closest faithful stand-in for "today" per the
+      mission framing.
+    perspective: evaluator
+    type: validation_item
+    severity: informational
+    confidence: high
+    persona_observation: null
+    evidence:
+      - screenshots/i01-01-plan-tab-today-sunday.png
+      - screenshots/i01-03-plan-step1-monday-overview.png
+
+  - id: FINDING-DP-010
+    title: The Plan tab is immediately visible and unambiguous as the entry point for daily planning
+    status: observed
+    verification: >
+      "Plan" appears as the second of three persistent bottom-navigation
+      tabs (Home, Plan, Assignments) on every screen. No searching,
+      scrolling, or menu-diving was needed to find where to start planning.
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: >
+      "That part was obvious - Plan's right there, I didn't have to go
+      hunting for it."
+    evidence:
+      - screenshots/i01-02-activities-football-confirmed.png
+
+  - id: FINDING-DP-011
+    title: The full Plan wizard and breakdown flow rendered cleanly at a 390x844 mobile viewport throughout
+    status: observed
+    verification: >
+      Across all 19 screenshots captured at 390x844 (day picker, step
+      lists, time radios, +/- adjusters, review screen), no horizontal
+      scrolling, overlapping, or truncated controls were observed. Buttons
+      and radio options appeared large enough to tap comfortably. This was
+      a visual check via screenshots/snapshots, not a measured audit of
+      exact hit-box sizes or contrast ratios.
+    perspective: evaluator
+    type: preserved_behaviour
+    severity: informational
+    confidence: medium
+    persona_observation: null
+    evidence:
+      - screenshots/i01-17-plan-step5-review.png
+
+summary:
+  assessment:
+    id: daily-planning-assessment
+    feature: daily-planning
+    persona: student-alex-carter
+
+  outcome:
+    status: completed
+    completion: true
+    final_confidence: moderate
+
+  findings:
+    total: 11
+    issues: 4
+    positives: 5
+    hypotheses: 2
+
+  recommendations:
+    implementation_defects: 1
+    specification_gaps: 3
+    ux_improvements: 0
+    validation_items: 2
+    preserved_behaviour: 5
+
+  highest_severity: high
+
+  supporting_findings:
+    implementation_defects:
+      - FINDING-DP-007
+    specification_gaps:
+      - FINDING-DP-002
+      - FINDING-DP-006
+      - FINDING-DP-008
+    validation_items:
+      - FINDING-DP-001
+      - FINDING-DP-009
+    preserved_behaviour:
+      - FINDING-DP-003
+      - FINDING-DP-004
+      - FINDING-DP-005
+      - FINDING-DP-010
+      - FINDING-DP-011

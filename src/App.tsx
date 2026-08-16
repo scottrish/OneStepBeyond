@@ -7,12 +7,12 @@ import AssignmentsPage from "./pages/AssignmentsPage";
 import AppShell from "./components/AppShell";
 import type { Tab } from "./components/AppShell";
 
-// Tabs whose own page owns nested internal navigation (a `view` state
-// that can land on something other than that tab's landing screen).
-// Re-tapping an already-active tab must still reset that nested state —
-// see handleTabChange below. "plan" isn't listed: PlanPage has no nested
-// views yet, so there's nothing for a reset key to do there.
-type ResettableTab = "home" | "assignments";
+// Tabs whose own page owns nested internal navigation (a `view` state,
+// or — for "plan" — the 5-step planning flow's own step/day state) that
+// can land on something other than that tab's landing screen. Re-tapping
+// an already-active tab must still reset that nested state — see
+// handleTabChange below.
+type ResettableTab = "home" | "assignments" | "plan";
 
 export default function App() {
   const { user, signUp, signIn, signOut } = useAuth();
@@ -20,6 +20,7 @@ export default function App() {
   const [tabResetKeys, setTabResetKeys] = useState<Record<ResettableTab, number>>({
     home: 0,
     assignments: 0,
+    plan: 0,
   });
 
   if (!user) {
@@ -37,7 +38,7 @@ export default function App() {
     // same dead end resurfaced on the Assignments tab — see
     // docs/playwright/manual-work-breakdown-reflection/iteration-01/findings.yaml
     // FINDING-WB-001.
-    if (tab === "home" || tab === "assignments") {
+    if (tab === "home" || tab === "assignments" || tab === "plan") {
       setTabResetKeys((keys) => ({ ...keys, [tab]: keys[tab] + 1 }));
     }
     setActiveTab(tab);
@@ -48,7 +49,7 @@ export default function App() {
       {activeTab === "home" && (
         <HomePage key={tabResetKeys.home} user={user} signOut={signOut} />
       )}
-      {activeTab === "plan" && <PlanPage />}
+      {activeTab === "plan" && <PlanPage key={tabResetKeys.plan} user={user} />}
       {activeTab === "assignments" && (
         <AssignmentsPage
           key={tabResetKeys.assignments}

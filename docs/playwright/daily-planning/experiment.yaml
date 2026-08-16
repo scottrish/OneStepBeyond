@@ -1,0 +1,13 @@
+feature_slug: daily-planning
+feature_spec: docs/features/daily-planning.md
+assessment: synthetic/assessment/daily-planning-assessment.yaml
+worktree_path: ../OneStepBeyond-experiments/daily-planning
+branch: experiment/daily-planning
+iterations:
+  - number: 1
+    tag: dev-daily-planning-i1-start
+    spec: docs/features/daily-planning.md
+    commit: null
+    status: in-progress
+    stop_after: null
+status: in-progress
