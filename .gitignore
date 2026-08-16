@@ -34,6 +34,7 @@ coverage
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+/.playwright-mcp
 
 tests/.auth
 synthetic/reports
