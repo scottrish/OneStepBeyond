@@ -5,7 +5,7 @@ import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { EFFORT_PRESETS } from "../domain/effortPresets";
+import { EFFORT_PRESETS, effortLabel } from "../domain/effortPresets";
 import { useWorkBreakdownDraft } from "../hooks/useWorkBreakdownDraft";
 import type { Assignment } from "../services/assignmentService";
 import type { WorkItem } from "../services/workItemService";
@@ -22,11 +22,6 @@ type Step = "create" | "estimate" | "review";
 
 const errorBoxStyle =
   "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
-
-function effortLabel(minutes: number): string {
-  return EFFORT_PRESETS.find((preset) => preset.minutes === minutes)?.label
-    ?? `${minutes} min`;
-}
 
 // docs/features/manual-work-breakdown-reflection-v0.1.md §4 — the
 // unassisted 3-step "Break this down" flow: create → estimate → confirm.

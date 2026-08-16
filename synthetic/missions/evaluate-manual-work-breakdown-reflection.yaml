@@ -1,0 +1,106 @@
+# A real mission for this application, evaluated by a real persona
+# (synthetic/personas/student-alex-carter.yaml) — independent of the
+# feature specification it's assessed against, per
+# synthetic/protocol/persona-assessment.md.
+
+id: evaluate-manual-work-breakdown-reflection
+name: Evaluate turning a big assignment into your own plan, then checking whether it worked.
+
+persona: student-alex-carter
+
+feature:
+  name: "Manual Work Breakdown + Reflection"
+  specifications:
+  - docs/features/manual-work-breakdown-reflection-v0.1.md
+  - docs/features/assignment-management.md
+
+starting_point:
+  authentication: authenticated
+  page: application-home
+
+mission: >
+  You have a couple of assignments coming up, and at least one of them
+  feels too big to just sit down and start — the kind of thing where you
+  don't actually know what "doing it" looks like step by step. Figure out
+  what the app lets you do about that: turn the big assignment into a set
+  of smaller pieces you could actually start on, in whatever order makes
+  sense, with a rough guess at how long each piece will take. If you
+  don't already have courses or assignments set up, add what you need
+  first — you already know how to do that part. Once you've broken
+  something down, also try going back into it again to see if you can
+  change your mind about the pieces before you're done with it. Finish
+  the assignment you broke down, and see what, if anything, the app asks
+  you afterward about how your plan actually went. Proceed far enough to
+  form a real opinion on whether this is something you'd actually use
+  versus just guessing your way through big assignments like you usually
+  do.
+
+evaluation_focus:
+  - discoverability of how to turn a vague/big assignment into concrete pieces
+  - whether the flow feels like planning or like being handed "another assignment"
+  - clarity of adding, editing, reordering, and removing a piece before committing
+  - confidence that estimating each piece is optional-feeling, not a test
+  - confidence that confirming actually saved the plan
+  - what happens revisiting an assignment that already has a plan — is it
+    obvious how to change it, and is it clear that nothing changes until
+    you're done editing
+  - whether the assignment's overall time estimate updating after
+    confirming is noticed, expected, or confusing
+  - tone and clarity of whatever question appears after finishing the
+    assignment — does it feel optional, judgmental, or worth answering
+  - whether an optional follow-up question (if one appears) feels
+    skippable in practice, not just in theory
+  - usability on a small (mobile) viewport specifically
+  - points where the persona would seek help or abandon the task
+
+interaction_rules:
+  - interact only through the visible user interface
+  - do not inspect source code, database records, or network requests
+  - do not use knowledge of the application's implementation
+  - do not follow a predetermined click sequence
+  - make choices consistent with the persona definition
+  - record uncertainty before attempting an action
+  - do not invent information that the interface does not provide
+  - stop if the persona would realistically seek help or abandon the task
+
+data:
+  courses:
+    - name: "Biology"
+      teacher: "Ms. Johnson"
+    - name: "World History"
+      teacher: "Mr. Patel"
+  assignments:
+    - title: "Cell structure and function project"
+      course: "Biology"
+      due_in_days: 6
+      effort: "3h"
+      note: >
+        The big, vague one — a good candidate for breaking down into
+        real pieces rather than tackling as one block.
+    - title: "Reading response — Chapter 9"
+      course: "World History"
+      due_in_days: 2
+      effort: "30m"
+      note: >
+        Small and concrete on its own; included so the persona has a
+        second, ordinary assignment alongside the one worth breaking
+        down, rather than only ever seeing the "interesting" case.
+
+completion_condition: >
+  Stop once the persona has broken the big assignment into pieces and
+  confirmed that plan, revisited it at least once to test changing their
+  mind, marked it complete, and reached (and either answered or
+  deliberately skipped) whatever the app asks afterward — or earlier if
+  the persona cannot confidently determine how to proceed.
+
+report_sections:
+  - overall reaction
+  - initial interpretation of the page
+  - actions attempted
+  - what was clear
+  - sources of uncertainty
+  - incorrect assumptions
+  - points of friction
+  - confidence at the end of the assessment
+  - likely feedback in the persona's own words
+  - recommendations

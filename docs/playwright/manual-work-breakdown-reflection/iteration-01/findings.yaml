@@ -1,0 +1,234 @@
+assessment_id: manual-work-breakdown-reflection-assessment
+persona: student-alex-carter
+mission: evaluate-manual-work-breakdown-reflection
+feature: manual-work-breakdown-reflection
+date: 2026-08-16
+iteration: 1
+
+findings:
+  - id: FINDING-WB-001
+    title: Bottom-nav "Assignments" tab is a no-op while nested in Assignment Detail reached from the Assignments list
+    perspective: both
+    type: implementation_defect
+    severity: high
+    confidence: high
+    description: >
+      From the Assignments list, opening an assignment (list → card →
+      Detail) keeps `activeTab` at "assignments" the whole time — the
+      user never leaves that tab. Tapping the "Assignments" tab in the
+      bottom nav while already nested in that Detail screen does
+      nothing: the tab shows as active but the visible content never
+      changes. The in-page "← Back" button is the only way out. This is
+      the same underlying bug class as assignment-management's
+      FINDING-AM-001 (bottom-nav "Home" tab no-op while nested in
+      Assignment Detail reached from Home's "+"), which was fixed by
+      remounting HomePage on every Home-tab tap
+      (`src/App.tsx`'s `homeResetKey`) — but that fix only special-cased
+      the Home tab. It was never generalized to the Assignments tab,
+      which has the exact same architecture (its own internal `view`
+      state that can get "stuck" on a nested screen while `activeTab`
+      itself never changes value, making `setActiveTab` a no-op).
+    persona_observation: >
+      "I tapped Assignments since I was already looking at the tab bar,
+      and nothing happened. Same thing that happened to me before with
+      Home. I used the back arrow instead, which worked, but for a
+      second I thought something was broken again."
+    evaluator_observation: >
+      Reachable on a very common path: open any assignment directly from
+      the Assignments list (not via Home), then tap the Assignments tab
+      itself. Recommend generalizing the existing `homeResetKey` pattern
+      — e.g. a similar reset key (or lifting a shared "reset this tab's
+      internal view" callback) for the Assignments tab's own nested
+      `view` state in `AssignmentsPage.tsx`, the same fix shape already
+      proven for Home.
+    evidence:
+      - synthetic/reports/manual-work-breakdown-reflection-assessment/screenshots/i01-06-assignments-tab-noop.png
+
+  - id: FINDING-WB-002
+    title: Work Breakdown totals display as raw minutes ("150 min") instead of the app's usual h/m format
+    perspective: both
+    type: ux_improvement
+    severity: medium
+    confidence: high
+    description: >
+      The review step's "About {total} total" and the Detail screen's
+      "{remaining} of work left · you estimated {total} in total" both
+      use `effortLabel()`, which only formats totals that exactly match
+      one of the eight fixed presets (15/30/45/60/90/120/180/300
+      minutes); anything else falls back to a raw "{minutes} min"
+      string. Sums of two or more preset values very often land outside
+      that fixed set (45+60+45=150; 45+60+45+15=165) — this is the
+      common case for a multi-step breakdown, not a rare edge case — so
+      most real Work Breakdowns will show an unformatted number
+      somewhere the rest of the app otherwise always shows "1h 30m"-style
+      text.
+    persona_observation: >
+      "150 min? Everywhere else it says '45m' or '1h' — I had to do the
+      math myself for a second to realize that's two and a half hours."
+    evaluator_observation: >
+      `src/domain/effortPresets.ts`'s `effortLabel()` needs a real
+      minutes-to-"Xh Ym"-style formatter as its fallback instead of
+      `${minutes} min` — the preset-lookup fast path can stay for the
+      common single-item case, but the fallback is what actually renders
+      most of the time once a breakdown has more than one item.
+    evidence:
+      - synthetic/reports/manual-work-breakdown-reflection-assessment/screenshots/i01-04-step3-review-150min.png
+      - synthetic/reports/manual-work-breakdown-reflection-assessment/screenshots/i01-05-confirmed-effort-updated.png
+
+  - id: FINDING-WB-003
+    title: Confirming a Work Breakdown silently overwrites the assignment's original estimate with no acknowledgment that it changed
+    perspective: both
+    type: ux_improvement
+    severity: medium
+    confidence: medium
+    description: >
+      Matches the spec exactly (§5 "Assignment Estimated Effort" —
+      confirming a breakdown derives the assignment's estimate from the
+      sum of its Work Items) and is not a defect. But the moment itself
+      is silent: the assignment went from a self-reported "3h" guess to
+      a derived "150 min" (2h30) with no in-page acknowledgment that a
+      change happened, let alone why. A student who set the original
+      guess, then later can't account for the discrepancy, has no way to
+      tell from the screen alone that the number is now derived rather
+      than their own estimate.
+    persona_observation: >
+      "My original 3-hour guess just quietly turned into 2 hours 30
+      once I broke it down. I know why because I just did the pieces
+      myself a second ago, but if I came back to this tomorrow I might
+      wonder if part of the project got lost."
+    evaluator_observation: >
+      A one-line callout at the moment of confirmation (e.g. "Your
+      estimate is now based on these steps" on the review screen or
+      immediately after) would close this gap cheaply, without changing
+      the underlying derivation behavior at all.
+    evidence:
+      - synthetic/reports/manual-work-breakdown-reflection-assessment/screenshots/i01-05-confirmed-effort-updated.png
+
+  - id: FINDING-WB-004
+    title: An assignment that's already Complete still offers "Edit breakdown," with unclear consequences
+    perspective: evaluator
+    type: validation_item
+    severity: low
+    confidence: low
+    description: >
+      After marking "Cell structure and function project" complete, its
+      Detail screen still shows an active "Edit breakdown" button (same
+      as before completion). Not exercised this run — unclear whether
+      editing a completed assignment's breakdown is intended to be
+      possible at all, and if so, what happens to the already-completed
+      Work Items' completion state after a re-confirm. Neither this
+      spec nor `assignment-management.md` addresses this explicitly.
+    evidence: []
+
+  - id: FINDING-WB-005
+    title: "Break this down" was immediately understood, with no hesitation, from Assignment Detail's "Steps" section
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: >
+      "That's clearly labeled — I didn't have to guess what it does."
+    evidence:
+      - synthetic/reports/manual-work-breakdown-reflection-assessment/screenshots/i01-02-project-detail-break-this-down.png
+
+  - id: FINDING-WB-006
+    title: Cancelling an edit-in-progress correctly discards every change, verified live with a real added step
+    perspective: both
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    description: >
+      Added a fourth step to an already-confirmed 3-step breakdown, then
+      tapped "← Cancel" instead of confirming. The Detail screen
+      afterward showed exactly the original 3 steps and the original
+      150-minute total — no trace of the cancelled edit. Matches the
+      spec's draft/confirmed semantics (§4) exactly.
+    persona_observation: >
+      "That's reassuring — nothing changed just because I typed
+      something and wandered off."
+    evidence:
+      - synthetic/reports/manual-work-breakdown-reflection-assessment/screenshots/i01-08-cancel-preserved-original.png
+
+  - id: FINDING-WB-007
+    title: Re-confirming a revised breakdown cleanly replaces the old set — no duplicates, no orphaned steps
+    perspective: both
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    description: >
+      After the cancelled attempt above, re-entered "Edit breakdown,"
+      re-added the same fourth step, and this time confirmed. The
+      resulting Detail screen showed exactly 4 steps (165 min total) —
+      no leftover 5th item, no duplicate of the cancelled attempt.
+      Confirmed against the database directly: two
+      `decomposition_attempts` rows exist (one per real confirmation),
+      and `work_items` contains exactly the 4 final rows.
+    evidence:
+      - synthetic/reports/manual-work-breakdown-reflection-assessment/screenshots/i01-09-revised-confirmed.png
+
+  - id: FINDING-WB-008
+    title: Reflection is genuinely skippable — the follow-up "Skip" produced no nagging, penalty, or second prompt
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: >
+      "I already fixed the missing step myself, so I skipped the
+      follow-up question. It just skipped — no guilt trip, no 'are you
+      sure.'"
+    evidence:
+      - synthetic/reports/manual-work-breakdown-reflection-assessment/screenshots/i01-10-reflection-question.png
+      - synthetic/reports/manual-work-breakdown-reflection-assessment/screenshots/i01-11-completed-with-reflection.png
+
+  - id: FINDING-WB-009
+    title: Previously-set step estimates are preserved when re-entering the breakdown flow to add one more step
+    perspective: both
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    description: >
+      Re-opening "Edit breakdown" and adding a 4th step carried the
+      original three steps' estimates (45m/1h/45m) forward unchanged
+      into Step 2 — only the new step needed a fresh estimate.
+    evidence: []
+
+summary:
+  assessment:
+    id: manual-work-breakdown-reflection-assessment
+    feature: manual-work-breakdown-reflection
+    persona: student-alex-carter
+
+  outcome:
+    status: completed-with-friction
+    completion: true
+    final_confidence: high
+
+  findings:
+    total: 9
+    issues: 4
+    positives: 5
+    hypotheses: 0
+
+  recommendations:
+    implementation_defects: 1
+    specification_gaps: 0
+    ux_improvements: 2
+    validation_items: 1
+    preserved_behaviour: 5
+
+  highest_severity: high
+
+  supporting_findings:
+    implementation_defects:
+      - FINDING-WB-001
+    ux_improvements:
+      - FINDING-WB-002
+      - FINDING-WB-003
+    validation_items:
+      - FINDING-WB-004
+    preserved_behaviour:
+      - FINDING-WB-005
+      - FINDING-WB-006
+      - FINDING-WB-007
+      - FINDING-WB-008
+      - FINDING-WB-009

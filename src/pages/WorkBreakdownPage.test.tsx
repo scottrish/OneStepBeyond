@@ -102,7 +102,7 @@ describe("WorkBreakdownPage", () => {
     expect(screen.getByText(/does this look like how/i)).toBeInTheDocument();
     expect(screen.getByText("Finish book")).toBeInTheDocument();
     expect(screen.getByText("Write report")).toBeInTheDocument();
-    expect(screen.getByText(/about 105 min total/i)).toBeInTheDocument();
+    expect(screen.getByText(/about 1h 45m total/i)).toBeInTheDocument();
 
     await userEventInstance.click(screen.getByRole("button", { name: /looks good/i }));
 

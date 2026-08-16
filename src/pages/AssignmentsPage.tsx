@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import EmptyState from "@/components/EmptyState";
 import { courseColorValue } from "../domain/courseColor";
-import { EFFORT_PRESETS } from "../domain/effortPresets";
+import { EFFORT_PRESETS, effortLabel } from "../domain/effortPresets";
 import { formatDueDate } from "../domain/dueDate";
 import { remainingMinutes } from "../domain/remainingMinutes";
 import { useAssignmentsList } from "../hooks/useAssignmentsList";
@@ -33,11 +33,6 @@ const errorBoxStyle =
 // assignment-management.i02.md FR-1 — exact duration left to
 // implementation judgment.
 const UNDO_WINDOW_MS = 5000;
-
-function effortLabel(minutes: number): string {
-  return EFFORT_PRESETS.find((preset) => preset.minutes === minutes)?.label
-    ?? `${minutes} min`;
-}
 
 type AssignmentCardProps = {
   assignment: Assignment;

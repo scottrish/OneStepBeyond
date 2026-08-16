@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { courseColorValue } from "../domain/courseColor";
-import { EFFORT_PRESETS } from "../domain/effortPresets";
+import { EFFORT_PRESETS, effortLabel } from "../domain/effortPresets";
 import { formatDueDate } from "../domain/dueDate";
 import { remainingMinutes } from "../domain/remainingMinutes";
 import { useAssignment } from "../hooks/useAssignment";
@@ -30,11 +30,6 @@ type AssignmentDetailPageProps = {
 
 const errorBoxStyle =
   "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
-
-function effortLabel(minutes: number): string {
-  return EFFORT_PRESETS.find((preset) => preset.minutes === minutes)?.label
-    ?? `${minutes} min`;
-}
 
 export default function AssignmentDetailPage({
   user,

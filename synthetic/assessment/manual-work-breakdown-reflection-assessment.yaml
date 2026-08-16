@@ -1,0 +1,23 @@
+id: manual-work-breakdown-reflection-assessment
+code: WB
+
+persona: personas/student-alex-carter.yaml
+
+mission: missions/evaluate-manual-work-breakdown-reflection.yaml
+
+protocol: protocol/persona-assessment.md
+
+authentication:
+  account: default
+
+browser:
+  viewport: mobile
+  browser: chromium
+
+outputs:
+  directory: reports/manual-work-breakdown-reflection-assessment
+  report: report.md
+  findings: findings.yaml
+  screenshots: screenshots/
+  transcript: transcript.md
+  trace: trace.zip
