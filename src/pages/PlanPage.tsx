@@ -202,7 +202,7 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
     removeSession,
   } = useDailyPlanning(studentId, date);
   const drift = useEstimationDrift(studentId);
-  const allSessions = useAllWorkSessions(studentId);
+  const { sessions: allSessions, refetch: refetchAllSessions } = useAllWorkSessions(studentId);
 
   const loading = activitiesLoading || assignmentsLoading || sessionsLoading;
   const loadError = activitiesLoadError ?? assignmentsLoadError ?? sessionsLoadError;
@@ -317,7 +317,12 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
     // codebase to navigate to (both are separate, not-yet-built
     // features) — show an inline success acknowledgment instead. See
     // docs/decisions/20260816-daily-planning-confirm-write-order.md.
-    if (succeeded) setJustConfirmed(true);
+    if (succeeded) {
+      setJustConfirmed(true);
+      // Otherwise scheduledElsewhere wouldn't know about this session
+      // until a fresh page load — see FINDING-DP-003.
+      refetchAllSessions();
+    }
   }
 
   // FR-1: reached from the breakdown signal on the Day/Select steps

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 
 vi.mock("../services/workSessionService", () => ({
   listWorkSessionsForStudent: vi.fn(),
@@ -43,7 +43,7 @@ describe("useAllWorkSessions", () => {
     await waitFor(() =>
       expect(mockedService.listWorkSessionsForStudent).toHaveBeenCalledWith("student-1"),
     );
-    await waitFor(() => expect(result.current).toEqual(sessions));
+    await waitFor(() => expect(result.current.sessions).toEqual(sessions));
   });
 
   it("returns an empty array (rather than throwing) when the fetch fails", async () => {
@@ -54,6 +54,37 @@ describe("useAllWorkSessions", () => {
     await waitFor(() =>
       expect(mockedService.listWorkSessionsForStudent).toHaveBeenCalledWith("student-1"),
     );
-    expect(result.current).toEqual([]);
+    expect(result.current.sessions).toEqual([]);
+  });
+
+  // docs/playwright/daily-planning/iteration-03/findings.yaml FINDING-DP-003
+  it("refetch() re-fetches, so a session created after mount is picked up without remounting", async () => {
+    mockedService.listWorkSessionsForStudent.mockResolvedValueOnce([]);
+
+    const { result } = renderHook(() => useAllWorkSessions("student-1"));
+
+    await waitFor(() =>
+      expect(mockedService.listWorkSessionsForStudent).toHaveBeenCalledTimes(1),
+    );
+    expect(result.current.sessions).toEqual([]);
+
+    const newSession = {
+      id: "1",
+      workItemId: "w1",
+      date: "2026-03-16",
+      plannedMinutes: 30,
+      startTime: null,
+      status: "planned" as const,
+    };
+    mockedService.listWorkSessionsForStudent.mockResolvedValueOnce([newSession]);
+
+    act(() => {
+      result.current.refetch();
+    });
+
+    await waitFor(() =>
+      expect(mockedService.listWorkSessionsForStudent).toHaveBeenCalledTimes(2),
+    );
+    await waitFor(() => expect(result.current.sessions).toEqual([newSession]));
   });
 });

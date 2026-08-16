@@ -575,6 +575,72 @@ describe("PlanPage", () => {
       expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
       expect(screen.queryByText(/already planned for/i)).not.toBeInTheDocument();
     });
+
+    // docs/playwright/daily-planning/iteration-03/findings.yaml FINDING-DP-003
+    it("shows a session confirmed moments earlier in the same browsing session as already planned when checking another day", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        assignment({ id: "a1", title: "Essay", dueDate: "2026-03-20" }),
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        workItem({ id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 20 }),
+      ]);
+      mockedWorkSessionService.deletePlannedSessionsForDate.mockResolvedValue(undefined);
+      const createdSession = {
+        id: "session-1",
+        workItemId: "w1",
+        date: "2026-03-16",
+        plannedMinutes: 20,
+        startTime: "15:15",
+        status: "planned" as const,
+      };
+      mockedWorkSessionService.createWorkSessions.mockResolvedValue([createdSession]);
+      // useEstimationDrift also calls listWorkSessionsForStudent on mount,
+      // so the two hooks' calls can't be told apart by call order/count —
+      // key the mock off whether the plan has actually been confirmed yet
+      // instead. Flipped by recordPlanningSession, the last write inside
+      // confirmPlan, right before PlanPage's refetch runs.
+      let sessionConfirmed = false;
+      mockedPlanningSessionService.recordPlanningSession.mockImplementation(async () => {
+        sessionConfirmed = true;
+      });
+      mockedWorkSessionService.listWorkSessionsForStudent.mockImplementation(() =>
+        Promise.resolve(sessionConfirmed ? [createdSession] : []),
+      );
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByText(/step 1 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
+
+      await screen.findByText(/step 2 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /draft outline/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: /next: estimate time/i }));
+
+      await screen.findByText(/step 3 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /next: when/i }));
+
+      await screen.findByText(/step 4 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /next: review/i }));
+
+      await screen.findByText(/step 5 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /looks good/i }));
+      await screen.findByText(/plan confirmed/i);
+
+      const dayPicker = screen.getByRole("radiogroup", { name: /choose a day to plan/i });
+      const tuesday = within(dayPicker).getAllByRole("radio")[1];
+      await userEventInstance.click(tuesday);
+
+      await screen.findByText(/step 1 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
+
+      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+      // Confirmed for 2026-03-16, which is TODAY per this file's fixed
+      // system time — dayLabel renders that as "today", not the weekday
+      // name, regardless of which day is currently being planned.
+      expect(await screen.findByText(/already planned for today/i)).toBeInTheDocument();
+    });
   });
 
   // docs/features/iterations/daily-planning/daily-planning.i02.md FR-2
