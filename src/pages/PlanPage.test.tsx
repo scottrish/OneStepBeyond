@@ -488,6 +488,95 @@ describe("PlanPage", () => {
     });
   });
 
+  // docs/features/iterations/daily-planning/daily-planning.i03.md —
+  // Problem A: the breakdown signal must not be silently omitted when
+  // some (not all) of the day's assignments already have Work Items.
+  describe("breakdown notice covers the mixed-candidates case (iteration 3)", () => {
+    it("still names an assignment needing breakdown on Select, even when other candidates already exist", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        assignment({ id: "a1", title: "Essay", dueDate: "2026-03-17" }),
+        assignment({ id: "a2", title: "Worksheet", dueDate: "2026-03-16" }),
+      ]);
+      // Only "Essay" has a Work Item — "Worksheet" (due today) does not.
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        workItem({ id: "w1", assignmentId: "a1", title: "Draft outline" }),
+      ]);
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByText(/step 1 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
+
+      // Select shows the real candidate (Draft outline) AND still names
+      // the assignment that's missing — not silently omitted.
+      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+      expect(screen.getByText("Draft outline")).toBeInTheDocument();
+      expect(
+        screen.getByText(/worksheet.*needs to be broken into steps before it can be scheduled/i),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /break down .worksheet./i }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  // docs/features/iterations/daily-planning/daily-planning.i03.md FR-1
+  describe("warns when a candidate is already scheduled for a different day", () => {
+    it("shows an 'already planned for {day}' indicator instead of leaving the existing commitment invisible", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
+      // The same work item already has a planned session on a different
+      // date (2026-03-18) than the one being planned here (2026-03-16).
+      mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([
+        {
+          id: "session-elsewhere",
+          workItemId: "w1",
+          date: "2026-03-18",
+          plannedMinutes: 20,
+          startTime: null,
+          status: "planned",
+        },
+      ]);
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByText(/step 1 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
+
+      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+      expect(await screen.findByText(/already planned for wednesday/i)).toBeInTheDocument();
+    });
+
+    it("does not warn about a session already planned for the day currently being planned", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
+      mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([
+        {
+          id: "session-today",
+          workItemId: "w1",
+          date: "2026-03-16",
+          plannedMinutes: 20,
+          startTime: null,
+          status: "planned",
+        },
+      ]);
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByText(/step 1 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
+
+      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+      expect(screen.queryByText(/already planned for/i)).not.toBeInTheDocument();
+    });
+  });
+
   // docs/features/iterations/daily-planning/daily-planning.i02.md FR-2
   describe("wizard state survives tab navigation", () => {
     it("resumes on the same day/step when remounted (simulating a switch away and back)", async () => {

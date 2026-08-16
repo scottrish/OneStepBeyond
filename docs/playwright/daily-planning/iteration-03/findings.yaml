@@ -1,0 +1,180 @@
+assessment_id: daily-planning-assessment
+persona: student-alex-carter
+mission: evaluate-daily-planning
+feature: daily-planning
+date: 2026-08-16
+iteration: 3
+
+# Re-run against the build implementing daily-planning.i03.md (fix for
+# iteration 2's mixed-candidates breakdown-signal gap, plus a new
+# already-scheduled-elsewhere warning). The test account carried forward
+# all prior iterations' data (football practice, four assignments, three
+# already broken down from iterations 1-2, a confirmed Monday plan and a
+# confirmed Tuesday plan). This run planned Wednesday (previously
+# untouched) and Thursday to directly re-exercise both of iteration 3's
+# fixes in one continuous session. Fresh finding numbering from
+# FINDING-DP-001.
+
+findings:
+  - id: FINDING-DP-001
+    title: The mixed-candidates breakdown signal now correctly names an un-broken-down assignment even when other real candidates already exist
+    status: observed
+    verification: >
+      Planned Wednesday, whose only due-adjacent open item without steps
+      ("Reading response - Chapter 10") coexisted with three
+      already-selectable candidates carried over from prior iterations.
+      Both the Day step and Select step named "Reading response - Chapter
+      10" and offered a direct "Break down..." link, alongside (not
+      instead of) the real candidate list - this is the exact mixed case
+      that silently dropped the assignment with zero explanation in
+      iteration 2 (FINDING-DP-001 there). Completed the breakdown via the
+      link; it returned to Select at the same step with the new item
+      ("Read Chapter 10") now listed as a real, selectable candidate.
+    perspective: both
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: >
+      "It actually told me this time - even with other stuff already
+      there to pick from, it still said 'hey, this one needs breaking
+      down first' instead of just not mentioning it."
+    evidence:
+      - screenshots/i03-06-select-mixed-case-and-new-candidate.png
+
+  - id: FINDING-DP-002
+    title: An "Already planned for {day}" warning correctly appears on every candidate that already has a session on a different date, without blocking selection
+    status: observed
+    verification: >
+      On Wednesday's Select step, all four of the account's
+      pre-existing work items (three from Monday, one from Tuesday)
+      showed "Already planned for Monday" / "Already planned for
+      Tuesday" respectively - none were silently presented as fresh,
+      available options. Selecting one anyway (tested on "Do the
+      worksheet") was still permitted - the Next button enabled
+      normally, confirming the implementation chose to warn rather than
+      exclude, per daily-planning.i03.md FR-1's either-is-acceptable
+      wording. Deselected it afterward rather than actually
+      double-booking it.
+    perspective: both
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: >
+      "Honestly kind of useful - it's telling me 'you already did this
+      for Monday' instead of just letting me pick the same thing twice
+      without knowing."
+    evidence:
+      - screenshots/i03-05-select-already-planned-warning.png
+
+  - id: FINDING-DP-003
+    title: The "already scheduled elsewhere" warning uses stale data and misses a commitment made earlier in the same session
+    status: observed
+    verification: >
+      Immediately after confirming "Read Chapter 10" for Wednesday,
+      switched to Thursday's Select step (same continuous session, same
+      Plan tab, no reload). Thursday's candidate list showed the four
+      pre-existing items' warnings correctly (unchanged from before) but
+      did NOT show "Already planned for Wednesday" on "Read Chapter 10"
+      itself, despite it having just been confirmed for Wednesday minutes
+      earlier in this same session. Verified directly against the
+      database (not through the UI, as an evaluator cross-check, not part
+      of the persona's own interaction): a work_sessions row for that
+      item on 2026-08-19 (Wednesday) with status 'planned' does exist.
+      The UI simply never learned about it. This undermines FR-1's own
+      purpose specifically in the scenario it exists for: a student
+      planning more than one day in a single sitting, which this app's
+      own day-picker strip explicitly invites.
+    perspective: evaluator
+    type: implementation_defect
+    severity: medium
+    confidence: high
+    persona_observation: null
+    evidence:
+      - screenshots/i03-08-thursday-missing-warning-for-just-confirmed-wednesday-item.png
+
+  - id: FINDING-DP-004
+    title: The full 5-step flow, breakdown routing, and tab-navigation state persistence continue to work together correctly
+    status: observed
+    verification: >
+      Completed Wednesday's plan end to end (Day -> breakdown detour ->
+      Select -> Estimate -> Schedule -> Confirm) without any of
+      iteration 1 or 2's regressions reappearing: the wizard remained on
+      the same day/step when returning from the breakdown flow, the
+      suggested time correctly anchored after football practice, and
+      "Plan confirmed" appeared with the correct total.
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: >
+      "That part still just works - pick it, take the suggested time,
+      confirm, done."
+    evidence:
+      - screenshots/i03-07-plan-confirmed-wednesday.png
+
+  - id: FINDING-DP-005
+    title: Monday's plan from iteration 1 remains intact and unaffected by this session's changes
+    status: observed
+    verification: >
+      Re-selected "Mon" partway through this session: all three
+      originally-confirmed items (Read the chapter, Outline, Write draft)
+      were still listed under "Already planned" with their original
+      times, and remaining capacity still showed "about 0m" - no data
+      loss or corruption from two additional iterations' worth of
+      further planning activity on other days.
+    perspective: evaluator
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: null
+    evidence: []
+
+  - id: FINDING-DP-006
+    title: Football/capacity math continues to be applied correctly across every day tested this session
+    status: observed
+    verification: >
+      Wednesday and Thursday both correctly showed "Football practice -
+      3:30 PM-5:30 PM" and computed "about 2h of study time," matching
+      every prior iteration's behavior exactly.
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: null
+    evidence: []
+
+summary:
+  assessment:
+    id: daily-planning-assessment
+    feature: daily-planning
+    persona: student-alex-carter
+
+  outcome:
+    status: completed
+    completion: true
+    final_confidence: high
+
+  findings:
+    total: 6
+    issues: 1
+    positives: 5
+    hypotheses: 0
+
+  recommendations:
+    implementation_defects: 1
+    specification_gaps: 0
+    ux_improvements: 0
+    validation_items: 0
+    preserved_behaviour: 5
+
+  highest_severity: medium
+
+  supporting_findings:
+    implementation_defects:
+      - FINDING-DP-003
+    preserved_behaviour:
+      - FINDING-DP-001
+      - FINDING-DP-002
+      - FINDING-DP-004
+      - FINDING-DP-005
+      - FINDING-DP-006

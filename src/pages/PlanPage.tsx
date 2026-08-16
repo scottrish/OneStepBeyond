@@ -16,6 +16,7 @@ import { rankCandidates } from "../domain/planningCandidates";
 import { activitiesOn, availableMinutes, studySlots } from "../domain/studyCapacity";
 import type { StudySlot } from "../domain/studyCapacity";
 import { useActivities } from "../hooks/useActivities";
+import { useAllWorkSessions } from "../hooks/useAllWorkSessions";
 import { useAssignmentsList } from "../hooks/useAssignmentsList";
 import { useCourses } from "../hooks/useCourses";
 import { useDailyPlanning } from "../hooks/useDailyPlanning";
@@ -104,8 +105,9 @@ function assignDefaultTimes(
 }
 
 // The list of direct "start the breakdown" actions shown by FR-1's
-// signal, shared between the Day step's early notice and Select's
-// dead-end replacement so the wording/markup isn't duplicated.
+// signal, shared between the Day step's notice and Select's own notice
+// (both the all-candidates-need-it dead end and the mixed case) so the
+// markup isn't duplicated.
 function BreakdownList({
   assignments,
   onSelect,
@@ -128,6 +130,41 @@ function BreakdownList({
         </li>
       ))}
     </ul>
+  );
+}
+
+// The inline "these assignments still need breaking down" notice, shown
+// on the Day step and — critically — also within Select whenever some
+// (not necessarily all) of the day's assignments need it. Iteration 2's
+// assessment (FINDING-DP-001, docs/features/iterations/daily-planning/
+// daily-planning.i03.md) found the previous version of this signal only
+// fired when Select's candidate list was entirely empty, so a day with a
+// mix of already-broken-down and not-yet-broken-down assignments silently
+// omitted the latter with no explanation at all. This component is now
+// rendered whenever assignmentsNeedingBreakdown is non-empty, regardless
+// of whether other, already-selectable candidates also exist.
+function BreakdownNotice({
+  assignments,
+  onSelect,
+}: {
+  assignments: Assignment[];
+  onSelect: (assignmentId: string) => void;
+}) {
+  if (assignments.length === 0) return null;
+  return (
+    <div className="mb-4 rounded-2xl border border-border bg-card p-4">
+      <p className="mb-3 text-sm text-foreground">
+        {assignments.length === 1 ? (
+          <>
+            &ldquo;{assignments[0].title}&rdquo; needs to be broken into steps before it can be
+            scheduled.
+          </>
+        ) : (
+          <>{assignments.length} assignments need to be broken into steps before they can be scheduled.</>
+        )}
+      </p>
+      <BreakdownList assignments={assignments} onSelect={onSelect} />
+    </div>
   );
 }
 
@@ -165,6 +202,7 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
     removeSession,
   } = useDailyPlanning(studentId, date);
   const drift = useEstimationDrift(studentId);
+  const allSessions = useAllWorkSessions(studentId);
 
   const loading = activitiesLoading || assignmentsLoading || sessionsLoading;
   const loadError = activitiesLoadError ?? assignmentsLoadError ?? sessionsLoadError;
@@ -201,6 +239,22 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
         .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
     [assignments, workItems],
   );
+
+  // Work items that already have a planned session on a *different* date
+  // — used by Select to warn before a student re-schedules something
+  // they've already committed elsewhere, rather than leaving that
+  // commitment silently invisible. docs/features/iterations/
+  // daily-planning/daily-planning.i03.md FR-1. Maps workItemId -> the
+  // date it's already planned for.
+  const scheduledElsewhere = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const session of allSessions) {
+      if (session.status === "planned" && session.date !== date) {
+        map.set(session.workItemId, session.date);
+      }
+    }
+    return map;
+  }, [allSessions, date]);
 
   const capacity = availableMinutes(activities, workSessions, date);
   const commitments = activitiesOn(activities, date);
@@ -347,27 +401,10 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
                 Let&rsquo;s plan {dayLabel(date, today)}.
               </h2>
 
-              {candidates.length === 0 && assignmentsNeedingBreakdown.length > 0 && (
-                <div className="mb-4 rounded-2xl border border-border bg-card p-4">
-                  <p className="mb-3 text-sm text-foreground">
-                    {assignmentsNeedingBreakdown.length === 1 ? (
-                      <>
-                        &ldquo;{assignmentsNeedingBreakdown[0].title}&rdquo; needs to be broken
-                        into steps before it can be scheduled.
-                      </>
-                    ) : (
-                      <>
-                        {assignmentsNeedingBreakdown.length} assignments need to be broken into
-                        steps before they can be scheduled.
-                      </>
-                    )}
-                  </p>
-                  <BreakdownList
-                    assignments={assignmentsNeedingBreakdown}
-                    onSelect={(assignmentId) => setView({ name: "breakdown", assignmentId })}
-                  />
-                </div>
-              )}
+              <BreakdownNotice
+                assignments={assignmentsNeedingBreakdown}
+                onSelect={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+              />
 
               {dueThatDay.length > 0 && (
                 <ul className="mb-3 flex flex-col gap-1">
@@ -501,9 +538,14 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
               <h2 className="mb-3 text-base font-medium text-foreground">
                 What should you work on?
               </h2>
+              <BreakdownNotice
+                assignments={assignmentsNeedingBreakdown}
+                onSelect={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+              />
               <ul className="flex flex-col gap-2">
                 {visibleCandidates.map(({ assignment, workItem }) => {
                   const selected = workItem.id in chosen;
+                  const elsewhereDate = scheduledElsewhere.get(workItem.id);
                   return (
                     <li key={workItem.id}>
                       <button
@@ -530,6 +572,11 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
                             {assignment.title} · {courseName(assignment.courseId)} ·{" "}
                             {dueRelativeLabel(assignment.dueDate, today)}
                           </span>
+                          {elsewhereDate && (
+                            <span className="mt-1 inline-block truncate rounded-full bg-attention px-2 py-0.5 text-xs font-medium text-attention-foreground">
+                              Already planned for {dayLabel(elsewhereDate, today)}
+                            </span>
+                          )}
                         </span>
                         <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                           {effortLabel(workItem.effortMinutes)}
