@@ -6,6 +6,51 @@ Version 0.1
 
 ---
 
+# Implementation Note (this increment)
+
+Building a real Coach/Parent role, a Support Relationship data model, and
+per-role authentication is explicitly deferred — see
+`docs/decisions/20260813-student-only-first-increment.md` and
+`docs/decisions/20260816-dashboard-reuses-student-auth.md`. Until that
+foundation exists:
+
+- The dashboard is reached by signing in with the **same student Supabase
+  account** already used by the mobile app. There is no separate
+  coach/parent identity yet.
+- It lives at its own route (a distinct URL), entirely outside the mobile
+  `AppShell` — no shared navigation, no link between the student app and
+  the dashboard from within either one.
+- **Coach / Parent / Diagnostic are client-side display modes only, not
+  backend-enforced access levels.** A simple mode toggle (see
+  `OneStepBeyondPrototype`'s `ModeProvider`/`useMode()`) switches what's
+  *rendered*; nothing prevents any signed-in session from switching to
+  any mode. Parent Mode's restrictions below (§5, §20, §26) are a UX
+  convention matching this spec's own principles about what a parent
+  should default to seeing — they are not a privacy or security boundary
+  in this increment.
+- Do not expose this build to a real third-party parent or coach using
+  their own credentials. That remains blocked on the Support
+  Relationships work referenced above.
+
+`../OneStepBeyondPrototype`'s dashboard (`src/routes/dashboard*.tsx`,
+`src/components/dashboard/shell.tsx`, `src/lib/dashboard/mock.ts`) is the
+visual and structural reference for this increment, the same way the
+prototype is authoritative for the student app (see `CLAUDE.md`'s "Visual
+& Aesthetic Reference"). Its component layer (`Panel`, `PageHeader`,
+`Tag`, `EvidenceLabel`, `Stat`, `Mono`, and the overall header/sidebar
+`DashboardChrome` shell) is close to directly portable — same Tailwind
+tokens this project already uses, framework-agnostic beyond swapping its
+router. Its `src/lib/dashboard/mock.ts` is **not** a schema to replicate
+— entirely synthetic fixture data ("this prototype does not read the
+student app's store," per its own comment). The real data model is
+whatever this app's own Supabase tables already are (`assignments`,
+`work_items`, `decomposition_attempts`, `reflections`). The prototype's
+`skills`/`trends`/`scaffolding` routes have no real backend counterpart
+yet either — do not port them; they're out of this increment's Phase 1
+scope regardless (see §23).
+
+---
+
 # 1. Purpose
 
 Provide a desktop-oriented dashboard that makes the application's increasingly sophisticated executive-function model observable to trusted adults **without exposing that complexity in the student experience**.
@@ -34,6 +79,10 @@ Interpret this specification with:
 2. `reference/work-breakdown-coaching-feature-spec-v0.2.md`
 3. `reference/metacognition-reflection-feature-spec-v0.2.md`
 4. the active current-increment specification
+5. `../OneStepBeyondPrototype`'s dashboard implementation
+   (`src/routes/dashboard*.tsx`, `src/components/dashboard/shell.tsx`) —
+   visual and structural reference only; see the Implementation Note
+   above for what's portable and what isn't.
 
 Precedence:
 
@@ -41,6 +90,7 @@ Precedence:
 - Feature specifications define target behavior and phasing.
 - Current increment defines which data can legitimately exist now.
 - This dashboard specification defines how those data are projected and inspected.
+- The prototype defines how that projection should look and behave, not what data it's allowed to show — this spec's own principles (§4) and mode rules (§5) still govern that.
 
 The dashboard must not imply that a capability exists before the student application and backend implement it.
 
@@ -159,6 +209,13 @@ May expose:
 - structured AI outputs when AI is introduced
 
 Diagnostic Mode must remain separate from normal Parent access and never appear in the student experience.
+
+**This increment:** the three modes above are a client-side toggle with
+no backend-enforced separation — see the Implementation Note at the top
+of this document. "Must remain separate" and "never appear in the
+student experience" are satisfied structurally (the dashboard is a
+distinct route the mobile app never links to), not by any per-mode
+access control.
 
 ---
 
@@ -886,6 +943,18 @@ Do **not** invent:
 - scaffold effectiveness
 - execution trends
 
+**Known gap:** "confirmed Work Breakdown / draft distinction" cannot be
+shown as a *live in-progress draft*, because draft Work Breakdown state
+is deliberately never persisted (client-side React state only, discarded
+on cancel — `docs/decisions/20260815-manual-work-breakdown-draft-state.md`).
+There is nothing in the database for the dashboard to read while a
+student is mid-edit. What the dashboard *can* show — and should, as the
+practical substitute — is the confirmed breakdown's history over time via
+its `decomposition_attempts` rows, the same "Initial student attempt →
+Revisions → Confirmed Work Breakdown" comparison view
+`OneStepBeyondPrototype`'s `dashboard.assignments.tsx` already
+implements (§9 "Work Breakdown Comparison").
+
 ## Phase 2 — Heuristic Decomposition Coaching
 
 Add:
@@ -1013,6 +1082,14 @@ Principles:
 - internal inference is not parent-visible fact
 - adult access must not undermine student ownership
 
+**This increment does not implement these as enforced guarantees.** They
+describe the target state once real Coach/Parent identities and Support
+Relationships exist. Today, "clear role separation" and "minimum
+necessary adult access" hold only in the trivial sense that there is
+exactly one account with access to everything — see the Implementation
+Note at the top of this document and
+`docs/decisions/20260816-dashboard-reuses-student-auth.md`.
+
 ---
 
 # 27. Non-Functional Requirements
@@ -1084,6 +1161,29 @@ Build only:
 ```
 
 Do not build empty Skill / ZPD / Scaffolding screens just to match future navigation.
+
+`OneStepBeyondPrototype` implements exactly this screen set already
+(`dashboard.index.tsx`, `dashboard.assignments.tsx`,
+`dashboard.reflections.tsx`, `dashboard.timeline.tsx`,
+`dashboard.diagnostics.tsx`) — good confirmation this list is right-sized
+— plus `dashboard.skills.tsx`, `dashboard.trends.tsx`, and
+`dashboard.scaffolding.tsx`, which are **not** part of this screen set and
+should not be ported; they render entirely synthetic data with no real
+backend behind them yet.
+
+For the six screens above, adapt rather than rebuild from scratch:
+- `src/components/dashboard/shell.tsx`'s `Panel`, `PageHeader`, `Tag`
+  (with its `neutral`/`positive`/`attention`/`evidence`/`inference`
+  tones), `EvidenceLabel`, `Stat`, and `Mono` components port close to
+  verbatim — same design tokens this app already has.
+- The overall `DashboardChrome` layout (sticky header, mode switcher,
+  left sidebar nav filtered by mode, horizontal-scroll fallback nav) is a
+  good structural starting point, adjusted for whatever router this
+  increment introduces (the codebase has none yet — see CLAUDE.md's
+  "add it when a feature needs it" for React Router/TanStack Router).
+- Each page's query/filter/table/detail-panel JSX is a reasonable
+  structural template; replace every read from `src/lib/dashboard/mock.ts`
+  with a real Supabase query against this app's own tables.
 
 ---
 

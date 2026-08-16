@@ -14,3 +14,8 @@ export const EFFORT_PRESETS = [
 
 // "effort defaults to a preset value so it is never required to type"
 export const DEFAULT_EFFORT_MINUTES = 30;
+
+export function effortLabel(minutes: number): string {
+  return EFFORT_PRESETS.find((preset) => preset.minutes === minutes)?.label
+    ?? `${minutes} min`;
+}

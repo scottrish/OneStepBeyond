@@ -7,7 +7,7 @@ vi.mock("../lib/supabase", () => ({
 }));
 
 import { supabase } from "../lib/supabase";
-import { recordReflection } from "./reflectionService";
+import { listForStudent, recordReflection } from "./reflectionService";
 
 const mockedFrom = supabase.from as unknown as ReturnType<typeof vi.fn>;
 
@@ -54,5 +54,58 @@ describe("recordReflection", () => {
         proposedAdjustment: null,
       }),
     ).rejects.toThrow("boom");
+  });
+});
+
+describe("listForStudent", () => {
+  const row = {
+    id: "rf1",
+    assignment_id: "a1",
+    trigger: "assignment_completed",
+    structured_response: "I missed a step",
+    free_text: "Forgot the rehearsal step.",
+    proposed_adjustment: "Add a step I missed",
+    scaffold_intensity: "Structured",
+    occurred_at: "2026-03-11T00:00:00Z",
+  };
+
+  it("maps rows into Reflection objects", async () => {
+    const builder: Record<string, unknown> = {};
+    const returnsBuilder = vi.fn(() => builder);
+    builder.select = returnsBuilder;
+    builder.eq = returnsBuilder;
+    builder.order = returnsBuilder;
+    builder.then = (resolve: (v: unknown) => unknown) =>
+      Promise.resolve({ data: [row], error: null }).then(resolve);
+    mockedFrom.mockReturnValue(builder);
+
+    const reflections = await listForStudent("student-1");
+
+    expect(mockedFrom).toHaveBeenCalledWith("reflections");
+    expect(reflections).toEqual([
+      {
+        id: "rf1",
+        assignmentId: "a1",
+        trigger: "assignment_completed",
+        structuredResponse: "I missed a step",
+        freeText: "Forgot the rehearsal step.",
+        proposedAdjustment: "Add a step I missed",
+        scaffoldIntensity: "Structured",
+        occurredAt: "2026-03-11T00:00:00Z",
+      },
+    ]);
+  });
+
+  it("throws when the query errors", async () => {
+    const builder: Record<string, unknown> = {};
+    const returnsBuilder = vi.fn(() => builder);
+    builder.select = returnsBuilder;
+    builder.eq = returnsBuilder;
+    builder.order = returnsBuilder;
+    builder.then = (resolve: (v: unknown) => unknown) =>
+      Promise.resolve({ data: null, error: new Error("boom") }).then(resolve);
+    mockedFrom.mockReturnValue(builder);
+
+    await expect(listForStudent("student-1")).rejects.toThrow("boom");
   });
 });

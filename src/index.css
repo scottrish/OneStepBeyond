@@ -132,8 +132,12 @@
 }
 
 /* Mobile-first: the app is designed for a 320px-wide viewport first, then
-   progressively enhanced for larger screens — see CLAUDE.md. */
-#root {
+   progressively enhanced for larger screens — see CLAUDE.md. Does not
+   apply to the desktop Coach/Parent/Diagnostic Dashboard, which mounts
+   into the same #root element but is marked .dashboard-root by
+   src/Root.tsx — see docs/features/coach-parent-dashboard-feature-spec-v0.1.md's
+   "Desktop First" non-functional requirement. */
+#root:not(.dashboard-root) {
   width: 100%;
   max-width: 640px;
   margin: 0 auto;
@@ -141,4 +145,10 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+}
+
+#root.dashboard-root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
 }

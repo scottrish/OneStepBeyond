@@ -7,7 +7,7 @@ vi.mock("../lib/supabase", () => ({
 }));
 
 import { supabase } from "../lib/supabase";
-import { recordDecompositionAttempt } from "./decompositionAttemptService";
+import { listForStudent, recordDecompositionAttempt } from "./decompositionAttemptService";
 
 const mockedFrom = supabase.from as unknown as ReturnType<typeof vi.fn>;
 
@@ -53,5 +53,64 @@ describe("recordDecompositionAttempt", () => {
         outcome: "confirmed",
       }),
     ).rejects.toThrow("boom");
+  });
+});
+
+describe("listForStudent", () => {
+  const row = {
+    id: "da1",
+    assignment_id: "a1",
+    initial_work_items: [],
+    resulting_work_items: ["Finish book", "Write report"],
+    revision_count: 4,
+    assistance_requested: false,
+    initial_scaffold_intensity: "None",
+    highest_scaffold_intensity: "None",
+    scaffolds_provided: [],
+    outcome: "confirmed",
+    occurred_at: "2026-03-10T00:00:00Z",
+  };
+
+  it("maps rows into DecompositionAttempt objects", async () => {
+    const builder: Record<string, unknown> = {};
+    const returnsBuilder = vi.fn(() => builder);
+    builder.select = returnsBuilder;
+    builder.eq = returnsBuilder;
+    builder.order = returnsBuilder;
+    builder.then = (resolve: (v: unknown) => unknown) =>
+      Promise.resolve({ data: [row], error: null }).then(resolve);
+    mockedFrom.mockReturnValue(builder);
+
+    const attempts = await listForStudent("student-1");
+
+    expect(mockedFrom).toHaveBeenCalledWith("decomposition_attempts");
+    expect(attempts).toEqual([
+      {
+        id: "da1",
+        assignmentId: "a1",
+        initialWorkItems: [],
+        resultingWorkItems: ["Finish book", "Write report"],
+        revisionCount: 4,
+        assistanceRequested: false,
+        initialScaffoldIntensity: "None",
+        highestScaffoldIntensity: "None",
+        scaffoldsProvided: [],
+        outcome: "confirmed",
+        occurredAt: "2026-03-10T00:00:00Z",
+      },
+    ]);
+  });
+
+  it("throws when the query errors", async () => {
+    const builder: Record<string, unknown> = {};
+    const returnsBuilder = vi.fn(() => builder);
+    builder.select = returnsBuilder;
+    builder.eq = returnsBuilder;
+    builder.order = returnsBuilder;
+    builder.then = (resolve: (v: unknown) => unknown) =>
+      Promise.resolve({ data: null, error: new Error("boom") }).then(resolve);
+    mockedFrom.mockReturnValue(builder);
+
+    await expect(listForStudent("student-1")).rejects.toThrow("boom");
   });
 });
