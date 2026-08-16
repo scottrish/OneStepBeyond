@@ -7,7 +7,7 @@ iterations:
   - number: 1
     tag: dev-daily-planning-i1-start
     spec: docs/features/daily-planning.md
-    commit: null
-    status: in-progress
-    stop_after: null
+    commit: 9625b3d
+    status: complete
+    stop_after: false
 status: in-progress
