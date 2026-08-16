@@ -9,7 +9,8 @@ vi.mock("../lib/supabase", () => ({
 import { supabase } from "../lib/supabase";
 import {
   completeAllForAssignment,
-  createWorkItem,
+  createWorkItems,
+  deleteWorkItems,
   listWorkItems,
   listWorkItemsForStudent,
 } from "./workItemService";
@@ -21,9 +22,11 @@ function mockQuery(result: QueryResult) {
   const returnsBuilder = vi.fn(() => builder);
   builder.select = returnsBuilder;
   builder.eq = returnsBuilder;
+  builder.in = returnsBuilder;
   builder.order = returnsBuilder;
   builder.insert = returnsBuilder;
   builder.update = returnsBuilder;
+  builder.delete = returnsBuilder;
   builder.is = returnsBuilder;
   builder.single = returnsBuilder;
   builder.then = (resolve: (value: QueryResult) => unknown) =>
@@ -43,6 +46,7 @@ const row = {
   title: "Find three sources",
   effort_minutes: 20,
   completed_at: null,
+  position: 0,
 };
 
 describe("listWorkItemsForStudent", () => {
@@ -59,6 +63,7 @@ describe("listWorkItemsForStudent", () => {
         title: "Find three sources",
         effortMinutes: 20,
         completedAt: null,
+        position: 0,
       },
     ]);
   });
@@ -83,22 +88,37 @@ describe("listWorkItems", () => {
         title: "Find three sources",
         effortMinutes: 20,
         completedAt: null,
+        position: 0,
       },
     ]);
   });
 });
 
-describe("createWorkItem", () => {
-  it("inserts and returns the created work item", async () => {
-    mockedFrom.mockReturnValue(mockQuery({ data: row, error: null }));
+describe("createWorkItems", () => {
+  it("bulk-inserts and returns the created work items", async () => {
+    mockedFrom.mockReturnValue(mockQuery({ data: [row], error: null }));
 
-    const item = await createWorkItem("student-1", {
-      assignmentId: "a1",
-      title: "Find three sources",
-      effortMinutes: 20,
-    });
+    const items = await createWorkItems("student-1", [
+      { assignmentId: "a1", title: "Find three sources", effortMinutes: 20, position: 0 },
+    ]);
 
-    expect(item.title).toBe("Find three sources");
+    expect(items).toEqual([
+      {
+        id: "1",
+        assignmentId: "a1",
+        title: "Find three sources",
+        effortMinutes: 20,
+        completedAt: null,
+        position: 0,
+      },
+    ]);
+  });
+
+  it("returns an empty array without calling the database for an empty list", async () => {
+    const items = await createWorkItems("student-1", []);
+
+    expect(items).toEqual([]);
+    expect(mockedFrom).not.toHaveBeenCalled();
   });
 
   it("throws when the insert errors", async () => {
@@ -107,12 +127,32 @@ describe("createWorkItem", () => {
     );
 
     await expect(
-      createWorkItem("student-1", {
-        assignmentId: "a1",
-        title: "Find three sources",
-        effortMinutes: 20,
-      }),
+      createWorkItems("student-1", [
+        { assignmentId: "a1", title: "Find three sources", effortMinutes: 20, position: 0 },
+      ]),
     ).rejects.toThrow("boom");
+  });
+});
+
+describe("deleteWorkItems", () => {
+  it("deletes the given work items", async () => {
+    mockedFrom.mockReturnValue(mockQuery({ data: null, error: null }));
+
+    await expect(deleteWorkItems(["1", "2"])).resolves.toBeUndefined();
+  });
+
+  it("is a no-op for an empty list", async () => {
+    await deleteWorkItems([]);
+
+    expect(mockedFrom).not.toHaveBeenCalled();
+  });
+
+  it("throws when the delete errors", async () => {
+    mockedFrom.mockReturnValue(
+      mockQuery({ data: null, error: new Error("boom") }),
+    );
+
+    await expect(deleteWorkItems(["1"])).rejects.toThrow("boom");
   });
 });
 

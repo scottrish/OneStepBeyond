@@ -19,8 +19,17 @@ vi.mock("../services/assignmentService", () => ({
 
 vi.mock("../services/workItemService", () => ({
   listWorkItems: vi.fn(),
-  createWorkItem: vi.fn(),
+  createWorkItems: vi.fn(),
+  deleteWorkItems: vi.fn(),
   completeAllForAssignment: vi.fn(),
+}));
+
+vi.mock("../services/decompositionAttemptService", () => ({
+  recordDecompositionAttempt: vi.fn(),
+}));
+
+vi.mock("../services/reflectionService", () => ({
+  recordReflection: vi.fn(),
 }));
 
 import * as courseService from "../services/courseService";
@@ -39,7 +48,8 @@ const mockedAssignmentService = assignmentService as unknown as {
 };
 const mockedWorkItemService = workItemService as unknown as {
   listWorkItems: ReturnType<typeof vi.fn>;
-  createWorkItem: ReturnType<typeof vi.fn>;
+  createWorkItems: ReturnType<typeof vi.fn>;
+  deleteWorkItems: ReturnType<typeof vi.fn>;
   completeAllForAssignment: ReturnType<typeof vi.fn>;
 };
 
@@ -86,7 +96,7 @@ describe("AssignmentDetailPage", () => {
     ]);
     mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
     mockedWorkItemService.listWorkItems.mockResolvedValue([
-      { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 15, completedAt: null },
+      { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 15, completedAt: null, position: 0 },
     ]);
 
     render(
@@ -225,7 +235,7 @@ describe("AssignmentDetailPage", () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
     mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
     mockedWorkItemService.listWorkItems.mockResolvedValue([
-      { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: "2026-03-01T00:00:00Z" },
+      { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: "2026-03-01T00:00:00Z", position: 0 },
     ]);
     const onBack = vi.fn();
     const userEventInstance = userEvent.setup();
@@ -243,45 +253,12 @@ describe("AssignmentDetailPage", () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
-  it("adds a step", async () => {
-    mockedCourseService.listCourses.mockResolvedValue([]);
-    mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
-    mockedWorkItemService.createWorkItem.mockResolvedValue({
-      id: "w1",
-      assignmentId: "assignment-1",
-      title: "Find three sources",
-      effortMinutes: 20,
-      completedAt: null,
-    });
-    const userEventInstance = userEvent.setup();
-
-    render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} />,
-    );
-    await screen.findByRole("heading", { name: "Chapter 7 problem set" });
-
-    await userEventInstance.click(screen.getByRole("button", { name: /add another step/i }));
-    await userEventInstance.type(screen.getByLabelText(/^step$/i), "Find three sources");
-    await userEventInstance.click(screen.getByRole("button", { name: /^add step$/i }));
-
-    await waitFor(() =>
-      expect(mockedWorkItemService.createWorkItem).toHaveBeenCalledWith(
-        "student-1",
-        expect.objectContaining({
-          assignmentId: "assignment-1",
-          title: "Find three sources",
-        }),
-      ),
-    );
-    expect(await screen.findByText("Find three sources")).toBeInTheDocument();
-  });
-
   it("shows steps as read-only checkboxes reflecting completion", async () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
     mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
     mockedWorkItemService.listWorkItems.mockResolvedValue([
-      { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: "2026-03-01T00:00:00Z" },
-      { id: "w2", assignmentId: "assignment-1", title: "Step 2", effortMinutes: 10, completedAt: null },
+      { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: "2026-03-01T00:00:00Z", position: 0 },
+      { id: "w2", assignmentId: "assignment-1", title: "Step 2", effortMinutes: 10, completedAt: null, position: 1 },
     ]);
 
     render(
@@ -297,12 +274,54 @@ describe("AssignmentDetailPage", () => {
     expect(step2).toBeDisabled();
   });
 
-  it("marks the assignment and all open steps complete in one action", async () => {
+  it("offers 'Break this down' when there is no Work Breakdown yet, and 'Edit breakdown' once one exists", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([]);
+    mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+
+    const { unmount } = render(
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} />,
+    );
+    await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+    expect(screen.getByRole("button", { name: /break this down/i })).toBeInTheDocument();
+    unmount();
+
+    mockedWorkItemService.listWorkItems.mockResolvedValue([
+      { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: null, position: 0 },
+    ]);
+    render(
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} />,
+    );
+    await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+    expect(screen.getByRole("button", { name: /edit breakdown/i })).toBeInTheDocument();
+  });
+
+  it("opens the Work Breakdown flow, and cancelling returns to Detail unchanged", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([]);
+    mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+    const userEventInstance = userEvent.setup();
+
+    render(
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} />,
+    );
+    await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+
+    await userEventInstance.click(screen.getByRole("button", { name: /break this down/i }));
+
+    expect(screen.getByText(/what are the main pieces/i)).toBeInTheDocument();
+
+    await userEventInstance.click(screen.getByRole("button", { name: /cancel/i }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Chapter 7 problem set" }),
+    ).toBeInTheDocument();
+  });
+
+  it("marks the assignment and all open steps complete, and prompts for reflection when a breakdown existed", async () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
     mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
     mockedAssignmentService.completeAssignment.mockResolvedValue(undefined);
     mockedWorkItemService.listWorkItems.mockResolvedValue([
-      { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: null },
+      { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: null, position: 0 },
     ]);
     mockedWorkItemService.completeAllForAssignment.mockResolvedValue(undefined);
     const userEventInstance = userEvent.setup();
@@ -324,6 +343,34 @@ describe("AssignmentDetailPage", () => {
     expect(mockedWorkItemService.completeAllForAssignment).toHaveBeenCalledWith(
       "assignment-1",
     );
+    expect(
+      await screen.findByText(/did the way you broke this down work/i),
+    ).toBeInTheDocument();
+  });
+
+  it("does not prompt for reflection when the assignment never had a Work Breakdown", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([]);
+    mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+    mockedAssignmentService.completeAssignment.mockResolvedValue(undefined);
+    mockedWorkItemService.listWorkItems.mockResolvedValue([]);
+    mockedWorkItemService.completeAllForAssignment.mockResolvedValue(undefined);
+    const userEventInstance = userEvent.setup();
+
+    render(
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} />,
+    );
+    await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+
+    await userEventInstance.click(
+      screen.getByRole("button", { name: /mark assignment complete/i }),
+    );
+
+    await waitFor(() =>
+      expect(mockedAssignmentService.completeAssignment).toHaveBeenCalledWith(
+        "assignment-1",
+      ),
+    );
+    expect(screen.queryByText(/did the way you broke this down work/i)).not.toBeInTheDocument();
     expect(await screen.findByText("Completed")).toBeInTheDocument();
   });
 });

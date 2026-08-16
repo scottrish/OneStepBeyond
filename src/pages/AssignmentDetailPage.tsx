@@ -14,6 +14,8 @@ import { useAssignment } from "../hooks/useAssignment";
 import { useCourses } from "../hooks/useCourses";
 import { useWorkItems } from "../hooks/useWorkItems";
 import type { Assignment } from "../services/assignmentService";
+import ReflectionPrompt from "./ReflectionPrompt";
+import WorkBreakdownPage from "./WorkBreakdownPage";
 
 type AssignmentDetailPageProps = {
   user: User;
@@ -45,6 +47,7 @@ export default function AssignmentDetailPage({
     loading,
     loadError,
     actionError: assignmentActionError,
+    refetch: refetchAssignment,
     updateAssignment,
     deleteAssignment,
     completeAssignment,
@@ -52,20 +55,18 @@ export default function AssignmentDetailPage({
   const { courses } = useCourses(user.id);
   const {
     workItems,
-    actionError: workItemActionError,
-    addWorkItem,
+    refetch: refetchWorkItems,
     markAllComplete,
-  } = useWorkItems(assignmentId, user.id);
+  } = useWorkItems(assignmentId);
 
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [addingStep, setAddingStep] = useState(false);
+  const [breakingDown, setBreakingDown] = useState(false);
+  const [reflecting, setReflecting] = useState(false);
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [effortMinutes, setEffortMinutes] = useState(0);
   const [notes, setNotes] = useState("");
-  const [stepTitle, setStepTitle] = useState("");
-  const [stepEffort, setStepEffort] = useState(15);
 
   const course = courses.find((c) => c.id === assignment?.courseId);
   const hasCompletedSteps = workItems.some((item) => item.completedAt !== null);
@@ -104,18 +105,38 @@ export default function AssignmentDetailPage({
     if (succeeded) onBack();
   }
 
-  async function handleAddStep(event: FormEvent) {
-    event.preventDefault();
-    if (stepTitle.trim() === "") return;
-    const succeeded = await addWorkItem(stepTitle, stepEffort);
-    if (succeeded) {
-      setStepTitle("");
-      setAddingStep(false);
-    }
+  async function handleMarkComplete() {
+    const hadWorkItems = workItems.length > 0;
+    await Promise.all([completeAssignment(), markAllComplete()]);
+    // docs/features/manual-work-breakdown-reflection-v0.1.md §9: "Preferred
+    // trigger: Assignment is marked complete and had a Work Breakdown."
+    if (hadWorkItems) setReflecting(true);
   }
 
-  async function handleMarkComplete() {
-    await Promise.all([completeAssignment(), markAllComplete()]);
+  if (breakingDown && assignment) {
+    return (
+      <WorkBreakdownPage
+        user={user}
+        assignment={assignment}
+        confirmedItems={workItems}
+        onCancel={() => setBreakingDown(false)}
+        onConfirmed={() => {
+          setBreakingDown(false);
+          refetchAssignment();
+          refetchWorkItems();
+        }}
+      />
+    );
+  }
+
+  if (reflecting) {
+    return (
+      <ReflectionPrompt
+        studentId={user.id}
+        assignmentId={assignmentId}
+        onDone={() => setReflecting(false)}
+      />
+    );
   }
 
   return (
@@ -304,58 +325,9 @@ export default function AssignmentDetailPage({
               </ul>
             )}
 
-            {workItemActionError && (
-              <p role="alert" className={errorBoxStyle}>
-                {workItemActionError}
-              </p>
-            )}
-
-            {addingStep ? (
-              <form
-                onSubmit={handleAddStep}
-                className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3"
-              >
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="step-title">Step</Label>
-                  <Input
-                    id="step-title"
-                    value={stepTitle}
-                    onChange={(e) => setStepTitle(e.target.value)}
-                    placeholder="Find three sources"
-                  />
-                </div>
-                <div
-                  role="radiogroup"
-                  aria-label="Step estimated time"
-                  className="flex flex-wrap gap-2"
-                >
-                  {EFFORT_PRESETS.map((preset) => (
-                    <Button
-                      key={preset.minutes}
-                      type="button"
-                      role="radio"
-                      aria-checked={stepEffort === preset.minutes}
-                      variant={stepEffort === preset.minutes ? "default" : "outline"}
-                      onClick={() => setStepEffort(preset.minutes)}
-                    >
-                      {preset.label}
-                    </Button>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <Button type="button" variant="ghost" onClick={() => setAddingStep(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={stepTitle.trim() === ""} className="flex-1">
-                    Add step
-                  </Button>
-                </div>
-              </form>
-            ) : (
-              <Button variant="outline" onClick={() => setAddingStep(true)}>
-                Add another step
-              </Button>
-            )}
+            <Button variant="outline" onClick={() => setBreakingDown(true)}>
+              {workItems.length > 0 ? "Edit breakdown" : "Break this down"}
+            </Button>
           </section>
         </>
       )}

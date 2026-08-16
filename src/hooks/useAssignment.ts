@@ -73,6 +73,7 @@ export function useAssignment(id: string) {
     loading,
     loadError,
     actionError,
+    refetch: fetchAssignment,
     updateAssignment,
     deleteAssignment,
     completeAssignment,

@@ -6,15 +6,18 @@ export type WorkItem = {
   title: string;
   effortMinutes: number;
   completedAt: string | null;
+  position: number;
 };
 
 export type NewWorkItem = {
   assignmentId: string;
   title: string;
   effortMinutes: number;
+  position: number;
 };
 
-const SELECT_COLUMNS = "id, assignment_id, title, effort_minutes, completed_at";
+const SELECT_COLUMNS =
+  "id, assignment_id, title, effort_minutes, completed_at, position";
 
 function toWorkItem(row: {
   id: string;
@@ -22,6 +25,7 @@ function toWorkItem(row: {
   title: string;
   effort_minutes: number;
   completed_at: string | null;
+  position: number;
 }): WorkItem {
   return {
     id: row.id,
@@ -29,6 +33,7 @@ function toWorkItem(row: {
     title: row.title,
     effortMinutes: row.effort_minutes,
     completedAt: row.completed_at,
+    position: row.position,
   };
 }
 
@@ -42,7 +47,7 @@ export async function listWorkItemsForStudent(
     .from("work_items")
     .select(SELECT_COLUMNS)
     .eq("student_id", studentId)
-    .order("created_at", { ascending: true });
+    .order("position", { ascending: true });
 
   if (error) throw error;
 
@@ -55,31 +60,47 @@ export async function listWorkItems(assignmentId: string): Promise<WorkItem[]> {
     .from("work_items")
     .select(SELECT_COLUMNS)
     .eq("assignment_id", assignmentId)
-    .order("created_at", { ascending: true });
+    .order("position", { ascending: true });
 
   if (error) throw error;
 
   return (data ?? []).map(toWorkItem);
 }
 
-export async function createWorkItem(
+// Bulk-inserts a confirmed Work Breakdown's items in one call, so the
+// caller (workBreakdownService.confirmWorkBreakdown) can insert the new
+// set before deleting whatever it's replacing — see
+// docs/decisions/20260815-manual-work-breakdown-draft-state.md.
+export async function createWorkItems(
   studentId: string,
-  input: NewWorkItem,
-): Promise<WorkItem> {
+  items: NewWorkItem[],
+): Promise<WorkItem[]> {
+  if (items.length === 0) return [];
+
   const { data, error } = await supabase
     .from("work_items")
-    .insert({
-      student_id: studentId,
-      assignment_id: input.assignmentId,
-      title: input.title,
-      effort_minutes: input.effortMinutes,
-    })
-    .select(SELECT_COLUMNS)
-    .single();
+    .insert(
+      items.map((item) => ({
+        student_id: studentId,
+        assignment_id: item.assignmentId,
+        title: item.title,
+        effort_minutes: item.effortMinutes,
+        position: item.position,
+      })),
+    )
+    .select(SELECT_COLUMNS);
 
   if (error) throw error;
 
-  return toWorkItem(data);
+  return (data ?? []).map(toWorkItem);
+}
+
+export async function deleteWorkItems(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+
+  const { error } = await supabase.from("work_items").delete().in("id", ids);
+
+  if (error) throw error;
 }
 
 // "Mark assignment complete" completes the assignment and all its

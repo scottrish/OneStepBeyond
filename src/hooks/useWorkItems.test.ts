@@ -3,7 +3,6 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 
 vi.mock("../services/workItemService", () => ({
   listWorkItems: vi.fn(),
-  createWorkItem: vi.fn(),
   completeAllForAssignment: vi.fn(),
 }));
 
@@ -12,7 +11,6 @@ import { useWorkItems } from "./useWorkItems";
 
 const mockedService = workItemService as unknown as {
   listWorkItems: ReturnType<typeof vi.fn>;
-  createWorkItem: ReturnType<typeof vi.fn>;
   completeAllForAssignment: ReturnType<typeof vi.fn>;
 };
 
@@ -22,6 +20,7 @@ const item = {
   title: "Find three sources",
   effortMinutes: 20,
   completedAt: null,
+  position: 0,
 };
 
 beforeEach(() => {
@@ -32,28 +31,24 @@ describe("useWorkItems", () => {
   it("loads work items for the assignment", async () => {
     mockedService.listWorkItems.mockResolvedValue([item]);
 
-    const { result } = renderHook(() => useWorkItems("a1", "student-1"));
+    const { result } = renderHook(() => useWorkItems("a1"));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(mockedService.listWorkItems).toHaveBeenCalledWith("a1");
     expect(result.current.workItems).toEqual([item]);
   });
 
-  it("adds a work item and appends it locally", async () => {
-    mockedService.listWorkItems.mockResolvedValue([]);
-    mockedService.createWorkItem.mockResolvedValue(item);
+  it("refetches on demand", async () => {
+    mockedService.listWorkItems.mockResolvedValue([item]);
 
-    const { result } = renderHook(() => useWorkItems("a1", "student-1"));
+    const { result } = renderHook(() => useWorkItems("a1"));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(() => result.current.addWorkItem("Find three sources", 20));
+    mockedService.listWorkItems.mockResolvedValue([]);
+    await act(() => result.current.refetch());
 
-    expect(mockedService.createWorkItem).toHaveBeenCalledWith("student-1", {
-      assignmentId: "a1",
-      title: "Find three sources",
-      effortMinutes: 20,
-    });
-    expect(result.current.workItems).toEqual([item]);
+    expect(mockedService.listWorkItems).toHaveBeenCalledTimes(2);
+    expect(result.current.workItems).toEqual([]);
   });
 
   it("marks every open work item complete locally", async () => {
@@ -63,7 +58,7 @@ describe("useWorkItems", () => {
     ]);
     mockedService.completeAllForAssignment.mockResolvedValue(undefined);
 
-    const { result } = renderHook(() => useWorkItems("a1", "student-1"));
+    const { result } = renderHook(() => useWorkItems("a1"));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(() => result.current.markAllComplete());
@@ -74,14 +69,14 @@ describe("useWorkItems", () => {
     );
   });
 
-  it("sets actionError when adding fails", async () => {
-    mockedService.listWorkItems.mockResolvedValue([]);
-    mockedService.createWorkItem.mockRejectedValue({ message: "boom" });
+  it("sets actionError when completing fails", async () => {
+    mockedService.listWorkItems.mockResolvedValue([item]);
+    mockedService.completeAllForAssignment.mockRejectedValue({ message: "boom" });
 
-    const { result } = renderHook(() => useWorkItems("a1", "student-1"));
+    const { result } = renderHook(() => useWorkItems("a1"));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(() => result.current.addWorkItem("Find three sources", 20));
+    await act(() => result.current.markAllComplete());
 
     expect(result.current.actionError).toBe("boom");
   });

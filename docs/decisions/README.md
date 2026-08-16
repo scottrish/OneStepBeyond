@@ -20,3 +20,4 @@ directory.
 | 1 | [Student-only first increment](20260813-student-only-first-increment.md) | 2026-08-13 |
 | 2 | [Local Supabase for initial development](20260814-local-supabase-for-initial-development.md) | 2026-08-14 |
 | 3 | [Adopt the prototype's visual design toolchain early](20260814-adopt-prototype-visual-design-toolchain.md) | 2026-08-14 |
+| 4 | [Manual Work Breakdown: client-side draft state, single entry point](20260815-manual-work-breakdown-draft-state.md) | 2026-08-15 |

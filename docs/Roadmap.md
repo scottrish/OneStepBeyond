@@ -94,25 +94,39 @@ with no planning or coaching yet.
 
 ---
 
-# Phase 3 — Understanding & guided breakdown
+# Phase 3 — Manual work breakdown + reflection foundation
 
 | Feature | Spec | Status |
 |---|---|---|
-| Assignment Understanding & Guided Breakdown | [assignment-understanding-and-breakdown.md](features/assignment-understanding-and-breakdown.md) | Not started |
+| Manual Work Breakdown + Reflection | [manual-work-breakdown-reflection-v0.1.md](features/manual-work-breakdown-reflection-v0.1.md) | Not started |
 
-**Why its own phase:** flagged in its own spec as "the most domain-rich
-feature in this increment" and "the prototype's most sophisticated and
-most Domain-Model-aligned screen." It depends on Assignment Management
-existing (it's reached from Assignment Detail) but nothing later depends
-on it being done first — Daily Planning can select single-Work-Item
-assignments that never went through a breakdown. Isolating it protects the
-rest of the roadmap from its complexity (six-step flow, five-level scaffold
-ladder, per-archetype content) and lets it get focused review on its own,
-per CLAUDE.md's "small focused pull requests."
+**Supersedes:** the old `assignment-understanding-and-breakdown.md` plan
+for this phase (now marked Superseded in that file) — it described the
+full scaffolded/archetype-aware breakdown experience, which is now the
+*target state* of a longer phased strategy
+(`docs/reference/work-breakdown-coaching-feature-spec-v0.2.md`,
+6 phases) rather than this phase's actual scope. This phase builds only
+that strategy's **Phase 1**: an intentionally *unassisted* student-led
+Work Breakdown (create / edit / reorder / estimate / confirm Work Items,
+zero coaching, zero AI) plus the first Work Breakdown Reflection prompt
+from the companion metacognition strategy
+(`docs/reference/metacognition-reflection-feature-spec-v0.2.md`, its own
+Phase 1 / Reflection Moment A). See CLAUDE.md's Project Documentation
+section for when to consult these two strategy docs.
 
-**Demoable at the end of this phase:** a student with a large, vague
-assignment can reach a confirmed, workable Work Breakdown using the
-graduated scaffold ladder, without ever seeing an internal score or level.
+**Why its own phase:** still the most domain-rich feature built so far —
+it introduces `DecompositionAttempt` and `Reflection` as real, persisted
+entities for the first time. It depends on Assignment Management existing
+(reached from Assignment Detail) but nothing later depends on it being
+done first — Daily Planning can select single-Work-Item assignments that
+never went through a breakdown. The scaffold ladder, archetype detection,
+and AI-assisted coaching described in the old spec are deliberately
+**not** part of this phase; see Backlog below for where those live now.
+
+**Demoable at the end of this phase:** a student can turn an Assignment
+into their own ordered, estimated Work Breakdown with no system-generated
+suggestions, and — after completing it — answer one question about
+whether their breakdown actually worked.
 
 ---
 
@@ -121,7 +135,7 @@ graduated scaffold ladder, without ever seeing an internal score or level.
 | Feature | Spec | Status |
 |---|---|---|
 | Daily Planning | [daily-planning.md](features/daily-planning.md) | Not started |
-| Today Execution (incl. reflection Loop 1) | [today-execution.md](features/today-execution.md) | Not started |
+| Today Execution (incl. Reflection Moment C) | [today-execution.md](features/today-execution.md) | Not started |
 | Week Look-Ahead | [week-lookahead.md](features/week-lookahead.md) | Not started |
 
 **Why next:** Daily Planning needs open Work Items (Phase 2/3) and
@@ -135,12 +149,13 @@ Planning's own `availableMinutes` calculation, so it is a thin, low-risk
 addition once Daily Planning's capacity logic already exists — build it
 last in this phase, not first.
 
-Today Execution's reflection step is Loop 1 ("Calibration") of the much
-larger design in
-[metacognition-reflection.md](features/metacognition-reflection.md).
-Building only Loop 1 here — one fixed question, three tap choices, always
-skippable — is correct scope for this phase; see Backlog below for the
-rest of that document.
+Today Execution's reflection step is Reflection Moment C ("After-Work
+Calibration") of the much larger phased design in
+[docs/reference/metacognition-reflection-feature-spec-v0.2.md](reference/metacognition-reflection-feature-spec-v0.2.md)
+— Moment A ("Work Breakdown Reflection") is now built earlier, in Phase 3
+above. Building only Moment C here — one fixed question, a few tap
+choices, always skippable — is correct scope for this phase; see Backlog
+below for the rest of that document.
 
 **Demoable at the end of this phase:** a student can run a full planning
 session in under five minutes, execute today's plan one task at a time,
@@ -189,28 +204,47 @@ it isn't lost, not because it's scheduled next.
   `Playwright-Test-Personas.md` already has parent/coach acceptance
   criteria drafted for when this starts.
 
-## Metacognition & Reflection — Loops 2 and 3
+## Work Breakdown Coaching — Phases 2–6
 
-`metacognition-reflection.md` specifies a much larger design than Phase
-4's Loop 1. Two more loops are explicitly named as natural extensions of
-already-built flows, not new screens:
+`docs/reference/work-breakdown-coaching-feature-spec-v0.2.md` specifies a
+much larger design than Phase 3's Phase 1 (manual, unassisted). Later
+phases, not yet scheduled:
 
-- **Loop 2 — Missed Work Session.** Extends Today Execution's "I'm stuck"
-  flow (Moment C: "What happened?" / "What would help next time?").
-- **Loop 3 — Weekly Pattern.** Extends Daily Planning's `estimationDrift`
-  coaching note (Moment D: one evidence-based pattern per review, e.g.
-  "Algebra usually took about 15 minutes longer than you planned").
+- **Phase 2 — AssignmentType + Simple Heuristic Coaching.** Sitting check,
+  deterministic review heuristics, one Light coaching prompt at a time.
+- **Phase 3 — Assignment Brief + Deterministic Scaffolded Coaching.**
+  Paste/summarize teacher directions, deterministic extraction, the full
+  scaffold ladder (Light → Guided → Structured → Suggested → Direct).
+- **Phase 4 — Execution-Aware Reflection**, **Phase 5 — AI-Assisted
+  Understanding and Coaching**, **Phase 6 — Adaptive ZPD** (see next
+  section).
+
+## Metacognition & Reflection — remaining Moments and Phases
+
+`docs/reference/metacognition-reflection-feature-spec-v0.2.md` specifies
+four Reflection Moments and 6 delivery phases in total. Phase 3 above
+builds Moment A (Phase 1 of that doc); Phase 4 above builds Moment C
+(part of that doc's Phase 4). Not yet scheduled:
+
+- **Moment B — Before-Work Prediction.** Requires Work Items to be
+  estimated and planned (depends on Phase 4's Daily Planning).
+- **Moment D — Periodic Pattern Reflection.** Requires enough accumulated
+  Behavior Observations to show a real pattern, not a guess.
+- That doc's own Phases 2–3 (simple/structured reflection coaching tied to
+  Work Breakdown Coaching's own Phases 2–3, above) and Phases 5–6
+  (AI-assisted, adaptive ZPD).
 
 ## Adaptive scaffolding (ZPD / Skill Competency)
 
-Both the breakdown scaffold ladder (Phase 3) and reflection scaffolding
-(§13 of `metacognition-reflection.md`) are explicitly built as **fixed**
-progressions in Increment 1 — they record the evidence
-(`DecompositionEpisode`s, Skill Evidence) needed to eventually adapt, but
-don't adapt yet. `assignment-understanding-and-breakdown.md` calls out that
-this shared ZPD/Skill Competency infrastructure "should serve both rather
-than being implemented twice" when it's eventually built — schedule it as
-one piece of work, not two.
+Both the Work Breakdown scaffold ladder (its strategy doc's Phase 3+) and
+reflection scaffolding (the metacognition strategy doc's §5) are
+explicitly built as **fixed** progressions through Increment 1 — Phase 3
+above records the evidence (`DecompositionAttempt`, `Reflection`, with
+`ScaffoldIntensity` values already present in the data model) needed to
+eventually adapt, but nothing adapts yet. The work-breakdown strategy doc
+calls out that this shared ZPD/Skill Competency infrastructure "should
+serve both rather than being implemented twice" when it's eventually
+built — schedule it as one piece of work, not two.
 
 ## Smaller open items inside already-built specs
 

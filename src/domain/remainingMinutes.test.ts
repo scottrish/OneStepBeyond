@@ -20,6 +20,7 @@ function item(overrides: Partial<WorkItem>): WorkItem {
     title: "Step",
     effortMinutes: 20,
     completedAt: null,
+    position: 0,
     ...overrides,
   };
 }

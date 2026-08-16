@@ -113,6 +113,19 @@ describe("useAssignment", () => {
     expect(result.current.assignment?.completedAt).not.toBeNull();
   });
 
+  it("refetches on demand", async () => {
+    mockedService.getAssignment.mockResolvedValue(assignment);
+
+    const { result } = renderHook(() => useAssignment("1"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    mockedService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 105 });
+    await act(() => result.current.refetch());
+
+    expect(mockedService.getAssignment).toHaveBeenCalledTimes(2);
+    expect(result.current.assignment?.effortMinutes).toBe(105);
+  });
+
   it("returns true from deleteAssignment on success", async () => {
     mockedService.getAssignment.mockResolvedValue(assignment);
     mockedService.deleteAssignment.mockResolvedValue(undefined);

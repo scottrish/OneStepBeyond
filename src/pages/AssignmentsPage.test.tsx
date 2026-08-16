@@ -24,8 +24,21 @@ vi.mock("../services/assignmentService", () => ({
 vi.mock("../services/workItemService", () => ({
   listWorkItemsForStudent: vi.fn(),
   listWorkItems: vi.fn(),
-  createWorkItem: vi.fn(),
+  createWorkItems: vi.fn(),
+  deleteWorkItems: vi.fn(),
   completeAllForAssignment: vi.fn(),
+}));
+
+// Reached transitively once a card is opened into AssignmentDetailPage,
+// which can now route into the Work Breakdown / Reflection flows — not
+// exercised by this file's own tests, but their real implementations
+// import ../lib/supabase (which throws without env vars), so they must
+// be mocked here regardless.
+vi.mock("../services/decompositionAttemptService", () => ({
+  recordDecompositionAttempt: vi.fn(),
+}));
+vi.mock("../services/reflectionService", () => ({
+  recordReflection: vi.fn(),
 }));
 
 import * as courseService from "../services/courseService";
@@ -46,7 +59,8 @@ const mockedAssignmentService = assignmentService as unknown as {
 const mockedWorkItemService = workItemService as unknown as {
   listWorkItemsForStudent: ReturnType<typeof vi.fn>;
   listWorkItems: ReturnType<typeof vi.fn>;
-  createWorkItem: ReturnType<typeof vi.fn>;
+  createWorkItems: ReturnType<typeof vi.fn>;
+  deleteWorkItems: ReturnType<typeof vi.fn>;
   completeAllForAssignment: ReturnType<typeof vi.fn>;
 };
 

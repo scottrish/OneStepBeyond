@@ -2,11 +2,12 @@
 
 **Status:** Superseded. Retained for prototype/history only.
 
-Current Work Breakdown strategy:
-- manual-work-breakdown-coaching-feature-spec-v0.2.md.
+Long-term capability strategy (target state, phased):
+- `docs/reference/work-breakdown-coaching-feature-spec-v0.2.md`
 
-Current implementation scope:
-- reference/work-breakdown-coaching-feature-spec-v0.2.md.
+Current increment's implementation scope (Phase 1 of that strategy —
+unassisted student-led breakdown, no coaching yet):
+- `docs/features/manual-work-breakdown-reflection-v0.1.md`
 
 ## Summary
 
