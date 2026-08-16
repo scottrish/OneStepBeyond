@@ -9,16 +9,36 @@ One Step Beyond is a mobile-first web application that helps secondary school st
 
 Read these documents if they exist:
 
-- `docs/Product-Vision.md`
-- `docs/Domain-Model.md`
+- `docs/reference/Product-Vision.md`
+- `docs/reference/Domain-Model.md`
 - `docs/Design-Principles.md`
 - `docs/decisions/README.md`
+
+`docs/reference/` also holds longer-term capability strategy documents,
+layered above individual feature specs the same way the Domain Model is:
+canonical direction, not any one increment's scope. When a task touches
+**work breakdown** (decomposition, breakdown coaching, scaffolding) or
+**metacognition/reflection**, also read the matching strategy doc, in
+addition to the Domain Model:
+
+- `docs/reference/work-breakdown-coaching-feature-spec-v0.2.md`
+- `docs/reference/metacognition-reflection-feature-spec-v0.2.md`
+
+These describe target-state capability and a phased delivery strategy —
+most of what they describe is future-phase, not current scope. The
+current increment's own spec under `docs/features/` (e.g.
+`manual-work-breakdown-reflection-v0.1.md`) states what's actually in
+scope now and takes precedence over a strategy doc: do not pull
+later-phase functionality into the current increment merely because it's
+described in one of these.
 
 Feature specifications are stored under:
 
 `docs/features/`
 
-Read **only** the feature specification referenced by the current task.
+Read **only** the feature specification referenced by the current task
+(plus the matching strategy doc above, when the feature touches work
+breakdown or metacognition/reflection).
 
 Project decisions are stored under:
 
@@ -59,7 +79,7 @@ tooling.
 Before implementing any feature:
 
 1. Read the feature specification.
-2. Verify it is consistent with `docs/ProductVision.md`.
+2. Verify it is consistent with `docs/reference/Product-Vision.md`.
 3. Check `../OneStepBeyondPrototype` for a matching screen — or, absent
    one, its general visual patterns — per "Visual & Aesthetic Reference"
    above.
