@@ -1,0 +1,326 @@
+assessment_id: daily-planning-assessment
+persona: student-alex-carter
+mission: evaluate-daily-planning
+feature: daily-planning
+date: 2026-08-16
+iteration: 2
+
+# Re-run of the daily-planning assessment against a newer build. The test
+# account already carried seed data from iteration 1 (Football practice
+# activity, three courses, four assignments, two assignments already
+# broken into Work Items, and a previously-confirmed Monday plan) - none
+# of that was re-added; it was verified via the UI and used as-is. This
+# run deliberately planned Tuesday, August 18 (Worksheet 15 due, no steps
+# yet) specifically to re-test the single biggest problem found in
+# iteration 1: the breakdown dead end. Findings below are fresh
+# observations from this run, numbered from FINDING-DP-001 (fresh
+# numbering, not a continuation of iteration 1's IDs).
+
+findings:
+  - id: FINDING-DP-001
+    title: An assignment due that day but not yet broken into steps is silently omitted from "What should you work on?" with no explanation, instead of the explicit dead-end message iteration 1 saw
+    status: observed
+    verification: >
+      Selected "Tue" (Worksheet 15 due, not yet broken into steps) in the
+      Plan wizard. Step 1 correctly listed "Due: Worksheet 15 · Algebra I."
+      Advancing to Step 2 ("What should you work on?") showed three
+      selectable steps, all belonging to assignments due the following day
+      relative to the real system date (Cell structure reading, Essay
+      draft) - Worksheet 15 did not appear anywhere, and no text on the
+      screen explained why an assignment due that very day was missing or
+      what to do about it. Only by leaving Plan, opening Worksheet 15 from
+      Assignments, and noticing its Steps section was empty did the reason
+      become clear. The same pattern recurred on Thursday for "Reading
+      response - Chapter 10" (also due that day, also without steps): it
+      never appeared in Step 2, with or without expanding "Show more
+      assignments."
+    perspective: persona
+    type: implementation_defect
+    severity: high
+    confidence: high
+    persona_observation: >
+      "Wait, where's my worksheet? That's the one thing due Tuesday and
+      it's just... not here. Did I already do it? Is the app broken? I had
+      to go back to Assignments and poke around before I figured out it
+      wanted me to break it down first - and it never actually told me
+      that from the Plan screen itself."
+    evidence:
+      - screenshots/i02-06-plan-tuesday-overview.png
+      - screenshots/i02-07-plan-step2-worksheet15-missing.png
+      - screenshots/i02-08-worksheet15-detail-no-steps.png
+      - screenshots/i02-22-plan-thursday-worksheet-reappears-and-response-missing.png
+
+  - id: FINDING-DP-002
+    title: The Plan wizard now preserves in-progress day and step selection when the user navigates to another tab and back
+    status: observed
+    verification: >
+      With "Tue" selected and Step 2 in view (after discovering Worksheet
+      15 was missing), navigated to Assignments, broke "Worksheet 15" down
+      into a step, and navigated back to Plan: the wizard was still on
+      "Tue," still on Step 2 of 5, and the newly created step ("Do the
+      worksheet") was now visible (behind a new "Show more assignments"
+      toggle) without having to re-select the day or restart the wizard.
+      This directly re-tests iteration 1's FINDING-DP-007 (silent
+      state loss on tab switch) and did not reproduce it.
+    perspective: both
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: >
+      "Okay, that's actually what should happen - I went and fixed my
+      worksheet and came right back to where I was instead of having to
+      pick Tuesday again."
+    evidence:
+      - screenshots/i02-13-plan-step2-state-preserved-show-more.png
+
+  - id: FINDING-DP-003
+    title: A step already scheduled on one confirmed day can be selected again for a different day with no warning of the existing commitment
+    status: observed
+    verification: >
+      After confirming "Do the worksheet" (Worksheet 15) for Tuesday at
+      5:45 PM, switched to "Thu" in the day picker and expanded "Show more
+      assignments" in Step 2. "Do the worksheet · Worksheet 15 · Algebra I
+      · Due Tuesday · 30m" appeared as a normal selectable option and could
+      be tapped to select it for Thursday as well, with no indicator (badge,
+      disabled state, warning) that it was already committed elsewhere. The
+      selection was manually reversed before advancing, so no duplicate
+      booking was actually confirmed into the data during this assessment.
+    perspective: evaluator
+    type: implementation_defect
+    severity: medium
+    confidence: medium
+    persona_observation: null
+    evidence:
+      - screenshots/i02-22-plan-thursday-worksheet-reappears-and-response-missing.png
+
+  - id: FINDING-DP-004
+    title: Plan's day overview still correctly treats football practice as fixed time and subtracts it from available study time
+    status: observed
+    verification: >
+      Plan Step 1 for both Tuesday and Thursday listed "Football practice -
+      3:30 PM-5:30 PM" and computed "That leaves about 2h of study time" for
+      each (versus 8h30m on the football-free Sunday shown as "Today").
+      Step 4's suggested time for the one selected step defaulted to "After
+      football practice - 5:45 PM," correctly built on practice's end plus
+      travel.
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: >
+      "Good, still doing the one thing I actually need - it's not trying to
+      put homework during practice."
+    evidence:
+      - screenshots/i02-06-plan-tuesday-overview.png
+      - screenshots/i02-17-plan-step4-suggested-time.png
+
+  - id: FINDING-DP-005
+    title: A confirmed plan is durably saved and reappears as "Already planned" with a remove control when the day is revisited
+    status: observed
+    verification: >
+      After confirming ("Plan confirmed. 30m planned for Tuesday. You can
+      come back anytime to adjust it."), navigated to Home and back into
+      Plan. The wizard opened on "Tue" (day selection carried over) at Step
+      1, now showing a new "Already planned" section with "Do the worksheet
+      ... 5:45 PM · 30m" and a "Remove Do the worksheet from Tuesday's plan"
+      button, and recalculated remaining study time to "about 1.5h." The
+      previously-confirmed Monday plan from iteration 1 (three steps,
+      fully committed) was also still present and correctly re-displayed
+      when Monday was selected.
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: >
+      "I can see it actually stuck, and my old Monday plan from before was
+      still sitting there too. That's reassuring."
+    evidence:
+      - screenshots/i02-19-plan-confirmed.png
+      - screenshots/i02-21-plan-tuesday-persisted-already-planned.png
+      - screenshots/i02-05-plan-monday-already-planned.png
+
+  - id: FINDING-DP-006
+    title: Home still shows no trace of the confirmed plan or any "what to do next" summary
+    status: observed
+    verification: >
+      After confirming Tuesday's plan, navigated to the Home tab. Home
+      displayed only the page heading, "New assignment"/"Settings" buttons,
+      and the logged-in-as line - unchanged from the very first screen seen
+      at the start of the session, with no reference to the just-confirmed
+      plan or next step. This re-tests iteration 1's FINDING-DP-006 and it
+      still reproduces exactly as before.
+    perspective: persona
+    type: specification_gap
+    severity: medium
+    confidence: high
+    persona_observation: >
+      "I just made a plan and Home doesn't know about it at all. I'd want
+      that the second I open the app, not have to remember to tap into
+      Plan again to see what I already decided."
+    evidence:
+      - screenshots/i02-20-home-no-plan-trace.png
+
+  - id: FINDING-DP-007
+    title: On a light day, the full plan-and-confirm flow completes in well under five minutes with low-stakes, easily adjustable steps
+    status: observed
+    verification: >
+      For Tuesday (one due assignment, one step once broken down), the
+      5-step wizard - overview, pick work, estimate time, pick a time slot,
+      review - took under a dozen taps end to end (excluding the separate
+      break-down detour) and produced a specific, actionable plan: "Do the
+      worksheet, 5:45 PM, 30m." The time estimate and time-slot steps used
+      simple +/- controls and a pre-selected radio suggestion respectively,
+      neither of which felt like a test or required typing.
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: >
+      "Once I actually had a step to pick, this part was quick - pick it,
+      leave the time alone, take the suggested slot, confirm. That's the
+      part that's supposed to be fast, and it was."
+    evidence:
+      - screenshots/i02-15-plan-step2-worksheet-selected.png
+      - screenshots/i02-16-plan-step3-time-estimate.png
+      - screenshots/i02-17-plan-step4-suggested-time.png
+      - screenshots/i02-18-plan-step5-review.png
+
+  - id: FINDING-DP-008
+    title: A step's completion checkbox is present but disabled on the assignment detail view, with no visible way to mark a step done
+    status: observed
+    verification: >
+      After breaking "Worksheet 15" into one step, its detail page showed a
+      checkbox labeled "Do the worksheet not yet complete" in a disabled
+      state under Steps, matching iteration 1's FINDING-DP-008 exactly (seen
+      there on "Cell structure reading"). No control for marking a step
+      complete was found on any screen visited this session.
+    perspective: evaluator
+    type: specification_gap
+    severity: low
+    confidence: low
+    persona_observation: null
+    evidence:
+      - screenshots/i02-12-worksheet15-step-added.png
+
+  - id: FINDING-DP-009
+    title: The system clock's "Today" again fell on a football-free Sunday, so the mission's weekday scenario was exercised via the day-selector
+    status: observed
+    verification: >
+      Plan's "Today" (Sunday, August 16) showed "Nothing else on that day
+      ... about 8h 30m of study time," not exercising football or due
+      assignments. "Tue" (Worksheet 15 due) and "Thu" (Reading response due)
+      were used instead as faithful stand-ins for a real weekday, consistent
+      with how iteration 1 handled the same clock/mission mismatch.
+    perspective: evaluator
+    type: validation_item
+    severity: informational
+    confidence: high
+    persona_observation: null
+    evidence:
+      - screenshots/i02-04-plan-tab-today-sunday.png
+      - screenshots/i02-06-plan-tuesday-overview.png
+
+  - id: FINDING-DP-010
+    title: The Plan tab remains immediately visible and unambiguous as the entry point for daily planning
+    status: observed
+    verification: >
+      "Plan" is the second of three persistent bottom-navigation tabs
+      (Home, Plan, Assignments) on every screen, and the wizard's day
+      picker and "Step N of 5" labels were visible and functional
+      immediately on opening Plan, confirming this is the real
+      implementation rather than a placeholder.
+    perspective: persona
+    type: preserved_behaviour
+    severity: informational
+    confidence: high
+    persona_observation: >
+      "Same as before - Plan's right there, no hunting for it."
+    evidence:
+      - screenshots/i02-04-plan-tab-today-sunday.png
+
+  - id: FINDING-DP-011
+    title: The full Plan wizard and breakdown flow rendered cleanly at a 390x844 mobile viewport throughout
+    status: observed
+    verification: >
+      Across all 24 screenshots captured at 390x844 (day picker, step
+      lists, "Show more assignments" toggle, time radios, +/- adjusters,
+      review screen), no horizontal scrolling, overlapping, or truncated
+      controls were observed. This was a visual check via
+      screenshots/snapshots, not a measured audit of exact hit-box sizes or
+      contrast ratios.
+    perspective: evaluator
+    type: preserved_behaviour
+    severity: informational
+    confidence: medium
+    persona_observation: null
+    evidence:
+      - screenshots/i02-18-plan-step5-review.png
+
+  - id: FINDING-DP-012
+    title: "Show more assignments" surfaces already-due-tomorrow steps before the step actually due on the selected day, burying the most relevant item
+    status: observed
+    verification: >
+      On both Tuesday and Thursday, Step 2's default (collapsed) list of
+      three items showed only steps belonging to assignments due the day
+      after the real "Today" (Cell structure reading, Essay draft) -
+      neither of which was due on the day actually being planned. The step
+      belonging to the assignment genuinely due that day (Worksheet 15 on
+      Tuesday, and would-be Reading response steps on Thursday) only
+      appeared after tapping "Show more assignments," and in Worksheet 15's
+      case only after it had steps at all.
+    perspective: evaluator
+    type: ux_improvement
+    severity: low
+    confidence: medium
+    persona_observation: >
+      "I had to dig to find the one thing that's actually due Tuesday,
+      while stuff due tomorrow-relative-to-some-other-day was sitting right
+      at the top."
+    evidence:
+      - screenshots/i02-13-plan-step2-state-preserved-show-more.png
+      - screenshots/i02-14-plan-step2-worksheet15-appears.png
+
+summary:
+  assessment:
+    id: daily-planning-assessment
+    feature: daily-planning
+    persona: student-alex-carter
+
+  outcome:
+    status: completed-with-friction
+    completion: true
+    final_confidence: moderate
+
+  findings:
+    total: 12
+    issues: 4
+    positives: 6
+    hypotheses: 2
+
+  recommendations:
+    implementation_defects: 2
+    specification_gaps: 2
+    ux_improvements: 1
+    validation_items: 1
+    preserved_behaviour: 6
+
+  highest_severity: high
+
+  supporting_findings:
+    implementation_defects:
+      - FINDING-DP-001
+      - FINDING-DP-003
+    specification_gaps:
+      - FINDING-DP-006
+      - FINDING-DP-008
+    ux_improvements:
+      - FINDING-DP-012
+    validation_items:
+      - FINDING-DP-009
+    preserved_behaviour:
+      - FINDING-DP-002
+      - FINDING-DP-004
+      - FINDING-DP-005
+      - FINDING-DP-007
+      - FINDING-DP-010
+      - FINDING-DP-011

@@ -1,18 +1,22 @@
 import { useState } from "react";
 import { useAuth } from "./hooks/useAuth";
+import { todayISODate } from "./domain/planningDate";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 import PlanPage from "./pages/PlanPage";
+import type { Step } from "./pages/PlanPage";
 import AssignmentsPage from "./pages/AssignmentsPage";
 import AppShell from "./components/AppShell";
 import type { Tab } from "./components/AppShell";
 
-// Tabs whose own page owns nested internal navigation (a `view` state
-// that can land on something other than that tab's landing screen).
+// Tabs whose own page owns nested internal navigation (a `view` state)
+// that can land on something other than that tab's landing screen.
 // Re-tapping an already-active tab must still reset that nested state —
-// see handleTabChange below. "plan" isn't listed: PlanPage has no nested
-// views yet, so there's nothing for a reset key to do there.
-type ResettableTab = "home" | "assignments";
+// see handleTabChange below. "plan" is included for this same nested-view
+// reason (PlanPage's own breakdown sub-view, FR-1) — its day/step are
+// deliberately NOT part of what gets reset on re-tap; see planDate/
+// planStep below.
+type ResettableTab = "home" | "assignments" | "plan";
 
 export default function App() {
   const { user, signUp, signIn, signOut } = useAuth();
@@ -20,7 +24,22 @@ export default function App() {
   const [tabResetKeys, setTabResetKeys] = useState<Record<ResettableTab, number>>({
     home: 0,
     assignments: 0,
+    plan: 0,
   });
+
+  // Plan's selected day and wizard step are lifted up here (rather than
+  // PlanPage's own local useState) so they survive PlanPage unmounting
+  // when the student switches to another tab and back — see
+  // docs/features/iterations/daily-planning/daily-planning.i02.md FR-2
+  // and docs/decisions/20260816-plan-tab-state-lifted-not-reset-on-retap.md.
+  // Re-tapping Plan while already on it still remounts PlanPage (via
+  // tabResetKeys below, same as Home/Assignments) to clear any nested
+  // in-progress view, but — deliberately, unlike Home/Assignments —
+  // that remount does not reset the day/step held here, since Plan now
+  // holds effortful multi-step progress worth preserving even across a
+  // re-tap.
+  const [planDate, setPlanDate] = useState(() => todayISODate());
+  const [planStep, setPlanStep] = useState<Step>("day");
 
   if (!user) {
     return <LoginPage signIn={signIn} signUp={signUp} />;
@@ -37,7 +56,7 @@ export default function App() {
     // same dead end resurfaced on the Assignments tab — see
     // docs/playwright/manual-work-breakdown-reflection/iteration-01/findings.yaml
     // FINDING-WB-001.
-    if (tab === "home" || tab === "assignments") {
+    if (tab === "home" || tab === "assignments" || tab === "plan") {
       setTabResetKeys((keys) => ({ ...keys, [tab]: keys[tab] + 1 }));
     }
     setActiveTab(tab);
@@ -48,7 +67,16 @@ export default function App() {
       {activeTab === "home" && (
         <HomePage key={tabResetKeys.home} user={user} signOut={signOut} />
       )}
-      {activeTab === "plan" && <PlanPage />}
+      {activeTab === "plan" && (
+        <PlanPage
+          key={tabResetKeys.plan}
+          user={user}
+          date={planDate}
+          step={planStep}
+          onDateChange={setPlanDate}
+          onStepChange={setPlanStep}
+        />
+      )}
       {activeTab === "assignments" && (
         <AssignmentsPage
           key={tabResetKeys.assignments}
