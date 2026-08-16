@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
@@ -39,6 +40,9 @@ vi.mock("../services/workSessionService", () => ({
 vi.mock("../services/planningSessionService", () => ({
   recordPlanningSession: vi.fn(),
 }));
+vi.mock("../services/decompositionAttemptService", () => ({
+  recordDecompositionAttempt: vi.fn(),
+}));
 
 import * as activityService from "../services/activityService";
 import * as assignmentService from "../services/assignmentService";
@@ -46,16 +50,20 @@ import * as workItemService from "../services/workItemService";
 import * as courseService from "../services/courseService";
 import * as workSessionService from "../services/workSessionService";
 import * as planningSessionService from "../services/planningSessionService";
+import * as decompositionAttemptService from "../services/decompositionAttemptService";
 import PlanPage from "./PlanPage";
+import type { Step } from "./PlanPage";
 
 const mockedActivityService = activityService as unknown as {
   listActivities: ReturnType<typeof vi.fn>;
 };
 const mockedAssignmentService = assignmentService as unknown as {
   listAssignments: ReturnType<typeof vi.fn>;
+  updateAssignment: ReturnType<typeof vi.fn>;
 };
 const mockedWorkItemService = workItemService as unknown as {
   listWorkItemsForStudent: ReturnType<typeof vi.fn>;
+  createWorkItems: ReturnType<typeof vi.fn>;
 };
 const mockedCourseService = courseService as unknown as {
   listCourses: ReturnType<typeof vi.fn>;
@@ -70,6 +78,9 @@ const mockedWorkSessionService = workSessionService as unknown as {
 const mockedPlanningSessionService = planningSessionService as unknown as {
   recordPlanningSession: ReturnType<typeof vi.fn>;
 };
+const mockedDecompositionAttemptService = decompositionAttemptService as unknown as {
+  recordDecompositionAttempt: ReturnType<typeof vi.fn>;
+};
 
 const user = { id: "student-1", email: "person@example.com" } as User;
 const course = { id: "course-1", name: "Biology", colorIndex: 0 };
@@ -77,6 +88,19 @@ const course = { id: "course-1", name: "Biology", colorIndex: 0 };
 // 2026-03-16 is a Monday — fixed so capacity/weekday-window math and the
 // day-picker strip are deterministic regardless of the real current date.
 const TODAY = new Date(2026, 2, 16, 9, 0, 0);
+const TODAY_ISO = "2026-03-16";
+
+// date/step now live in App.tsx (docs/features/iterations/
+// daily-planning/daily-planning.i02.md FR-2) and are passed to PlanPage
+// as controlled props. This wrapper mimics App.tsx's own state so every
+// existing test keeps exercising PlanPage exactly as before.
+function ControlledPlanPage({ user }: { user: User }) {
+  const [date, setDate] = useState(TODAY_ISO);
+  const [step, setStep] = useState<Step>("day");
+  return (
+    <PlanPage user={user} date={date} step={step} onDateChange={setDate} onStepChange={setStep} />
+  );
+}
 
 function assignment(overrides: Record<string, unknown> = {}) {
   return {
@@ -116,6 +140,7 @@ beforeEach(() => {
   mockedCourseService.listCourses.mockResolvedValue([course]);
   mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([]);
   mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([]);
+  mockedDecompositionAttemptService.recordDecompositionAttempt.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -124,7 +149,7 @@ afterEach(() => {
 
 describe("PlanPage", () => {
   it("shows the Day step first, with the explicit Step 1 of 5 label and no other progress indicator", async () => {
-    render(<PlanPage user={user} />);
+    render(<ControlledPlanPage user={user} />);
 
     expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /let.s plan today/i })).toBeInTheDocument();
@@ -133,7 +158,7 @@ describe("PlanPage", () => {
   });
 
   it("states remaining capacity in plain language on the Day step", async () => {
-    render(<PlanPage user={user} />);
+    render(<ControlledPlanPage user={user} />);
 
     // Monday window 15:15-21:00 (345 min) minus 90 protected = 4h 15m.
     expect(await screen.findByText(/that leaves about/i)).toBeInTheDocument();
@@ -155,7 +180,7 @@ describe("PlanPage", () => {
       },
     ]);
 
-    render(<PlanPage user={user} />);
+    render(<ControlledPlanPage user={user} />);
 
     expect(await screen.findByText(/due: essay/i)).toBeInTheDocument();
     expect(screen.getByText("Football practice")).toBeInTheDocument();
@@ -179,7 +204,7 @@ describe("PlanPage", () => {
       advanceTimers: vi.advanceTimersByTime,
     });
 
-    render(<PlanPage user={user} />);
+    render(<ControlledPlanPage user={user} />);
 
     expect(await screen.findByText(/already planned/i)).toBeInTheDocument();
     expect(screen.getByText("Draft outline")).toBeInTheDocument();
@@ -211,7 +236,7 @@ describe("PlanPage", () => {
       advanceTimers: vi.advanceTimersByTime,
     });
 
-    render(<PlanPage user={user} />);
+    render(<ControlledPlanPage user={user} />);
     await screen.findByText(/step 1 of 5/i);
     await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -249,7 +274,7 @@ describe("PlanPage", () => {
       advanceTimers: vi.advanceTimersByTime,
     });
 
-    render(<PlanPage user={user} />);
+    render(<ControlledPlanPage user={user} />);
     await screen.findByText(/step 1 of 5/i);
     await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -303,7 +328,7 @@ describe("PlanPage", () => {
       advanceTimers: vi.advanceTimersByTime,
     });
 
-    render(<PlanPage user={user} />);
+    render(<ControlledPlanPage user={user} />);
     await screen.findByText(/step 1 of 5/i);
     await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
     await screen.findByText(/step 2 of 5/i);
@@ -318,7 +343,7 @@ describe("PlanPage", () => {
   });
 
   it("shows a course-context empty state on Select when there are no open work items", async () => {
-    render(<PlanPage user={user} />);
+    render(<ControlledPlanPage user={user} />);
     await screen.findByText(/step 1 of 5/i);
 
     await userEvent.click(screen.getByRole("button", { name: /continue/i }));
@@ -330,7 +355,7 @@ describe("PlanPage", () => {
     const userEventInstance = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,
     });
-    render(<PlanPage user={user} />);
+    render(<ControlledPlanPage user={user} />);
     await screen.findByText(/step 1 of 5/i);
 
     await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
@@ -341,5 +366,204 @@ describe("PlanPage", () => {
     await userEventInstance.click(tuesday);
 
     expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
+  });
+
+  // docs/features/iterations/daily-planning/daily-planning.i02.md FR-1
+  describe("breakdown prerequisite signal and routing", () => {
+    it("names the assignment needing breakdown on the Day step, before Select would otherwise dead-end", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        assignment({ id: "a1", title: "Essay" }),
+      ]);
+
+      render(<ControlledPlanPage user={user} />);
+
+      expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/essay.*needs to be broken into steps before it can be scheduled/i),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /break down .essay./i }),
+      ).toBeInTheDocument();
+    });
+
+    it("replaces Select's dead end with the named assignment and a direct breakdown link", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        assignment({ id: "a1", title: "Essay" }),
+      ]);
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByText(/step 1 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
+
+      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+      expect(screen.getByText(/nothing to plan yet/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/break .essay. into steps first, then come back/i),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /break down .essay./i }),
+      ).toBeInTheDocument();
+    });
+
+    it("lets the student complete a breakdown started from the signal and returns to Plan on the same step with the item now selectable", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        assignment({ id: "a1", title: "Essay" }),
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent
+        .mockResolvedValueOnce([])
+        .mockResolvedValue([
+          workItem({ id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 30 }),
+        ]);
+      mockedWorkItemService.createWorkItems.mockResolvedValue([
+        {
+          id: "w1",
+          assignmentId: "a1",
+          title: "Draft outline",
+          effortMinutes: 30,
+          completedAt: null,
+          position: 0,
+        },
+      ]);
+      mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByText(/step 1 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
+      await screen.findByText(/step 2 of 5/i);
+
+      await userEventInstance.click(
+        screen.getByRole("button", { name: /break down .essay./i }),
+      );
+
+      expect(await screen.findByText(/what are the main pieces/i)).toBeInTheDocument();
+
+      const addInput = screen.getByPlaceholderText(/questions 1–10/i);
+      await userEventInstance.type(addInput, "Draft outline");
+      await userEventInstance.click(screen.getByRole("button", { name: /^add$/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: /^next$/i }));
+
+      await userEventInstance.click(
+        within(
+          screen.getByRole("radiogroup", { name: /estimated time for draft outline/i }),
+        ).getByRole("radio", { name: "30m" }),
+      );
+      await userEventInstance.click(screen.getByRole("button", { name: /^next$/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: /looks good/i }));
+
+      // Back on Plan, at the same step it left off at (Select), the
+      // dead end is gone and the newly-broken-down item is available.
+      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+      expect(await screen.findByText("Draft outline")).toBeInTheDocument();
+      expect(screen.queryByText(/nothing to plan yet/i)).not.toBeInTheDocument();
+    });
+
+    it("cancelling a breakdown started from the signal returns to Plan unchanged", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        assignment({ id: "a1", title: "Essay" }),
+      ]);
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByText(/step 1 of 5/i);
+
+      await userEventInstance.click(
+        screen.getByRole("button", { name: /break down .essay./i }),
+      );
+      expect(await screen.findByText(/what are the main pieces/i)).toBeInTheDocument();
+
+      await userEventInstance.click(screen.getByRole("button", { name: /cancel/i }));
+
+      expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/essay.*needs to be broken into steps/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  // docs/features/iterations/daily-planning/daily-planning.i02.md FR-2
+  describe("wizard state survives tab navigation", () => {
+    it("resumes on the same day/step when remounted (simulating a switch away and back)", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        assignment({ id: "a1", title: "Essay 1", dueDate: "2026-03-17" }),
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        workItem({ id: "w1", assignmentId: "a1", title: "Draft outline" }),
+      ]);
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      function Harness() {
+        const [mounted, setMounted] = useState(true);
+        const [date, setDate] = useState(TODAY_ISO);
+        const [step, setStep] = useState<Step>("day");
+        return (
+          <>
+            <button type="button" onClick={() => setMounted((m) => !m)}>
+              Toggle tab
+            </button>
+            {mounted && (
+              <PlanPage
+                user={user}
+                date={date}
+                step={step}
+                onDateChange={setDate}
+                onStepChange={setStep}
+              />
+            )}
+          </>
+        );
+      }
+
+      render(<Harness />);
+      await screen.findByText(/step 1 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
+      await screen.findByText(/step 2 of 5/i);
+
+      // Simulate App.tsx's conditional render unmounting PlanPage when
+      // another tab becomes active, then remounting it when Plan is
+      // tapped again — date/step are owned by this harness (App.tsx's
+      // stand-in), not PlanPage, so they must survive.
+      await userEventInstance.click(screen.getByRole("button", { name: /toggle tab/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: /toggle tab/i }));
+
+      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+      expect(screen.queryByText(/step 1 of 5/i)).not.toBeInTheDocument();
+    });
+
+    it("falls back to the Day step, instead of rendering a broken screen, when remounted mid-flow with no surviving selections", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        assignment({ id: "a1", title: "Essay 1", dueDate: "2026-03-17" }),
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        workItem({ id: "w1", assignmentId: "a1", title: "Draft outline" }),
+      ]);
+
+      // Rendered directly at "estimate" with nothing chosen — the state
+      // a remount would leave behind if the student had gotten past
+      // Select before switching tabs away and back (chosen/times are
+      // intentionally not lifted, per FR-2's scope — see safeStep in
+      // PlanPage.tsx).
+      render(
+        <PlanPage
+          user={user}
+          date={TODAY_ISO}
+          step="estimate"
+          onDateChange={vi.fn()}
+          onStepChange={vi.fn()}
+        />,
+      );
+
+      expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /let.s plan today/i })).toBeInTheDocument();
+    });
   });
 });

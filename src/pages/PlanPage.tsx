@@ -20,12 +20,32 @@ import { useAssignmentsList } from "../hooks/useAssignmentsList";
 import { useCourses } from "../hooks/useCourses";
 import { useDailyPlanning } from "../hooks/useDailyPlanning";
 import { useEstimationDrift } from "../hooks/useEstimationDrift";
+import type { Assignment } from "../services/assignmentService";
+import WorkBreakdownPage from "./WorkBreakdownPage";
+
+// Step and the selected day are lifted into App.tsx and passed down as
+// controlled props (date/step + onDateChange/onStepChange) instead of
+// local useState, so they survive PlanPage unmounting when the student
+// switches to another bottom-nav tab and back — see
+// docs/features/iterations/daily-planning/daily-planning.i02.md FR-2.
+// Everything else in the wizard (chosen items, times, show-more, the
+// just-confirmed acknowledgment) stays local: FR-2's acceptance criteria
+// only require the day/step to survive, not in-progress selections.
+export type Step = "day" | "select" | "estimate" | "schedule" | "confirm";
 
 type PlanPageProps = {
   user: User;
+  date: string;
+  step: Step;
+  onDateChange: (date: string) => void;
+  onStepChange: (step: Step) => void;
 };
 
-type Step = "day" | "select" | "estimate" | "schedule" | "confirm";
+// A nested view within the Plan tab, distinct from the wizard's own
+// `step`. Reached from FR-1's breakdown signal (see needsBreakdown
+// below) — reuses WorkBreakdownPage exactly as Assignment Detail does,
+// rather than inventing a new UI for the same job (CLAUDE.md YAGNI).
+type View = { name: "wizard" } | { name: "breakdown"; assignmentId: string };
 
 const STEP_LABEL: Record<Step, string> = {
   day: "Step 1 of 5",
@@ -83,12 +103,39 @@ function assignDefaultTimes(
   return next;
 }
 
-export default function PlanPage({ user }: PlanPageProps) {
+// The list of direct "start the breakdown" actions shown by FR-1's
+// signal, shared between the Day step's early notice and Select's
+// dead-end replacement so the wording/markup isn't duplicated.
+function BreakdownList({
+  assignments,
+  onSelect,
+}: {
+  assignments: Assignment[];
+  onSelect: (assignmentId: string) => void;
+}) {
+  return (
+    <ul className="flex flex-col gap-2">
+      {assignments.map((assignment) => (
+        <li key={assignment.id}>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 w-full justify-start rounded-2xl text-left"
+            onClick={() => onSelect(assignment.id)}
+          >
+            Break down &ldquo;{assignment.title}&rdquo;
+          </Button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export default function PlanPage({ user, date, step, onDateChange, onStepChange }: PlanPageProps) {
   const studentId = user.id;
   const today = useMemo(() => todayISODate(), []);
 
-  const [date, setDate] = useState(today);
-  const [step, setStep] = useState<Step>("day");
+  const [view, setView] = useState<View>({ name: "wizard" });
   const [chosen, setChosen] = useState<Record<string, number>>({});
   const [times, setTimes] = useState<Record<string, string>>({});
   const [showAll, setShowAll] = useState(false);
@@ -138,6 +185,23 @@ export default function PlanPage({ user }: PlanPageProps) {
   );
   const visibleCandidates = showAll ? candidates : candidates.slice(0, 3);
 
+  // Open assignments with zero Work Items — i.e. never broken down —
+  // are exactly what makes candidates empty and Select dead-end. Named
+  // here so both the Day step and Select's empty state can point at
+  // them directly. docs/features/iterations/daily-planning/
+  // daily-planning.i02.md FR-1.
+  const assignmentsNeedingBreakdown = useMemo(
+    () =>
+      assignments
+        .filter(
+          (assignment) =>
+            assignment.completedAt === null &&
+            !workItems.some((item) => item.assignmentId === assignment.id),
+        )
+        .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
+    [assignments, workItems],
+  );
+
   const capacity = availableMinutes(activities, workSessions, date);
   const commitments = activitiesOn(activities, date);
   const dueThatDay = assignments.filter(
@@ -149,9 +213,20 @@ export default function PlanPage({ user }: PlanPageProps) {
   const planned = chosenIds.reduce((sum, id) => sum + (chosen[id] ?? 0), 0);
   const over = planned > capacity;
 
+  // date/step are lifted (see PlanPageProps above) so they aren't lost
+  // if the tab unmounts, but the local selections they depend on
+  // (chosen/times) intentionally are not lifted — FR-2 only requires
+  // day/step to survive. If a remount restores a mid-flow step with no
+  // matching selections, fall back to the Day step rather than render
+  // an empty/broken Estimate, Schedule, or Confirm screen.
+  const safeStep: Step =
+    (step === "estimate" || step === "schedule" || step === "confirm") && chosenIds.length === 0
+      ? "day"
+      : step;
+
   function pickDay(nextDate: string) {
-    setDate(nextDate);
-    setStep("day");
+    onDateChange(nextDate);
+    onStepChange("day");
     setChosen({});
     setTimes({});
     setShowAll(false);
@@ -173,7 +248,7 @@ export default function PlanPage({ user }: PlanPageProps) {
 
   function enterSchedule() {
     setTimes(assignDefaultTimes(chosenIds, chosen, slots));
-    setStep("schedule");
+    onStepChange("schedule");
   }
 
   async function finish() {
@@ -189,6 +264,31 @@ export default function PlanPage({ user }: PlanPageProps) {
     // features) — show an inline success acknowledgment instead. See
     // docs/decisions/20260816-daily-planning-confirm-write-order.md.
     if (succeeded) setJustConfirmed(true);
+  }
+
+  // FR-1: reached from the breakdown signal on the Day/Select steps
+  // below. Reuses WorkBreakdownPage exactly as Assignment Detail does
+  // — same component, same confirm flow — rather than a new one.
+  // Cancelling or confirming both return to the wizard at the same
+  // date/step it was left at, since nothing here touches those; a
+  // confirm also refetches so the newly-created Work Items make the
+  // assignment show up as a candidate immediately.
+  const breakdownAssignment =
+    view.name === "breakdown" ? assignments.find((a) => a.id === view.assignmentId) : undefined;
+
+  if (view.name === "breakdown" && breakdownAssignment) {
+    return (
+      <WorkBreakdownPage
+        user={user}
+        assignment={breakdownAssignment}
+        confirmedItems={workItems.filter((item) => item.assignmentId === breakdownAssignment.id)}
+        onCancel={() => setView({ name: "wizard" })}
+        onConfirmed={() => {
+          setView({ name: "wizard" });
+          retryAssignments();
+        }}
+      />
+    );
   }
 
   return (
@@ -238,14 +338,36 @@ export default function PlanPage({ user }: PlanPageProps) {
       {!loading && !loadError && (
         <>
           <p className="mb-6 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            {STEP_LABEL[step]}
+            {STEP_LABEL[safeStep]}
           </p>
 
-          {step === "day" ? (
+          {safeStep === "day" ? (
             <section>
               <h2 className="mb-3 text-base font-medium text-foreground">
                 Let&rsquo;s plan {dayLabel(date, today)}.
               </h2>
+
+              {candidates.length === 0 && assignmentsNeedingBreakdown.length > 0 && (
+                <div className="mb-4 rounded-2xl border border-border bg-card p-4">
+                  <p className="mb-3 text-sm text-foreground">
+                    {assignmentsNeedingBreakdown.length === 1 ? (
+                      <>
+                        &ldquo;{assignmentsNeedingBreakdown[0].title}&rdquo; needs to be broken
+                        into steps before it can be scheduled.
+                      </>
+                    ) : (
+                      <>
+                        {assignmentsNeedingBreakdown.length} assignments need to be broken into
+                        steps before they can be scheduled.
+                      </>
+                    )}
+                  </p>
+                  <BreakdownList
+                    assignments={assignmentsNeedingBreakdown}
+                    onSelect={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                  />
+                </div>
+              )}
 
               {dueThatDay.length > 0 && (
                 <ul className="mb-3 flex flex-col gap-1">
@@ -338,16 +460,43 @@ export default function PlanPage({ user }: PlanPageProps) {
                 <span className="font-medium text-foreground">{effortLabel(Math.max(0, capacity))}</span>{" "}
                 of study time.
               </p>
-              <Button size="lg" className="mt-6 w-full rounded-2xl" onClick={() => setStep("select")}>
+              <Button size="lg" className="mt-6 w-full rounded-2xl" onClick={() => onStepChange("select")}>
                 Continue
               </Button>
             </section>
           ) : candidates.length === 0 ? (
-            <EmptyState
-              title="Nothing to plan yet."
-              hint="Break an assignment into steps first, then come back."
-            />
-          ) : step === "select" ? (
+            assignmentsNeedingBreakdown.length > 0 ? (
+              <section>
+                <h2 className="mb-3 text-base font-medium text-foreground">Nothing to plan yet.</h2>
+                <p className="mb-4 text-sm text-muted-foreground">
+                  {assignmentsNeedingBreakdown.length === 1 ? (
+                    <>
+                      Break &ldquo;{assignmentsNeedingBreakdown[0].title}&rdquo; into steps first,
+                      then come back.
+                    </>
+                  ) : (
+                    <>Break these assignments into steps first, then come back.</>
+                  )}
+                </p>
+                <BreakdownList
+                  assignments={assignmentsNeedingBreakdown}
+                  onSelect={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                />
+                <Button
+                  variant="ghost"
+                  className="mt-4 rounded-2xl"
+                  onClick={() => onStepChange("day")}
+                >
+                  Back
+                </Button>
+              </section>
+            ) : (
+              <EmptyState
+                title="Nothing to plan yet."
+                hint="Break an assignment into steps first, then come back."
+              />
+            )
+          ) : safeStep === "select" ? (
             <section>
               <h2 className="mb-3 text-base font-medium text-foreground">
                 What should you work on?
@@ -400,20 +549,20 @@ export default function PlanPage({ user }: PlanPageProps) {
                 </button>
               )}
               <div className="mt-6 flex gap-2">
-                <Button variant="ghost" className="rounded-2xl" onClick={() => setStep("day")}>
+                <Button variant="ghost" className="rounded-2xl" onClick={() => onStepChange("day")}>
                   Back
                 </Button>
                 <Button
                   size="lg"
                   className="flex-1 rounded-2xl"
                   disabled={chosenIds.length === 0}
-                  onClick={() => setStep("estimate")}
+                  onClick={() => onStepChange("estimate")}
                 >
                   Next: estimate time
                 </Button>
               </div>
             </section>
-          ) : step === "estimate" ? (
+          ) : safeStep === "estimate" ? (
             <section>
               <h2 className="mb-3 text-base font-medium text-foreground">
                 How long do you think these will take?
@@ -485,7 +634,7 @@ export default function PlanPage({ user }: PlanPageProps) {
               )}
 
               <div className="mt-6 flex gap-2">
-                <Button variant="ghost" className="rounded-2xl" onClick={() => setStep("select")}>
+                <Button variant="ghost" className="rounded-2xl" onClick={() => onStepChange("select")}>
                   Back
                 </Button>
                 <Button size="lg" className="flex-1 rounded-2xl" onClick={enterSchedule}>
@@ -493,7 +642,7 @@ export default function PlanPage({ user }: PlanPageProps) {
                 </Button>
               </div>
             </section>
-          ) : step === "schedule" ? (
+          ) : safeStep === "schedule" ? (
             <section>
               <h2 className="mb-3 text-base font-medium text-foreground">When will you do them?</h2>
               <p className="mb-4 text-sm text-muted-foreground">
@@ -560,10 +709,10 @@ export default function PlanPage({ user }: PlanPageProps) {
                 })}
               </ul>
               <div className="mt-6 flex gap-2">
-                <Button variant="ghost" className="rounded-2xl" onClick={() => setStep("estimate")}>
+                <Button variant="ghost" className="rounded-2xl" onClick={() => onStepChange("estimate")}>
                   Back
                 </Button>
-                <Button size="lg" className="flex-1 rounded-2xl" onClick={() => setStep("confirm")}>
+                <Button size="lg" className="flex-1 rounded-2xl" onClick={() => onStepChange("confirm")}>
                   Next: review
                 </Button>
               </div>
@@ -622,7 +771,7 @@ export default function PlanPage({ user }: PlanPageProps) {
                 {effortLabel(planned)} planned of {effortLabel(Math.max(0, capacity))} available.
               </p>
               <div className="mt-6 flex gap-2">
-                <Button variant="ghost" className="rounded-2xl" onClick={() => setStep("select")}>
+                <Button variant="ghost" className="rounded-2xl" onClick={() => onStepChange("select")}>
                   Adjust
                 </Button>
                 <Button size="lg" className="flex-1 rounded-2xl" onClick={finish}>

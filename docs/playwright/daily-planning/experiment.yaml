@@ -10,4 +10,10 @@ iterations:
     commit: 9625b3d
     status: complete
     stop_after: false
+  - number: 2
+    tag: dev-daily-planning-i2-start
+    spec: docs/features/iterations/daily-planning/daily-planning.i02.md
+    commit: null
+    status: in-progress
+    stop_after: null
 status: in-progress

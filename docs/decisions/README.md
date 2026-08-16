@@ -23,3 +23,4 @@ directory.
 | 4 | [Manual Work Breakdown: client-side draft state, single entry point](20260815-manual-work-breakdown-draft-state.md) | 2026-08-15 |
 | 5 | [Coach/Parent/Diagnostic Dashboard reuses student auth; no real roles yet](20260816-dashboard-reuses-student-auth.md) | 2026-08-16 |
 | 6 | [Daily Planning: confirm-plan write order and navigation fallback](20260816-daily-planning-confirm-write-order.md) | 2026-08-16 |
+| 7 | [Plan tab's day/step: lifted state, and not reset on re-tap](20260816-plan-tab-state-lifted-not-reset-on-retap.md) | 2026-08-16 |
