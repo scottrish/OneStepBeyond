@@ -19,7 +19,23 @@ iterations:
   - number: 3
     tag: dev-daily-planning-i3-start
     spec: docs/features/iterations/daily-planning/daily-planning.i03.md
-    commit: null
-    status: in-progress
-    stop_after: null
-status: in-progress
+    commit: 46fbeee
+    status: complete
+    stop_after: true
+status: stopped-max-iterations
+
+# Stop reason: 3-iteration cap reached (docs/iterative-development-
+# playwright-process.md "Stop: Maximum Iterations Reached"). Iteration 3's
+# evaluation still found one substantive, unresolved finding, recorded
+# here per that rule rather than driving a fourth iteration:
+#
+# FINDING-DP-003 (medium, implementation_defect,
+# docs/playwright/daily-planning/iteration-03/findings.yaml): the
+# already-scheduled-elsewhere warning added this iteration (FR-1) uses
+# data fetched once on PlanPage mount (useAllWorkSessions) and does not
+# refetch after a plan is confirmed later in the same session — so an
+# item just scheduled for one day shows no warning when the student
+# checks a different day moments later in the same sitting, though the
+# underlying data is correct and a fresh page load/tab revisit picks it
+# up fine. Candidate for a future increment: refetch or optimistically
+# update useAllWorkSessions's data after confirmPlan succeeds.
