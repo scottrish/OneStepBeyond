@@ -222,6 +222,56 @@ describe("HomePage", () => {
       await userEvent.click(screen.getByRole("button", { name: /plan today/i }));
       expect(onGoToPlan).toHaveBeenCalledTimes(1);
     });
+
+    it("shows a calm all-done confirmation, not the empty state, once every planned session for today is done", async () => {
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        {
+          id: "w1",
+          assignmentId: "a1",
+          title: "Draft outline",
+          effortMinutes: 30,
+          completedAt: "2026-03-16T00:00:00Z",
+          position: 0,
+        },
+        {
+          id: "w2",
+          assignmentId: "a1",
+          title: "Write conclusion",
+          effortMinutes: 30,
+          completedAt: "2026-03-16T00:00:00Z",
+          position: 1,
+        },
+      ]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        {
+          id: "s1",
+          workItemId: "w1",
+          date: TODAY_ISO,
+          plannedMinutes: 30,
+          startTime: "16:00",
+          status: "done",
+        },
+        {
+          id: "s2",
+          workItemId: "w2",
+          date: TODAY_ISO,
+          plannedMinutes: 30,
+          startTime: "17:00",
+          status: "done",
+        },
+      ]);
+
+      renderHomePage();
+
+      expect(await screen.findByText(/that.s everything for today/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/you did what you said you would\. the evening is yours\./i),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/no plan for today yet/i)).not.toBeInTheDocument();
+      // The stale "Today's plan: ... tasks" summary shouldn't linger
+      // once everything it describes is already finished.
+      expect(screen.queryByText(/today.s plan:/i)).not.toBeInTheDocument();
+    });
   });
 
   describe("Needs Attention", () => {

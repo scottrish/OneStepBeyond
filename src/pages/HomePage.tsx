@@ -299,6 +299,17 @@ export default function HomePage({
                 Start
               </Button>
             </div>
+          ) : todaySessions.length > 0 ? (
+            // Every session for today is done — today-execution.md's own
+            // calm confirmation, reused here rather than falling through
+            // to the "no plan yet" empty state, which would wrongly imply
+            // nothing was ever planned.
+            <div className="mt-6 rounded-3xl bg-primary p-6 text-primary-foreground">
+              <p className="text-xl font-medium">That&rsquo;s everything for today.</p>
+              <p className="mt-1 text-sm opacity-80">
+                You did what you said you would. The evening is yours.
+              </p>
+            </div>
           ) : (
             <div className="mt-6">
               <EmptyState
@@ -309,7 +320,7 @@ export default function HomePage({
             </div>
           )}
 
-          {todaySessions.length > 0 && (
+          {next && (
             <p className="mt-3 text-sm text-muted-foreground">
               Today&rsquo;s plan: about {effortLabel(totalPlannedMinutes)} · {todaySessions.length}{" "}
               {todaySessions.length === 1 ? "task" : "tasks"}
