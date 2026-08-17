@@ -1,5 +1,48 @@
 # Feature: Daily Planning
 
+**Status:** Implemented (2026-08-16) on `experiment/daily-planning`, not
+yet merged to `main`, after four development iterations (see
+`docs/playwright/daily-planning/` and
+`docs/features/iterations/daily-planning/`). The five-step wizard,
+capacity math, and confirm flow described below are built and tested
+against this spec's Acceptance Criteria. Iterations 2–4 added behavior
+beyond this spec's literal text, driven by iterations 1–3's
+persona-assessment findings and, for iteration 4, direct product-owner
+review rather than an assessment:
+
+- A signal and a direct routing path when a candidate assignment hasn't
+  been broken into Work Items yet, instead of Select silently
+  dead-ending (iteration 2), later extended to also cover the case where
+  only *some* of a day's candidates need it (iteration 3).
+- A "Plan '{title}' as one task instead" alternative to breaking an
+  assignment down, for assignments that aren't meaningfully decomposable
+  — see `docs/decisions/20260816-plan-directly-without-breakdown.md`.
+- Selecting a work item already planned on a different day is allowed,
+  not blocked, with an informational (not warning-styled) "Also planned
+  for {day}" indicator (iteration 3, tone softened in iteration 4).
+- The Schedule step's suggested times and manual entry now share one
+  directly-editable time input, rather than a separate display-only
+  selection state shown alongside a duplicate manual field (iteration 4
+  FR-1).
+- A "Move to another day" action on an already-planned item, doing a
+  single create-on-target-day-then-remove-from-original action instead
+  of requiring the student to plan it again elsewhere and separately
+  delete the original (iteration 4 FR-3). This is a tap-based day
+  picker, not the drag-and-drop mechanism this spec's own Explicitly Out
+  of Scope section rules out below — that exclusion still holds.
+- Wizard day/step selection now survives switching to another bottom-nav
+  tab and back mid-session (iteration 2 FR-2).
+
+Not yet built, because both depend on features not yet started (see
+`docs/Roadmap.md`): confirming a plan shows an inline success
+acknowledgment rather than navigating to Today Execution or Week
+Look-ahead, since neither exists yet in this codebase — see
+`docs/decisions/20260816-daily-planning-confirm-write-order.md`. Moving a
+session is limited to the existing 5-day (Today+4) window and to
+`planned`-status sessions; anything involving Week Look-ahead's own date
+range, or Today Execution's in-progress/done statuses, is deferred to
+those features.
+
 ## Summary
 
 The core Planning Session workflow: the student reviews what's open,
