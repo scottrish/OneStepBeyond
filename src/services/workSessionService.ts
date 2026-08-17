@@ -115,9 +115,41 @@ export async function deletePlannedSessionsForDate(
   if (error) throw error;
 }
 
-// The Day step's "remove" affordance for a single already-planned item.
+// The Day step's "remove" affordance for a single already-planned item,
+// and Today Execution's "I'm stuck" -> "Move to tomorrow" defer action
+// (docs/features/today-execution.md: deferred sessions "drop out of
+// today's list entirely... not cancelled, just moved" — the student
+// replans them explicitly later, so this is the same operation as
+// Remove, not a distinct "deferred" status).
 export async function deleteWorkSession(id: string): Promise<void> {
   const { error } = await supabase.from("work_sessions").delete().eq("id", id);
+
+  if (error) throw error;
+}
+
+// Today Execution's Start ("planned" -> "in_progress") and Done
+// ("in_progress" -> "done") transitions.
+export async function updateWorkSessionStatus(
+  id: string,
+  status: WorkSessionStatus,
+): Promise<void> {
+  const { error } = await supabase.from("work_sessions").update({ status }).eq("id", id);
+
+  if (error) throw error;
+}
+
+// Today Execution's "Need more time" action — the caller computes the
+// new total (current plannedMinutes + 10) rather than this function
+// incrementing server-side, consistent with this codebase's simple
+// read-then-write style elsewhere (no Postgres functions/RPCs yet).
+export async function updateWorkSessionPlannedMinutes(
+  id: string,
+  plannedMinutes: number,
+): Promise<void> {
+  const { error } = await supabase
+    .from("work_sessions")
+    .update({ planned_minutes: plannedMinutes })
+    .eq("id", id);
 
   if (error) throw error;
 }

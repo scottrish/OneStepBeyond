@@ -13,6 +13,8 @@ import {
   deleteWorkSession,
   listWorkSessionsForDate,
   listWorkSessionsForStudent,
+  updateWorkSessionPlannedMinutes,
+  updateWorkSessionStatus,
 } from "./workSessionService";
 
 type QueryResult = { data: unknown; error: unknown };
@@ -24,6 +26,7 @@ function mockQuery(result: QueryResult) {
   builder.eq = returnsBuilder;
   builder.insert = returnsBuilder;
   builder.delete = returnsBuilder;
+  builder.update = returnsBuilder;
   builder.then = (resolve: (value: QueryResult) => unknown) =>
     Promise.resolve(result).then(resolve);
   return builder;
@@ -169,5 +172,39 @@ describe("deleteWorkSession", () => {
     mockedFrom.mockReturnValue(mockQuery({ data: null, error: new Error("boom") }));
 
     await expect(deleteWorkSession("session-1")).rejects.toThrow("boom");
+  });
+});
+
+describe("updateWorkSessionStatus", () => {
+  it("updates a session's status", async () => {
+    mockedFrom.mockReturnValue(mockQuery({ data: null, error: null }));
+
+    await expect(
+      updateWorkSessionStatus("session-1", "in_progress"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("throws when the update errors", async () => {
+    mockedFrom.mockReturnValue(mockQuery({ data: null, error: new Error("boom") }));
+
+    await expect(updateWorkSessionStatus("session-1", "done")).rejects.toThrow("boom");
+  });
+});
+
+describe("updateWorkSessionPlannedMinutes", () => {
+  it("updates a session's planned minutes", async () => {
+    mockedFrom.mockReturnValue(mockQuery({ data: null, error: null }));
+
+    await expect(
+      updateWorkSessionPlannedMinutes("session-1", 40),
+    ).resolves.toBeUndefined();
+  });
+
+  it("throws when the update errors", async () => {
+    mockedFrom.mockReturnValue(mockQuery({ data: null, error: new Error("boom") }));
+
+    await expect(
+      updateWorkSessionPlannedMinutes("session-1", 40),
+    ).rejects.toThrow("boom");
   });
 });

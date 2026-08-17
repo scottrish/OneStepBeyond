@@ -277,6 +277,25 @@ built — schedule it as one piece of work, not two.
 
 ## Smaller open items inside already-built specs
 
+- **Assignment Detail's CTA hierarchy needs reconsidering, not just
+  completing.** `assignment-management.md` specs two primary actions side
+  by side — "Plan work for today" and "Mark assignment complete" — but
+  only "Mark assignment complete" was ever built (its partner was
+  deferred pending Daily Planning, which now exists but was never
+  revisited). With no partner action, "Mark assignment complete" reads as
+  the screen's single dominant CTA, including for a just-created,
+  never-worked-on assignment. Raised 2026-08-16: does "Mark assignment
+  complete" even make sense there? It's a "record already-done or
+  unplanned work" action, not a "plan what's next" one — **this is a
+  planning tool, not a tool for recording unplanned work** — so simply
+  adding the missing "Plan work for today" button back may not be enough;
+  the relative prominence of "Mark complete" itself (always secondary, or
+  conditioned on some state) deserves its own look before either is
+  touched. The spec's related, also-never-built "offer a coaching prompt
+  suggesting a breakdown (does not force one)" line is the same shape of
+  gap — see `docs/decisions/20260816-plan-directly-without-breakdown.md`
+  for the equivalent capability already built in Daily Planning, not yet
+  wired into Assignment Detail's own "Break this down."
 - Course Setup: deleting a course (and whatever in-use protection that
   needs), manual color selection, and archiving a course at the end of a
   term/year — all deferred by the 2026-08-14 resolution in

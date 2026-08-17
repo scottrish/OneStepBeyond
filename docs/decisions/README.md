@@ -24,3 +24,5 @@ directory.
 | 5 | [Coach/Parent/Diagnostic Dashboard reuses student auth; no real roles yet](20260816-dashboard-reuses-student-auth.md) | 2026-08-16 |
 | 6 | [Daily Planning: confirm-plan write order and navigation fallback](20260816-daily-planning-confirm-write-order.md) | 2026-08-16 |
 | 7 | [Plan tab's day/step: lifted state, and not reset on re-tap](20260816-plan-tab-state-lifted-not-reset-on-retap.md) | 2026-08-16 |
+| 8 | [Daily Planning: allow scheduling an assignment without a Work Breakdown](20260816-plan-directly-without-breakdown.md) | 2026-08-16 |
+| 9 | [Today Execution: interim entry point before Home Dashboard exists](20260816-today-execution-interim-entry-point.md) | 2026-08-16 |

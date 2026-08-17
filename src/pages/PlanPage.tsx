@@ -26,6 +26,7 @@ import * as workBreakdownService from "../services/workBreakdownService";
 import * as workSessionService from "../services/workSessionService";
 import type { Assignment } from "../services/assignmentService";
 import type { WorkSession } from "../services/workSessionService";
+import TodayExecutionPage from "./TodayExecutionPage";
 import WorkBreakdownPage from "./WorkBreakdownPage";
 
 // Step and the selected day are lifted into App.tsx and passed down as
@@ -47,10 +48,15 @@ type PlanPageProps = {
 };
 
 // A nested view within the Plan tab, distinct from the wizard's own
-// `step`. Reached from FR-1's breakdown signal (see needsBreakdown
-// below) — reuses WorkBreakdownPage exactly as Assignment Detail does,
-// rather than inventing a new UI for the same job (CLAUDE.md YAGNI).
-type View = { name: "wizard" } | { name: "breakdown"; assignmentId: string };
+// `step`. "breakdown" is reached from FR-1's breakdown signal (see
+// needsBreakdown below) — reuses WorkBreakdownPage exactly as Assignment
+// Detail does, rather than inventing a new UI for the same job (CLAUDE.md
+// YAGNI). "execute" is Today Execution — not a bottom-nav tab per
+// home-dashboard.md's Navigation section, so it's nested here instead,
+// reached from an interim link on the Day step and from the Confirm
+// step's success screen — see
+// docs/decisions/20260816-today-execution-interim-entry-point.md.
+type View = { name: "wizard" } | { name: "breakdown"; assignmentId: string } | { name: "execute" };
 
 const STEP_LABEL: Record<Step, string> = {
   day: "Step 1 of 5",
@@ -311,6 +317,15 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
   );
   const slots = useMemo(() => studySlots(activities, date), [activities, date]);
 
+  // docs/decisions/20260816-today-execution-interim-entry-point.md — an
+  // interim link into Today Execution, since Home's own "Next card"
+  // entry point (home-dashboard.md) is Phase 5, not built yet. Scoped to
+  // today specifically and to a plan with something left to do, so it
+  // never appears for a future day being planned or once everything is
+  // already done.
+  const hasActiveWorkToday =
+    date === today && workSessions.some((session) => session.status !== "done");
+
   // FR-3 (docs/features/iterations/daily-planning/daily-planning.i04.md):
   // capacity for whichever day is currently chosen as a move's target, so
   // the move panel can show the same calm over-capacity notice Estimate
@@ -489,6 +504,14 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
         }}
       />
     );
+  }
+
+  // See docs/decisions/20260816-today-execution-interim-entry-point.md —
+  // Today Execution always operates on "today" regardless of which day
+  // this wizard currently has selected, so returning to the wizard lands
+  // back on the Day step rather than wherever it was left.
+  if (view.name === "execute") {
+    return <TodayExecutionPage user={user} onBack={() => setView({ name: "wizard" })} />;
   }
 
   return (
@@ -737,7 +760,17 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
                 <span className="font-medium text-foreground">{effortLabel(Math.max(0, capacity))}</span>{" "}
                 of study time.
               </p>
-              <Button size="lg" className="mt-6 w-full rounded-2xl" onClick={() => onStepChange("select")}>
+              {hasActiveWorkToday && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="mt-3 w-full rounded-2xl"
+                  onClick={() => setView({ name: "execute" })}
+                >
+                  Continue today&rsquo;s plan
+                </Button>
+              )}
+              <Button size="lg" className="mt-3 w-full rounded-2xl" onClick={() => onStepChange("select")}>
                 Continue
               </Button>
             </section>
@@ -1005,9 +1038,19 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
                 {effortLabel(planned)} planned for {dayLabel(date, today)}. You can come back
                 anytime to adjust it.
               </p>
+              {date === today && (
+                <Button
+                  size="lg"
+                  className="mt-6 w-full rounded-2xl"
+                  onClick={() => setView({ name: "execute" })}
+                >
+                  Start today&rsquo;s plan
+                </Button>
+              )}
               <Button
+                variant={date === today ? "outline" : "default"}
                 size="lg"
-                className="mt-6 w-full rounded-2xl"
+                className="mt-3 w-full rounded-2xl"
                 onClick={() => pickDay(date)}
               >
                 Plan another day

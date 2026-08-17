@@ -1036,4 +1036,130 @@ describe("PlanPage", () => {
       expect(screen.getByRole("heading", { name: /let.s plan today/i })).toBeInTheDocument();
     });
   });
+
+  // docs/decisions/20260816-today-execution-interim-entry-point.md
+  describe("interim entry points into Today Execution", () => {
+    it("shows 'Continue today's plan' on the Day step when today already has active work planned", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        {
+          id: "session-1",
+          workItemId: "w1",
+          date: TODAY_ISO,
+          plannedMinutes: 30,
+          startTime: "16:00",
+          status: "planned",
+        },
+      ]);
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      const continueButton = await screen.findByRole("button", {
+        name: /continue today.s plan/i,
+      });
+
+      await userEventInstance.click(continueButton);
+
+      expect(await screen.findByText("Draft outline")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^start$/i })).toBeInTheDocument();
+    });
+
+    it("does not show 'Continue today's plan' when planning a future day", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByText(/step 1 of 5/i);
+
+      const dayPicker = screen.getByRole("radiogroup", { name: /choose a day to plan/i });
+      const tuesday = within(dayPicker).getAllByRole("radio")[1];
+      await userEventInstance.click(tuesday);
+
+      expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /continue today.s plan/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("does not show 'Continue today's plan' once everything for today is already done", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        {
+          id: "session-1",
+          workItemId: "w1",
+          date: TODAY_ISO,
+          plannedMinutes: 30,
+          startTime: "16:00",
+          status: "done",
+        },
+      ]);
+
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByText(/step 1 of 5/i);
+
+      expect(
+        screen.queryByRole("button", { name: /continue today.s plan/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows 'Start today's plan' on the Confirm step's success screen when confirming today's plan", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        assignment({ id: "a1", title: "Essay", dueDate: "2026-03-17" }),
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        workItem({ id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 20 }),
+      ]);
+      mockedWorkSessionService.deletePlannedSessionsForDate.mockResolvedValue(undefined);
+      const createdSession = {
+        id: "session-1",
+        workItemId: "w1",
+        date: TODAY_ISO,
+        plannedMinutes: 20,
+        startTime: "15:15",
+        status: "planned" as const,
+      };
+      mockedWorkSessionService.createWorkSessions.mockResolvedValue([createdSession]);
+      // TodayExecutionPage's own useTodayExecution hook fetches today's
+      // sessions independently once the "execute" view mounts — key the
+      // mock off whether the plan has actually been confirmed yet,
+      // matching this file's other confirm-then-refetch tests above.
+      let confirmed = false;
+      mockedPlanningSessionService.recordPlanningSession.mockImplementation(async () => {
+        confirmed = true;
+      });
+      mockedWorkSessionService.listWorkSessionsForDate.mockImplementation(() =>
+        Promise.resolve(confirmed ? [createdSession] : []),
+      );
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByText(/step 1 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
+      await screen.findByText(/step 2 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /draft outline/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: /next: estimate time/i }));
+      await screen.findByText(/step 3 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /next: when/i }));
+      await screen.findByText(/step 4 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /next: review/i }));
+      await screen.findByText(/step 5 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /looks good/i }));
+      await screen.findByText(/plan confirmed/i);
+
+      const startButton = screen.getByRole("button", { name: /start today.s plan/i });
+      await userEventInstance.click(startButton);
+
+      expect(await screen.findByText("Draft outline")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^start$/i })).toBeInTheDocument();
+    });
+  });
 });

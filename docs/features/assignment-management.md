@@ -77,6 +77,14 @@ see what's left, and correct or remove things that changed.
 - Primary actions: "Plan work for today" (→ Planning) and "Mark assignment
   complete" (marks the assignment and any remaining open steps complete in
   one action).
+  **Open item (`docs/Roadmap.md`'s Backlog, raised 2026-08-16):** "Plan
+  work for today" was never built (deferred pending Daily Planning, which
+  now exists), leaving "Mark assignment complete" as the screen's only,
+  overly-dominant primary action — including for an assignment that was
+  just created and never worked on. Before restoring the missing button,
+  reconsider "Mark assignment complete"'s own prominence: it's a "record
+  already-done or unplanned work" action in an app that's a planning
+  tool, not a tool for recording unplanned work.
 - Edit / delete mirror the list screen's behavior and confirmation rule.
 
 ## Functional Requirements
