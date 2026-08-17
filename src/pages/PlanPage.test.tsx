@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 
@@ -219,6 +219,137 @@ describe("PlanPage", () => {
     );
   });
 
+  // docs/features/iterations/daily-planning/daily-planning.i04.md FR-3
+  describe("moving an already-planned item to a different day", () => {
+    it("moves a not-yet-started session to a chosen day, removing it from the original day", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        {
+          id: "session-1",
+          workItemId: "w1",
+          date: "2026-03-16",
+          plannedMinutes: 30,
+          startTime: "16:00",
+          status: "planned",
+        },
+      ]);
+      mockedWorkSessionService.createWorkSessions.mockResolvedValue([
+        {
+          id: "session-2",
+          workItemId: "w1",
+          date: "2026-03-17",
+          plannedMinutes: 30,
+          startTime: null,
+          status: "planned",
+        },
+      ]);
+      mockedWorkSessionService.deleteWorkSession.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      expect(await screen.findByText(/already planned/i)).toBeInTheDocument();
+
+      await userEventInstance.click(
+        screen.getByRole("button", { name: /move draft outline to another day/i }),
+      );
+
+      const movePicker = screen.getByRole("radiogroup", {
+        name: /choose a day to move draft outline to/i,
+      });
+      // Today is excluded from the move target options — there's nothing
+      // to move to on the day the session is already on.
+      expect(
+        within(movePicker).queryByRole("radio", { name: /^today$/i }),
+      ).not.toBeInTheDocument();
+      await userEventInstance.click(within(movePicker).getByRole("radio", { name: /tue/i }));
+
+      await userEventInstance.click(screen.getByRole("button", { name: /move here/i }));
+
+      await waitFor(() =>
+        expect(mockedWorkSessionService.createWorkSessions).toHaveBeenCalledWith("student-1", [
+          { workItemId: "w1", date: "2026-03-17", plannedMinutes: 30, startTime: null },
+        ]),
+      );
+      await waitFor(() =>
+        expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("session-1"),
+      );
+      // The move panel closes once the move succeeds.
+      expect(screen.queryByRole("button", { name: /move here/i })).not.toBeInTheDocument();
+    });
+
+    it("shows a calm, non-blocking over-capacity notice for the target day before confirming a move", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        workItem({ effortMinutes: 500 }),
+      ]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        {
+          id: "session-1",
+          workItemId: "w1",
+          date: "2026-03-16",
+          plannedMinutes: 500,
+          startTime: "16:00",
+          status: "planned",
+        },
+      ]);
+      mockedWorkSessionService.createWorkSessions.mockResolvedValue([]);
+      mockedWorkSessionService.deleteWorkSession.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      expect(await screen.findByText(/already planned/i)).toBeInTheDocument();
+
+      await userEventInstance.click(
+        screen.getByRole("button", { name: /move draft outline to another day/i }),
+      );
+      const movePicker = screen.getByRole("radiogroup", {
+        name: /choose a day to move draft outline to/i,
+      });
+      await userEventInstance.click(within(movePicker).getByRole("radio", { name: /tue/i }));
+
+      expect(await screen.findByText(/more than tuesday has/i)).toBeInTheDocument();
+      // Informational only — the move can still proceed.
+      expect(screen.getByRole("button", { name: /move here/i })).toBeEnabled();
+    });
+
+    it("cancel closes the move panel without touching the server", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        {
+          id: "session-1",
+          workItemId: "w1",
+          date: "2026-03-16",
+          plannedMinutes: 30,
+          startTime: "16:00",
+          status: "planned",
+        },
+      ]);
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      expect(await screen.findByText(/already planned/i)).toBeInTheDocument();
+
+      await userEventInstance.click(
+        screen.getByRole("button", { name: /move draft outline to another day/i }),
+      );
+      expect(screen.getByRole("button", { name: /move here/i })).toBeInTheDocument();
+
+      await userEventInstance.click(screen.getByRole("button", { name: /^cancel$/i }));
+
+      expect(screen.queryByRole("button", { name: /move here/i })).not.toBeInTheDocument();
+      expect(mockedWorkSessionService.createWorkSessions).not.toHaveBeenCalled();
+      expect(mockedWorkSessionService.deleteWorkSession).not.toHaveBeenCalled();
+    });
+  });
+
   it("Select step shows only three candidates with a 'show more' action to reveal the rest, each with its assignment and course", async () => {
     mockedAssignmentService.listAssignments.mockResolvedValue([
       assignment({ id: "a1", title: "Essay 1", dueDate: "2026-03-17" }),
@@ -340,6 +471,91 @@ describe("PlanPage", () => {
     ).toBeInTheDocument();
     // The student can still proceed — the app states reality, it does not block.
     expect(screen.getByRole("button", { name: /next: when/i })).toBeEnabled();
+  });
+
+  // docs/features/iterations/daily-planning/daily-planning.i04.md FR-1 —
+  // the Schedule step's current time is shown and edited through one
+  // control, with suggested slots as one-tap shortcuts rather than a
+  // parallel selected/"active" display of the same value.
+  describe("Schedule step's time control is directly editable (iteration 4)", () => {
+    async function reachScheduleStep(userEventInstance: ReturnType<typeof userEvent.setup>) {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        assignment({ id: "a1", title: "Essay", dueDate: "2026-03-17" }),
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        workItem({ id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 20 }),
+      ]);
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByText(/step 1 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
+      await screen.findByText(/step 2 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /draft outline/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: /next: estimate time/i }));
+      await screen.findByText(/step 3 of 5/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /next: when/i }));
+      await screen.findByText(/step 4 of 5/i);
+    }
+
+    it("shows the item's current time pre-filled in a single directly-editable input", async () => {
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+      await reachScheduleStep(userEventInstance);
+
+      const timeInput = screen.getByLabelText(
+        /time for draft outline/i,
+      ) as HTMLInputElement;
+      expect(timeInput).toHaveAttribute("type", "time");
+      // Monday's earliest open slot (after school, no Activities mocked) —
+      // assignDefaultTimes pre-fills this without any explicit selection.
+      expect(timeInput.value).toBe("15:15");
+      // No parallel "active" state duplicating the input's own value.
+      expect(screen.queryByRole("radiogroup", { name: /time for/i })).not.toBeInTheDocument();
+    });
+
+    it("clicking a suggested slot sets the input's value directly", async () => {
+      // Two open slots (before/after Football practice) so the second
+      // slot's start time differs from what assignDefaultTimes already
+      // pre-filled from the first — otherwise clicking it wouldn't
+      // visibly change anything.
+      mockedActivityService.listActivities.mockResolvedValue([
+        {
+          id: "act-1",
+          name: "Football practice",
+          days: [1],
+          startTime: "17:00",
+          finishTime: "18:00",
+          travelMinutes: 0,
+        },
+      ]);
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+      await reachScheduleStep(userEventInstance);
+
+      const timeInput = screen.getByLabelText(
+        /time for draft outline/i,
+      ) as HTMLInputElement;
+      expect(timeInput.value).toBe("15:15");
+
+      await userEventInstance.click(
+        screen.getByRole("button", { name: /after football practice/i }),
+      );
+
+      expect(timeInput.value).toBe("18:00");
+    });
+
+    it("typing directly into the time input updates the planned time", async () => {
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+      await reachScheduleStep(userEventInstance);
+
+      const timeInput = screen.getByLabelText(/time for draft outline/i);
+      fireEvent.change(timeInput, { target: { value: "18:30" } });
+
+      expect((timeInput as HTMLInputElement).value).toBe("18:30");
+    });
   });
 
   it("shows a course-context empty state on Select when there are no open work items", async () => {
@@ -623,7 +839,7 @@ describe("PlanPage", () => {
 
   // docs/features/iterations/daily-planning/daily-planning.i03.md FR-1
   describe("warns when a candidate is already scheduled for a different day", () => {
-    it("shows an 'already planned for {day}' indicator instead of leaving the existing commitment invisible", async () => {
+    it("shows an 'also planned for {day}' indicator instead of leaving the existing commitment invisible", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
       mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
       // The same work item already has a planned session on a different
@@ -647,10 +863,10 @@ describe("PlanPage", () => {
       await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
 
       expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
-      expect(await screen.findByText(/already planned for wednesday/i)).toBeInTheDocument();
+      expect(await screen.findByText(/also planned for wednesday/i)).toBeInTheDocument();
     });
 
-    it("does not warn about a session already planned for the day currently being planned", async () => {
+    it("does not indicate a session already planned for the day currently being planned", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
       mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
       mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([
@@ -672,7 +888,7 @@ describe("PlanPage", () => {
       await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
 
       expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
-      expect(screen.queryByText(/already planned for/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/also planned for/i)).not.toBeInTheDocument();
     });
 
     // docs/playwright/daily-planning/iteration-03/findings.yaml FINDING-DP-003
@@ -738,7 +954,7 @@ describe("PlanPage", () => {
       // Confirmed for 2026-03-16, which is TODAY per this file's fixed
       // system time — dayLabel renders that as "today", not the weekday
       // name, regardless of which day is currently being planned.
-      expect(await screen.findByText(/already planned for today/i)).toBeInTheDocument();
+      expect(await screen.findByText(/also planned for today/i)).toBeInTheDocument();
     });
   });
 
