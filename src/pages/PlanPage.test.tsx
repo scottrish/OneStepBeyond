@@ -108,10 +108,12 @@ function ControlledPlanPage({
   user,
   onStartExecution = vi.fn(),
   onGoToAssignments = vi.fn(),
+  onOpenAssignment = vi.fn(),
 }: {
   user: User;
   onStartExecution?: () => void;
   onGoToAssignments?: () => void;
+  onOpenAssignment?: (assignmentId: string) => void;
 }) {
   const [date, setDate] = useState(TODAY_ISO);
   const [step, setStep] = useState<Step>("day");
@@ -124,6 +126,7 @@ function ControlledPlanPage({
       onStepChange={setStep}
       onStartExecution={onStartExecution}
       onGoToAssignments={onGoToAssignments}
+      onOpenAssignment={onOpenAssignment}
     />
   );
 }
@@ -282,6 +285,21 @@ describe("PlanPage", () => {
 
     expect(await screen.findByText(/due: essay/i)).toBeInTheDocument();
     expect(screen.getByText("Football practice")).toBeInTheDocument();
+  });
+
+  it("opens Assignment Detail when a due-that-day item is tapped", async () => {
+    mockedAssignmentService.listAssignments.mockResolvedValue([
+      assignment({ id: "a1", dueDate: "2026-03-16" }),
+    ]);
+    const onOpenAssignment = vi.fn();
+    const userEventInstance = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    });
+
+    render(<ControlledPlanPage user={user} onOpenAssignment={onOpenAssignment} />);
+
+    await userEventInstance.click(await screen.findByRole("button", { name: /due: essay/i }));
+    expect(onOpenAssignment).toHaveBeenCalledWith("a1");
   });
 
   it("shows an already-planned session with its parent assignment and course, and can remove it", async () => {
@@ -1095,6 +1113,7 @@ describe("PlanPage", () => {
                 onStepChange={setStep}
                 onStartExecution={vi.fn()}
                 onGoToAssignments={vi.fn()}
+                onOpenAssignment={vi.fn()}
               />
             )}
           </>
@@ -1139,6 +1158,7 @@ describe("PlanPage", () => {
           onStepChange={vi.fn()}
           onStartExecution={vi.fn()}
           onGoToAssignments={vi.fn()}
+          onOpenAssignment={vi.fn()}
         />,
       );
 

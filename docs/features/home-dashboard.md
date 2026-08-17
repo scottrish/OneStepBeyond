@@ -14,6 +14,25 @@ instead of the "no plan" empty state once every session for the day is
 complete, and the "Today's plan: N tasks" summary no longer lingers once
 everything it describes is finished.
 
+**Update (2026-08-17):** Needs Attention's title, the Next card's
+assignment/course line, and Coming Up items now all link to Assignment
+Detail via a single App.tsx-owned overlay, replacing this screen's own
+previously-independent local copy of that navigation — which, audited
+while making this change, never refetched on the way back, so an edit
+made from here used to leave Home showing stale data until the student
+switched tabs away and back. That gap is fixed as a side effect: see
+`docs/decisions/20260817-assignment-detail-global-overlay.md`.
+
+**Fix (2026-08-17):** the "Today's plan summary" line's "· before
+{activity}" context (UX Flow item 3) previously named whichever Activity
+happened to be first in fetch order, regardless of whether the plan was
+actually scheduled before it — a student could see "before Football
+practice" while both tasks were scheduled *after* it. It now sorts
+today's Activities chronologically and only names the soonest one every
+active session's start time actually precedes, skipping ahead to a later
+Activity (or omitting the clause entirely) when the plan doesn't
+genuinely precede the first one.
+
 ## Summary
 
 The student's landing screen and the app shell around every other student

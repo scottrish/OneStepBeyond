@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Pencil, Trash2 } from "lucide-react";
@@ -16,23 +16,25 @@ import { useCourses } from "../hooks/useCourses";
 import type { Assignment, AssignmentEdit } from "../services/assignmentService";
 import type { WorkItem } from "../services/workItemService";
 import type { Course } from "../services/courseService";
-import AssignmentDetailPage from "./AssignmentDetailPage";
 
 type AssignmentsPageProps = {
   user: User;
   onGoToHome: () => void;
+  // Assignment Detail is a global overlay owned by App.tsx (see
+  // docs/decisions/20260817-assignment-detail-global-overlay.md), not a
+  // local view here — tapping a card just requests it open.
+  onOpenAssignment: (assignmentId: string) => void;
+  // The Undo-window soft-delete is likewise owned by App.tsx, shared with
+  // Assignment Detail's own delete action, so behavior is identical
+  // regardless of which tab a delete was triggered from. This list must
+  // still hide whichever assignment is mid-undo-window itself, since the
+  // server delete hasn't actually happened yet.
+  pendingDeleteAssignmentId: string | null;
+  onDeleteImmediate: (assignment: Assignment) => void;
 };
-
-type View = { name: "list" } | { name: "detail"; assignmentId: string };
 
 const errorBoxStyle =
   "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
-
-// How long a delete with no completed steps stays reversible before it's
-// sent to the server. docs/features/iterations/assignment-management/
-// assignment-management.i02.md FR-1 — exact duration left to
-// implementation judgment.
-const UNDO_WINDOW_MS = 5000;
 
 type AssignmentCardProps = {
   assignment: Assignment;
@@ -230,10 +232,13 @@ function AssignmentCard({
   );
 }
 
-export default function AssignmentsPage({ user, onGoToHome }: AssignmentsPageProps) {
-  const [view, setView] = useState<View>({ name: "list" });
-  const [pendingDelete, setPendingDelete] = useState<Assignment | null>(null);
-  const pendingDeleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+export default function AssignmentsPage({
+  user,
+  onGoToHome,
+  onOpenAssignment,
+  pendingDeleteAssignmentId,
+  onDeleteImmediate,
+}: AssignmentsPageProps) {
   const {
     assignments,
     workItems,
@@ -246,66 +251,14 @@ export default function AssignmentsPage({ user, onGoToHome }: AssignmentsPagePro
   } = useAssignmentsList(user.id);
   const { courses } = useCourses(user.id);
 
-  function requestDeleteWithUndo(assignment: Assignment) {
-    // Only one undo window is meaningful at a time in this UI — if
-    // another delete is already pending, let it go through immediately
-    // rather than silently losing track of it.
-    if (pendingDeleteTimer.current) {
-      clearTimeout(pendingDeleteTimer.current);
-      if (pendingDelete) removeAssignment(pendingDelete.id);
-    }
-    setPendingDelete(assignment);
-    pendingDeleteTimer.current = setTimeout(() => {
-      removeAssignment(assignment.id);
-      pendingDeleteTimer.current = null;
-      setPendingDelete(null);
-    }, UNDO_WINDOW_MS);
-  }
-
-  function undoDelete() {
-    if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
-    pendingDeleteTimer.current = null;
-    setPendingDelete(null);
-  }
-
-  if (view.name === "detail") {
-    return (
-      <AssignmentDetailPage
-        user={user}
-        assignmentId={view.assignmentId}
-        onDeleteImmediate={requestDeleteWithUndo}
-        onBack={() => {
-          // Detail has its own hooks (useAssignment/useWorkItems) — any
-          // edit/delete/complete/add-step made there doesn't touch this
-          // list's own state, so refetch on the way back rather than
-          // show what's now stale data.
-          setView({ name: "list" });
-          retry();
-        }}
-      />
-    );
-  }
-
   const open = assignments
-    .filter((a) => !a.completedAt && a.id !== pendingDelete?.id)
+    .filter((a) => !a.completedAt && a.id !== pendingDeleteAssignmentId)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  const done = assignments.filter((a) => a.completedAt && a.id !== pendingDelete?.id);
+  const done = assignments.filter((a) => a.completedAt && a.id !== pendingDeleteAssignmentId);
 
   return (
     <main className="p-8">
       <h1 className="mb-4 text-3xl">Assignments</h1>
-
-      {pendingDelete && (
-        <div
-          role="status"
-          className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-sm"
-        >
-          <span>&ldquo;{pendingDelete.title}&rdquo; deleted.</span>
-          <Button variant="ghost" size="sm" onClick={undoDelete}>
-            Undo
-          </Button>
-        </div>
-      )}
 
       {loadError && (
         <div role="alert" className={errorBoxStyle}>
@@ -336,9 +289,9 @@ export default function AssignmentsPage({ user, onGoToHome }: AssignmentsPagePro
                 assignment={assignment}
                 course={courses.find((c) => c.id === assignment.courseId)}
                 items={workItems.filter((w) => w.assignmentId === assignment.id)}
-                onOpen={() => setView({ name: "detail", assignmentId: assignment.id })}
+                onOpen={() => onOpenAssignment(assignment.id)}
                 onEdit={(patch) => editAssignment(assignment.id, patch)}
-                onDeleteImmediate={() => requestDeleteWithUndo(assignment)}
+                onDeleteImmediate={() => onDeleteImmediate(assignment)}
                 onDeleteConfirmed={() => removeAssignment(assignment.id)}
               />
             </li>
@@ -354,7 +307,7 @@ export default function AssignmentsPage({ user, onGoToHome }: AssignmentsPagePro
               <li key={assignment.id}>
                 <button
                   type="button"
-                  onClick={() => setView({ name: "detail", assignmentId: assignment.id })}
+                  onClick={() => onOpenAssignment(assignment.id)}
                   className="w-full rounded-lg border border-border bg-muted/40 px-4 py-3 text-left text-sm text-muted-foreground line-through"
                 >
                   {assignment.title}

@@ -372,6 +372,13 @@ require revisiting any other phase first.
 - Home Dashboard's Ownership note (UX Flow item 7) — deferred
   2026-08-17 by explicit product-owner direction; see
   `home-dashboard.md`'s Explicitly Out of Scope section.
+- Daily Planning's Confirm step still shows an inline success state with
+  an explicit "Start today's plan" button rather than navigating straight
+  into Today Execution, even though Today Execution has shipped — a
+  follow-up `docs/decisions/20260816-daily-planning-confirm-write-order.md`
+  flagged as needed once that happened, never done. Discovered
+  2026-08-17 while auditing this same file for the Assignment Detail
+  global-overlay change; not fixed as part of that unrelated work.
 
 ---
 

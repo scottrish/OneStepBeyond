@@ -83,6 +83,7 @@ function renderHomePage(overrides: Record<string, unknown> = {}) {
       onStartExecution={vi.fn()}
       onGoToPlan={vi.fn()}
       onGoToAssignments={vi.fn()}
+      onOpenAssignment={vi.fn()}
       {...overrides}
     />,
   );
@@ -213,6 +214,49 @@ describe("HomePage", () => {
       expect(onStartExecution).toHaveBeenCalledTimes(1);
     });
 
+    it("opens Assignment Detail when the Next card's assignment/course line is tapped", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        {
+          id: "a1",
+          courseId: "course-1",
+          title: "Cell structure project",
+          dueDate: "2026-03-25",
+          effortMinutes: 60,
+          notes: null,
+          completedAt: null,
+        },
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        {
+          id: "w1",
+          assignmentId: "a1",
+          title: "Draft outline",
+          effortMinutes: 30,
+          completedAt: null,
+          position: 0,
+        },
+      ]);
+      mockedCourseService.listCourses.mockResolvedValue([course]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        {
+          id: "s1",
+          workItemId: "w1",
+          date: TODAY_ISO,
+          plannedMinutes: 30,
+          startTime: "16:00",
+          status: "planned",
+        },
+      ]);
+      const onOpenAssignment = vi.fn();
+
+      renderHomePage({ onOpenAssignment });
+
+      await userEvent.click(
+        await screen.findByRole("button", { name: /cell structure project · biology/i }),
+      );
+      expect(onOpenAssignment).toHaveBeenCalledWith("a1");
+    });
+
     it("shows an empty state inviting planning when nothing is planned for today", async () => {
       const onGoToPlan = vi.fn();
       renderHomePage({ onGoToPlan });
@@ -274,6 +318,125 @@ describe("HomePage", () => {
     });
   });
 
+  describe("Today's plan summary", () => {
+    function planSessions() {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        {
+          id: "a1",
+          courseId: "course-1",
+          title: "Cell structure project",
+          dueDate: "2026-03-25",
+          effortMinutes: 60,
+          notes: null,
+          completedAt: null,
+        },
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        {
+          id: "w1",
+          assignmentId: "a1",
+          title: "Draft outline",
+          effortMinutes: 30,
+          completedAt: null,
+          position: 0,
+        },
+        {
+          id: "w2",
+          assignmentId: "a1",
+          title: "Write conclusion",
+          effortMinutes: 30,
+          completedAt: null,
+          position: 1,
+        },
+      ]);
+      mockedCourseService.listCourses.mockResolvedValue([course]);
+    }
+
+    it("names the next activity as \"before {activity}\" when the plan is genuinely scheduled ahead of it", async () => {
+      planSessions();
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        { id: "s1", workItemId: "w1", date: TODAY_ISO, plannedMinutes: 30, startTime: "14:00", status: "planned" },
+        { id: "s2", workItemId: "w2", date: TODAY_ISO, plannedMinutes: 30, startTime: "14:30", status: "planned" },
+      ]);
+      mockedActivityService.listActivities.mockResolvedValue([
+        {
+          id: "act-1",
+          name: "Football practice",
+          days: [1],
+          startTime: "16:00",
+          finishTime: "17:00",
+          travelToMinutes: 0,
+          travelFromMinutes: 0,
+        },
+      ]);
+
+      renderHomePage();
+
+      expect(await screen.findByText(/before football practice/i)).toBeInTheDocument();
+    });
+
+    it("does not claim the plan is \"before\" an activity it's actually scheduled after", async () => {
+      // Reproduces the reported bug: both tasks are scheduled after
+      // Football practice, but the summary named it anyway because it
+      // used to grab the day's first activity unconditionally instead of
+      // checking session times against it.
+      planSessions();
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        { id: "s1", workItemId: "w1", date: TODAY_ISO, plannedMinutes: 30, startTime: "18:00", status: "planned" },
+        { id: "s2", workItemId: "w2", date: TODAY_ISO, plannedMinutes: 30, startTime: "18:30", status: "planned" },
+      ]);
+      mockedActivityService.listActivities.mockResolvedValue([
+        {
+          id: "act-1",
+          name: "Football practice",
+          days: [1],
+          startTime: "16:00",
+          finishTime: "17:00",
+          travelToMinutes: 0,
+          travelFromMinutes: 0,
+        },
+      ]);
+
+      renderHomePage();
+
+      await screen.findByText(/today.s plan:/i);
+      expect(screen.queryByText(/before football practice/i)).not.toBeInTheDocument();
+    });
+
+    it("names a later activity the plan is genuinely before, skipping one it's scheduled after", async () => {
+      planSessions();
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        { id: "s1", workItemId: "w1", date: TODAY_ISO, plannedMinutes: 30, startTime: "18:00", status: "planned" },
+        { id: "s2", workItemId: "w2", date: TODAY_ISO, plannedMinutes: 30, startTime: "18:30", status: "planned" },
+      ]);
+      mockedActivityService.listActivities.mockResolvedValue([
+        {
+          id: "act-1",
+          name: "Football practice",
+          days: [1],
+          startTime: "16:00",
+          finishTime: "17:00",
+          travelToMinutes: 0,
+          travelFromMinutes: 0,
+        },
+        {
+          id: "act-2",
+          name: "Dinner",
+          days: [1],
+          startTime: "20:00",
+          finishTime: "20:30",
+          travelToMinutes: 0,
+          travelFromMinutes: 0,
+        },
+      ]);
+
+      renderHomePage();
+
+      expect(await screen.findByText(/before dinner/i)).toBeInTheDocument();
+      expect(screen.queryByText(/before football practice/i)).not.toBeInTheDocument();
+    });
+  });
+
   describe("Needs Attention", () => {
     it("shows at most one item with its specific action, never a bare warning", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([
@@ -296,6 +459,27 @@ describe("HomePage", () => {
         screen.getByText(/due soon and nothing planned for it yet/i),
       ).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /break it down/i })).toBeInTheDocument();
+    });
+
+    it("opens Assignment Detail when the Needs Attention item's title is tapped", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        {
+          id: "a1",
+          courseId: "course-1",
+          title: "Big project",
+          dueDate: "2026-03-16",
+          effortMinutes: 5000,
+          notes: null,
+          completedAt: null,
+        },
+      ]);
+      mockedCourseService.listCourses.mockResolvedValue([course]);
+      const onOpenAssignment = vi.fn();
+
+      renderHomePage({ onOpenAssignment });
+
+      await userEvent.click(await screen.findByRole("button", { name: "Big project" }));
+      expect(onOpenAssignment).toHaveBeenCalledWith("a1");
     });
 
     it("shows nothing when no assignment qualifies — silence is the on-track state", async () => {
@@ -362,6 +546,27 @@ describe("HomePage", () => {
       expect(
         screen.getByRole("button", { name: /add an assignment/i }),
       ).toBeInTheDocument();
+    });
+
+    it("opens Assignment Detail when a Coming Up item is tapped", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        {
+          id: "ordinary",
+          courseId: "course-1",
+          title: "Reading response",
+          dueDate: "2026-04-30",
+          effortMinutes: 20,
+          notes: null,
+          completedAt: null,
+        },
+      ]);
+      mockedCourseService.listCourses.mockResolvedValue([course]);
+      const onOpenAssignment = vi.fn();
+
+      renderHomePage({ onOpenAssignment });
+
+      await userEvent.click(await screen.findByRole("button", { name: /reading response/i }));
+      expect(onOpenAssignment).toHaveBeenCalledWith("ordinary");
     });
   });
 });

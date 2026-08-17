@@ -18,7 +18,6 @@ import { useDailyPlanning } from "../hooks/useDailyPlanning";
 import { usePreferences } from "../hooks/usePreferences";
 import ActivitiesPage from "./ActivitiesPage";
 import AssignmentCapturePage from "./AssignmentCapturePage";
-import AssignmentDetailPage from "./AssignmentDetailPage";
 import CoursesPage from "./CoursesPage";
 import PreferencesPage from "./PreferencesPage";
 import SettingsPage from "./SettingsPage";
@@ -31,6 +30,9 @@ type HomePageProps = {
   onStartExecution: () => void;
   onGoToPlan: () => void;
   onGoToAssignments: () => void;
+  // Assignment Detail is likewise a global overlay owned by App.tsx — see
+  // docs/decisions/20260817-assignment-detail-global-overlay.md.
+  onOpenAssignment: (assignmentId: string) => void;
 };
 
 type View =
@@ -39,8 +41,7 @@ type View =
   | { name: "activities" }
   | { name: "courses" }
   | { name: "preferences" }
-  | { name: "capture-assignment" }
-  | { name: "assignment-detail"; assignmentId: string };
+  | { name: "capture-assignment" };
 
 const errorBoxStyle =
   "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
@@ -78,6 +79,7 @@ export default function HomePage({
   onStartExecution,
   onGoToPlan,
   onGoToAssignments,
+  onOpenAssignment,
 }: HomePageProps) {
   const [view, setView] = useState<View>({ name: "home" });
   const studentId = user.id;
@@ -145,7 +147,24 @@ export default function HomePage({
   );
   const next = activeTodaySessions[0];
   const totalPlannedMinutes = todaySessions.reduce((sum, s) => sum + s.plannedMinutes, 0);
-  const todaysActivities = activitiesOn(activities, today);
+  // activitiesOn returns activities in creation order, not time order —
+  // sorted here so both this list's own display and the plan-summary
+  // lookup below see today's activities chronologically.
+  const todaysActivities = [...activitiesOn(activities, today)].sort((a, b) =>
+    a.startTime.localeCompare(b.startTime),
+  );
+  // The plan summary's "before {activity}" context is only accurate when
+  // every one of today's active sessions is actually scheduled before
+  // that activity starts — previously this just grabbed the day's first
+  // activity unconditionally, which could name an activity the plan was
+  // actually scheduled *after*. `activeTodaySessions` is sorted by start
+  // time (sortByStartTime), so checking the last one covers all of them;
+  // a session with no start time makes the ordering unknowable, so the
+  // context is omitted rather than guessed.
+  const lastSessionStartTime = activeTodaySessions[activeTodaySessions.length - 1]?.startTime;
+  const planSummaryActivity = todaysActivities.find(
+    (activity) => lastSessionStartTime != null && lastSessionStartTime < activity.startTime,
+  );
 
   const attentionItems = useMemo(
     () =>
@@ -175,7 +194,7 @@ export default function HomePage({
 
   function handleAttentionAction(item: AttentionItem) {
     if (item.action === "break-it-down") {
-      setView({ name: "assignment-detail", assignmentId: item.assignment.id });
+      onOpenAssignment(item.assignment.id);
     } else {
       onGoToPlan();
     }
@@ -217,19 +236,7 @@ export default function HomePage({
         user={user}
         onCancel={() => setView({ name: "home" })}
         onGoToCourses={() => setView({ name: "courses" })}
-        onSaved={(assignmentId) =>
-          setView({ name: "assignment-detail", assignmentId })
-        }
-      />
-    );
-  }
-
-  if (view.name === "assignment-detail") {
-    return (
-      <AssignmentDetailPage
-        user={user}
-        assignmentId={view.assignmentId}
-        onBack={() => setView({ name: "home" })}
+        onSaved={(assignmentId) => onOpenAssignment(assignmentId)}
       />
     );
   }
@@ -283,9 +290,13 @@ export default function HomePage({
                   : undefined;
                 return (
                   assignment && (
-                    <p className="mt-1 text-sm opacity-80">
+                    <button
+                      type="button"
+                      onClick={() => onOpenAssignment(assignment.id)}
+                      className="mt-1 block text-left text-sm opacity-80 underline-offset-4 hover:underline"
+                    >
                       {assignment.title} · {courseName(assignment.courseId)}
-                    </p>
+                    </button>
                   )
                 );
               })()}
@@ -324,7 +335,7 @@ export default function HomePage({
             <p className="mt-3 text-sm text-muted-foreground">
               Today&rsquo;s plan: about {effortLabel(totalPlannedMinutes)} · {todaySessions.length}{" "}
               {todaySessions.length === 1 ? "task" : "tasks"}
-              {todaysActivities[0] && <> · before {todaysActivities[0].name}</>} ·{" "}
+              {planSummaryActivity && <> · before {planSummaryActivity.name}</>} ·{" "}
               <button type="button" onClick={onGoToPlan} className="text-primary underline underline-offset-4">
                 View plan
               </button>
@@ -335,7 +346,14 @@ export default function HomePage({
             <div className="mt-4 rounded-2xl border border-border bg-card p-4">
               <h2 className="mb-1 text-sm font-semibold text-foreground">Needs attention</h2>
               <p className="text-sm text-foreground">
-                {needsAttention.assignment.title}: {needsAttention.message}
+                <button
+                  type="button"
+                  onClick={() => onOpenAssignment(needsAttention.assignment.id)}
+                  className="underline-offset-4 hover:underline"
+                >
+                  {needsAttention.assignment.title}
+                </button>
+                : {needsAttention.message}
               </p>
               <Button
                 variant="outline"
@@ -375,9 +393,7 @@ export default function HomePage({
                   <li key={assignment.id}>
                     <button
                       type="button"
-                      onClick={() =>
-                        setView({ name: "assignment-detail", assignmentId: assignment.id })
-                      }
+                      onClick={() => onOpenAssignment(assignment.id)}
                       className="flex min-h-11 w-full items-center gap-2 rounded-2xl border border-border bg-card px-4 py-2 text-left text-sm"
                     >
                       <span

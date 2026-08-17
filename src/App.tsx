@@ -1,14 +1,26 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "./hooks/useAuth";
 import { todayISODate } from "./domain/planningDate";
+import * as assignmentService from "./services/assignmentService";
+import type { Assignment } from "./services/assignmentService";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 import PlanPage from "./pages/PlanPage";
 import type { Step } from "./pages/PlanPage";
 import AssignmentsPage from "./pages/AssignmentsPage";
+import AssignmentDetailPage from "./pages/AssignmentDetailPage";
 import TodayExecutionPage from "./pages/TodayExecutionPage";
 import AppShell from "./components/AppShell";
 import type { Tab } from "./components/AppShell";
+
+// How long a delete with no completed steps stays reversible before it's
+// sent to the server. docs/features/iterations/assignment-management/
+// assignment-management.i02.md FR-1 — exact duration left to
+// implementation judgment. Owned here (not AssignmentsPage) so the same
+// Undo behavior applies regardless of which tab Assignment Detail was
+// reached from — see docs/decisions/20260817-assignment-detail-global-overlay.md.
+const UNDO_WINDOW_MS = 5000;
 
 // Tabs whose own page owns nested internal navigation (a `view` state)
 // that can land on something other than that tab's landing screen.
@@ -50,8 +62,46 @@ export default function App() {
   // 20260816-today-execution-interim-entry-point.md.
   const [executingToday, setExecutingToday] = useState(false);
 
+  // Assignment Detail is reachable from anywhere an assignment is
+  // displayed (Home, Plan, Assignments) — owned here, one level above
+  // every tab, exactly like Today Execution above, rather than each tab
+  // rendering its own copy. Because opening it never changes `activeTab`,
+  // "back" trivially returns to whichever tab was showing; because
+  // opening it unmounts that tab's content (same ternary-replace shape as
+  // executingToday), returning also remounts it fresh, which refetches
+  // automatically — no explicit refetch-on-back plumbing needed anywhere.
+  // See docs/decisions/20260817-assignment-detail-global-overlay.md.
+  const [openAssignmentId, setOpenAssignmentId] = useState<string | null>(null);
+  // The Undo-window soft-delete (see UNDO_WINDOW_MS) is likewise owned
+  // here rather than by AssignmentsPage, so a delete triggered from
+  // Detail behaves identically no matter which tab launched it.
+  const [pendingDelete, setPendingDelete] = useState<Assignment | null>(null);
+  const pendingDeleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   if (!user) {
     return <LoginPage signIn={signIn} signUp={signUp} />;
+  }
+
+  function requestDeleteWithUndo(assignment: Assignment) {
+    // Only one undo window is meaningful at a time in this UI — if
+    // another delete is already pending, let it go through immediately
+    // rather than silently losing track of it.
+    if (pendingDeleteTimer.current) {
+      clearTimeout(pendingDeleteTimer.current);
+      if (pendingDelete) assignmentService.deleteAssignment(pendingDelete.id);
+    }
+    setPendingDelete(assignment);
+    pendingDeleteTimer.current = setTimeout(() => {
+      assignmentService.deleteAssignment(assignment.id);
+      pendingDeleteTimer.current = null;
+      setPendingDelete(null);
+    }, UNDO_WINDOW_MS);
+  }
+
+  function undoDelete() {
+    if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
+    pendingDeleteTimer.current = null;
+    setPendingDelete(null);
   }
 
   function handleTabChange(tab: Tab) {
@@ -69,18 +119,37 @@ export default function App() {
       setTabResetKeys((keys) => ({ ...keys, [tab]: keys[tab] + 1 }));
     }
     setActiveTab(tab);
-    // Today Execution renders in place of every tab's own content (see
-    // executingToday above) — tapping any tab must exit it, the same way
-    // it must always return to that tab's own landing view. Without this,
-    // the tab underneath silently changes while Today Execution keeps
-    // rendering on top of it, leaving "Change today's plan" as the only
-    // way out.
+    // Today Execution and Assignment Detail both render in place of every
+    // tab's own content (see executingToday/openAssignmentId above) —
+    // tapping any tab must exit either, the same way it must always
+    // return to that tab's own landing view. Without this, the tab
+    // underneath silently changes while one of them keeps rendering on
+    // top of it, leaving its own back action as the only way out.
     setExecutingToday(false);
+    setOpenAssignmentId(null);
   }
 
   return (
     <AppShell activeTab={activeTab} onTabChange={handleTabChange}>
-      {executingToday ? (
+      {pendingDelete && (
+        <div
+          role="status"
+          className="mx-6 mt-6 flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-sm"
+        >
+          <span>&ldquo;{pendingDelete.title}&rdquo; deleted.</span>
+          <Button variant="ghost" size="sm" onClick={undoDelete}>
+            Undo
+          </Button>
+        </div>
+      )}
+      {openAssignmentId ? (
+        <AssignmentDetailPage
+          user={user}
+          assignmentId={openAssignmentId}
+          onDeleteImmediate={requestDeleteWithUndo}
+          onBack={() => setOpenAssignmentId(null)}
+        />
+      ) : executingToday ? (
         <TodayExecutionPage user={user} onBack={() => setExecutingToday(false)} />
       ) : (
         <>
@@ -92,6 +161,7 @@ export default function App() {
               onStartExecution={() => setExecutingToday(true)}
               onGoToPlan={() => handleTabChange("plan")}
               onGoToAssignments={() => handleTabChange("assignments")}
+              onOpenAssignment={setOpenAssignmentId}
             />
           )}
           {activeTab === "plan" && (
@@ -104,6 +174,7 @@ export default function App() {
               onStepChange={setPlanStep}
               onStartExecution={() => setExecutingToday(true)}
               onGoToAssignments={() => handleTabChange("assignments")}
+              onOpenAssignment={setOpenAssignmentId}
             />
           )}
           {activeTab === "assignments" && (
@@ -111,6 +182,9 @@ export default function App() {
               key={tabResetKeys.assignments}
               user={user}
               onGoToHome={() => handleTabChange("home")}
+              onOpenAssignment={setOpenAssignmentId}
+              pendingDeleteAssignmentId={pendingDelete?.id ?? null}
+              onDeleteImmediate={requestDeleteWithUndo}
             />
           )}
         </>

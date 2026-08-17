@@ -13,32 +13,13 @@ vi.mock("../services/assignmentService", () => ({
   listAssignments: vi.fn(),
   updateAssignment: vi.fn(),
   deleteAssignment: vi.fn(),
-  // getAssignment/completeAssignment are only reached once a card is
-  // opened into AssignmentDetailPage (see the "opens the detail screen"
-  // test below) — mocked here since AssignmentsPage now renders that
-  // component directly rather than only linking to it.
-  getAssignment: vi.fn(),
-  completeAssignment: vi.fn(),
 }));
 
 vi.mock("../services/workItemService", () => ({
   listWorkItemsForStudent: vi.fn(),
-  listWorkItems: vi.fn(),
   createWorkItems: vi.fn(),
   deleteWorkItems: vi.fn(),
   completeAllForAssignment: vi.fn(),
-}));
-
-// Reached transitively once a card is opened into AssignmentDetailPage,
-// which can now route into the Work Breakdown / Reflection flows — not
-// exercised by this file's own tests, but their real implementations
-// import ../lib/supabase (which throws without env vars), so they must
-// be mocked here regardless.
-vi.mock("../services/decompositionAttemptService", () => ({
-  recordDecompositionAttempt: vi.fn(),
-}));
-vi.mock("../services/reflectionService", () => ({
-  recordReflection: vi.fn(),
 }));
 
 import * as courseService from "../services/courseService";
@@ -53,15 +34,9 @@ const mockedAssignmentService = assignmentService as unknown as {
   listAssignments: ReturnType<typeof vi.fn>;
   updateAssignment: ReturnType<typeof vi.fn>;
   deleteAssignment: ReturnType<typeof vi.fn>;
-  getAssignment: ReturnType<typeof vi.fn>;
-  completeAssignment: ReturnType<typeof vi.fn>;
 };
 const mockedWorkItemService = workItemService as unknown as {
   listWorkItemsForStudent: ReturnType<typeof vi.fn>;
-  listWorkItems: ReturnType<typeof vi.fn>;
-  createWorkItems: ReturnType<typeof vi.fn>;
-  deleteWorkItems: ReturnType<typeof vi.fn>;
-  completeAllForAssignment: ReturnType<typeof vi.fn>;
 };
 
 const user = { id: "student-1", email: "person@example.com" } as User;
@@ -88,6 +63,24 @@ const doneAssignment = {
   completedAt: "2026-03-01T00:00:00Z",
 };
 
+// Assignment Detail is a global overlay owned by App.tsx now (see
+// docs/decisions/20260817-assignment-detail-global-overlay.md) — this
+// page just requests it open / reports deletes upward. Round-trip
+// behavior (opening Detail, the Undo toast, the Undo window itself) is
+// covered by App.test.tsx instead.
+function renderAssignmentsPage(overrides: Record<string, unknown> = {}) {
+  return render(
+    <AssignmentsPage
+      user={user}
+      onGoToHome={vi.fn()}
+      onOpenAssignment={vi.fn()}
+      pendingDeleteAssignmentId={null}
+      onDeleteImmediate={vi.fn()}
+      {...overrides}
+    />,
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -100,7 +93,7 @@ describe("AssignmentsPage", () => {
     const onGoToHome = vi.fn();
     const userEventInstance = userEvent.setup();
 
-    render(<AssignmentsPage user={user} onGoToHome={onGoToHome} />);
+    renderAssignmentsPage({ onGoToHome });
 
     expect(await screen.findByText(/no assignments yet/i)).toBeInTheDocument();
 
@@ -115,7 +108,7 @@ describe("AssignmentsPage", () => {
     mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
     mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
 
-    render(<AssignmentsPage user={user} onGoToHome={vi.fn()} />);
+    renderAssignmentsPage();
 
     expect(await screen.findByText("Chapter 7 problem set")).toBeInTheDocument();
     expect(screen.getByText(/about 30m left/i)).toBeInTheDocument();
@@ -129,53 +122,49 @@ describe("AssignmentsPage", () => {
       { id: "w1", assignmentId: "a1", title: "Step 1", effortMinutes: 15, completedAt: null },
     ]);
 
-    render(<AssignmentsPage user={user} onGoToHome={vi.fn()} />);
+    renderAssignmentsPage();
 
     expect(
       await screen.findByText(/about 15m left of 30m planned/i),
     ).toBeInTheDocument();
   });
 
-  it("opens the detail screen when a card is tapped, and back returns to the list", async () => {
+  it("requests Assignment Detail open when a card is tapped", async () => {
     mockedCourseService.listCourses.mockResolvedValue([course]);
     mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
     mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
-    mockedAssignmentService.getAssignment.mockResolvedValue(openAssignment);
-    mockedWorkItemService.listWorkItems.mockResolvedValue([]);
+    const onOpenAssignment = vi.fn();
     const userEventInstance = userEvent.setup();
 
-    render(<AssignmentsPage user={user} onGoToHome={vi.fn()} />);
+    renderAssignmentsPage({ onOpenAssignment });
     const title = await screen.findByText("Chapter 7 problem set");
     await userEventInstance.click(title.closest("button")!);
 
-    expect(
-      await screen.findByRole("heading", { name: "Chapter 7 problem set" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /^steps$/i })).toBeInTheDocument();
-
-    await userEventInstance.click(screen.getByRole("button", { name: /back/i }));
-    expect(await screen.findByRole("heading", { name: /^assignments$/i })).toBeInTheDocument();
+    expect(onOpenAssignment).toHaveBeenCalledWith("a1");
   });
 
-  it("deleting from Detail with no completed steps returns to the list with an Undo affordance, deferring the real delete", async () => {
+  it("requests Assignment Detail open when a Finished card is tapped", async () => {
     mockedCourseService.listCourses.mockResolvedValue([course]);
-    mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
+    mockedAssignmentService.listAssignments.mockResolvedValue([doneAssignment]);
     mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
-    mockedAssignmentService.getAssignment.mockResolvedValue(openAssignment);
-    mockedWorkItemService.listWorkItems.mockResolvedValue([]);
-    mockedAssignmentService.deleteAssignment.mockResolvedValue(undefined);
+    const onOpenAssignment = vi.fn();
     const userEventInstance = userEvent.setup();
 
-    render(<AssignmentsPage user={user} onGoToHome={vi.fn()} />);
-    const title = await screen.findByText("Chapter 7 problem set");
-    await userEventInstance.click(title.closest("button")!);
-    await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+    renderAssignmentsPage({ onOpenAssignment });
+    await userEventInstance.click(await screen.findByRole("button", { name: "Reading response" }));
 
-    await userEventInstance.click(screen.getByRole("button", { name: /delete assignment/i }));
+    expect(onOpenAssignment).toHaveBeenCalledWith("a2");
+  });
 
-    expect(await screen.findByRole("heading", { name: /^assignments$/i })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(/chapter 7 problem set.*deleted/i);
-    expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
+  it("hides an assignment that's mid-Undo-window (pendingDeleteAssignmentId), without touching the rest of the list", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([course]);
+    mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment, doneAssignment]);
+    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
+
+    renderAssignmentsPage({ pendingDeleteAssignmentId: "a1" });
+
+    await screen.findByText("Reading response");
+    expect(screen.queryByText("Chapter 7 problem set")).not.toBeInTheDocument();
   });
 
   it("shows step progress and a progress bar when the assignment has more than one work item", async () => {
@@ -186,7 +175,7 @@ describe("AssignmentsPage", () => {
       { id: "w2", assignmentId: "a1", title: "Step 2", effortMinutes: 10, completedAt: null },
     ]);
 
-    render(<AssignmentsPage user={user} onGoToHome={vi.fn()} />);
+    renderAssignmentsPage();
 
     expect(
       await screen.findByText(/1 of 2 steps complete/i),
@@ -201,7 +190,7 @@ describe("AssignmentsPage", () => {
     ]);
     mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
 
-    render(<AssignmentsPage user={user} onGoToHome={vi.fn()} />);
+    renderAssignmentsPage();
 
     await screen.findByText("Chapter 7 problem set");
     expect(screen.getByRole("heading", { name: /finished/i })).toBeInTheDocument();
@@ -215,7 +204,7 @@ describe("AssignmentsPage", () => {
     mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
     const userEventInstance = userEvent.setup();
 
-    render(<AssignmentsPage user={user} onGoToHome={vi.fn()} />);
+    renderAssignmentsPage();
     await screen.findByText("Chapter 7 problem set");
 
     await userEventInstance.click(
@@ -235,79 +224,23 @@ describe("AssignmentsPage", () => {
     expect(await screen.findByText("Chapter 8 problem set")).toBeInTheDocument();
   });
 
-  it("deleting an assignment with no completed steps hides it immediately and offers Undo, without calling delete yet", async () => {
+  it("calls onDeleteImmediate (not the server) when deleting an assignment with no completed steps", async () => {
     mockedCourseService.listCourses.mockResolvedValue([course]);
     mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
     mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
-    mockedAssignmentService.deleteAssignment.mockResolvedValue(undefined);
+    const onDeleteImmediate = vi.fn();
     const userEventInstance = userEvent.setup();
 
-    render(<AssignmentsPage user={user} onGoToHome={vi.fn()} />);
+    renderAssignmentsPage({ onDeleteImmediate });
     await screen.findByText("Chapter 7 problem set");
 
     await userEventInstance.click(
       screen.getByRole("button", { name: /delete chapter 7 problem set/i }),
     );
 
-    expect(screen.queryByText("Chapter 7 problem set")).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(/chapter 7 problem set.*deleted/i);
+    expect(onDeleteImmediate).toHaveBeenCalledWith(openAssignment);
     expect(screen.queryByText(/delete this assignment\?/i)).not.toBeInTheDocument();
     expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
-  });
-
-  it("commits the delete once the Undo window elapses", async () => {
-    mockedCourseService.listCourses.mockResolvedValue([course]);
-    mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
-    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
-    mockedAssignmentService.deleteAssignment.mockResolvedValue(undefined);
-    const userEventInstance = userEvent.setup();
-    // Spy on the real setTimeout rather than replacing the whole timer
-    // subsystem (vi.useFakeTimers) — this avoids interfering with
-    // user-event's and React's own internal scheduling.
-    const setTimeoutSpy = vi.spyOn(window, "setTimeout");
-
-    render(<AssignmentsPage user={user} onGoToHome={vi.fn()} />);
-    await screen.findByText("Chapter 7 problem set");
-
-    await userEventInstance.click(
-      screen.getByRole("button", { name: /delete chapter 7 problem set/i }),
-    );
-    expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
-
-    const undoTimerCall = setTimeoutSpy.mock.calls.find(([, ms]) => ms === 5000);
-    (undoTimerCall![0] as () => void)();
-
-    await waitFor(() =>
-      expect(mockedAssignmentService.deleteAssignment).toHaveBeenCalledWith("a1"),
-    );
-    setTimeoutSpy.mockRestore();
-  });
-
-  it("Undo restores the assignment and never calls delete", async () => {
-    mockedCourseService.listCourses.mockResolvedValue([course]);
-    mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
-    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
-    const userEventInstance = userEvent.setup();
-    const setTimeoutSpy = vi.spyOn(window, "setTimeout");
-    const clearTimeoutSpy = vi.spyOn(window, "clearTimeout");
-
-    render(<AssignmentsPage user={user} onGoToHome={vi.fn()} />);
-    await screen.findByText("Chapter 7 problem set");
-
-    await userEventInstance.click(
-      screen.getByRole("button", { name: /delete chapter 7 problem set/i }),
-    );
-    await userEventInstance.click(screen.getByRole("button", { name: /^undo$/i }));
-
-    expect(screen.getByText("Chapter 7 problem set")).toBeInTheDocument();
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    const undoTimerIndex = setTimeoutSpy.mock.calls.findIndex(([, ms]) => ms === 5000);
-    expect(clearTimeoutSpy).toHaveBeenCalledWith(
-      setTimeoutSpy.mock.results[undoTimerIndex].value,
-    );
-    expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
-    setTimeoutSpy.mockRestore();
-    clearTimeoutSpy.mockRestore();
   });
 
   it("requires confirmation to delete an assignment with completed steps", async () => {
@@ -318,7 +251,7 @@ describe("AssignmentsPage", () => {
     ]);
     const userEventInstance = userEvent.setup();
 
-    render(<AssignmentsPage user={user} onGoToHome={vi.fn()} />);
+    renderAssignmentsPage();
     await screen.findByText("Chapter 7 problem set");
 
     await userEventInstance.click(

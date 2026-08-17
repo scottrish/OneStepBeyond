@@ -26,6 +26,17 @@ built, also not yet consumed by this screen). The Assignment Brief/
 "What this needs" card still depends on Assignment Understanding & Guided
 Breakdown, not yet started.
 
+**Update (2026-08-17):** Assignment Detail is no longer reachable only
+from this feature's own Assignments list. It's now a global overlay owned
+by `App.tsx`, reachable from Home (Needs Attention, Coming Up, and
+straight after capturing a new assignment) and from Plan's Day step
+"Due:" list, with the same delete/Undo behavior regardless of entry
+point — see `docs/decisions/20260817-assignment-detail-global-overlay.md`.
+This spec's own UX Flow and Acceptance Criteria are unaffected (Detail's
+own behavior didn't change), but "reached from the Assignments list" in
+the sections below should be read as "reached from anywhere an assignment
+is displayed."
+
 ## Summary
 
 View, edit, complete, and delete Assignments. Covers the Assignments list

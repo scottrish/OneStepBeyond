@@ -81,3 +81,12 @@ not-yet-built features).
   handler needs a small follow-up change to navigate to them instead of
   showing the inline success state — tracked as this increment's
   suggested next step, not additional scope here.
+
+**Update (2026-08-17):** Today Execution shipped (`docs/Roadmap.md` Phase
+4) but this follow-up was never done — the Confirm step still shows the
+inline success state with a "Start today's plan" button, one explicit tap
+short of the auto-navigation the original spec text describes. Still
+outstanding; not addressed by the Assignment Detail global-overlay work
+that touched this same file's Day step around the same time (see
+`docs/decisions/20260817-assignment-detail-global-overlay.md`), which was
+a different, narrower change.

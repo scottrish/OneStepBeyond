@@ -38,15 +38,19 @@ all, distinct from the "needs breakdown" case above) had copy and a
 missing action carried over from that sibling case rather than written
 for its own — see the Amendment near the end of this document.
 
-Not yet built, because both depend on features not yet started (see
-`docs/Roadmap.md`): confirming a plan shows an inline success
-acknowledgment rather than navigating to Today Execution or Week
-Look-ahead, since neither exists yet in this codebase — see
-`docs/decisions/20260816-daily-planning-confirm-write-order.md`. Moving a
-session is limited to the existing 5-day (Today+4) window and to
-`planned`-status sessions; anything involving Week Look-ahead's own date
-range, or Today Execution's in-progress/done statuses, is deferred to
-those features.
+Confirming a plan still shows an inline success acknowledgment rather
+than navigating to Today Execution or Week Look-ahead directly — this was
+correct when written (neither existed yet), but Today Execution has since
+shipped (`docs/Roadmap.md` Phase 4) without that follow-up navigation
+change ever landing; the Confirm step's "Start today's plan" button is
+today's only path from Plan into Today Execution, one tap later than the
+spec's own "confirming navigates to..." wording implies. See
+`docs/decisions/20260816-daily-planning-confirm-write-order.md`'s
+Consequences for this outstanding follow-up. Week Look-ahead remains
+genuinely unbuilt. Moving a session is limited to the existing 5-day
+(Today+4) window and to `planned`-status sessions; anything involving
+Week Look-ahead's own date range, or Today Execution's in-progress/done
+statuses, is deferred to those features.
 
 ## Summary
 

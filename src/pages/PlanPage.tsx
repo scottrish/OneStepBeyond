@@ -58,6 +58,12 @@ type PlanPageProps = {
   // capture UI of its own — same tab-switch shape as Home's own
   // onGoToAssignments.
   onGoToAssignments: () => void;
+  // Assignment Detail is a global overlay owned by App.tsx — see
+  // docs/decisions/20260817-assignment-detail-global-overlay.md. Wired
+  // here for the Day step's "Due:" list; the Select step's own candidate
+  // cards are deliberately not wired yet (multi-select checkboxes, a
+  // different interaction-design question — see that decision record).
+  onOpenAssignment: (assignmentId: string) => void;
 };
 
 // A nested view within the Plan tab, distinct from the wizard's own
@@ -229,6 +235,7 @@ export default function PlanPage({
   onStepChange,
   onStartExecution,
   onGoToAssignments,
+  onOpenAssignment,
 }: PlanPageProps) {
   const studentId = user.id;
   const today = useMemo(() => todayISODate(), []);
@@ -604,11 +611,17 @@ export default function PlanPage({
               {dueThatDay.length > 0 && (
                 <ul className="mb-3 flex flex-col gap-1">
                   {dueThatDay.map((assignment) => (
-                    <li key={assignment.id} className="text-sm text-foreground">
-                      Due: {assignment.title}{" "}
-                      <span className="text-xs text-muted-foreground">
-                        {courseName(assignment.courseId)}
-                      </span>
+                    <li key={assignment.id}>
+                      <button
+                        type="button"
+                        onClick={() => onOpenAssignment(assignment.id)}
+                        className="text-left text-sm text-foreground underline-offset-4 hover:underline"
+                      >
+                        Due: {assignment.title}{" "}
+                        <span className="text-xs text-muted-foreground">
+                          {courseName(assignment.courseId)}
+                        </span>
+                      </button>
                     </li>
                   ))}
                 </ul>
