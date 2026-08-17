@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { Check, Minus, Plus, X } from "lucide-react";
+import { ArrowRightLeft, Check, Minus, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/EmptyState";
+import { errorMessage } from "../lib/errorMessage";
 import { effortLabel } from "../domain/effortPresets";
 import {
   addDaysISODate,
@@ -21,7 +22,10 @@ import { useAssignmentsList } from "../hooks/useAssignmentsList";
 import { useCourses } from "../hooks/useCourses";
 import { useDailyPlanning } from "../hooks/useDailyPlanning";
 import { useEstimationDrift } from "../hooks/useEstimationDrift";
+import * as workBreakdownService from "../services/workBreakdownService";
+import * as workSessionService from "../services/workSessionService";
 import type { Assignment } from "../services/assignmentService";
+import type { WorkSession } from "../services/workSessionService";
 import WorkBreakdownPage from "./WorkBreakdownPage";
 
 // Step and the selected day are lifted into App.tsx and passed down as
@@ -104,28 +108,51 @@ function assignDefaultTimes(
   return next;
 }
 
-// The list of direct "start the breakdown" actions shown by FR-1's
-// signal, shared between the Day step's notice and Select's own notice
-// (both the all-candidates-need-it dead end and the mixed case) so the
-// markup isn't duplicated.
+// The pair of actions shown by FR-1's signal for each assignment that
+// hasn't been broken down yet, shared between the Day step's notice and
+// Select's own notice (both the all-candidates-need-it dead end and the
+// mixed case) so the markup isn't duplicated. Not every assignment
+// benefits from decomposition — a short, atomic task ("Read chapter 1 by
+// Tuesday") gains nothing from a forced multi-step breakdown, so
+// "Plan ... as one task" is offered as an equally direct alternative to
+// "Break down ...", not buried behind it. It creates a single Work Item
+// matching the assignment's own title/estimate via the same
+// workBreakdownService.confirmWorkBreakdown the full breakdown flow uses
+// (see planWithoutBreakdown below) — reusing the existing abstraction
+// rather than a parallel "unbroken-down schedulable assignment" concept.
 function BreakdownList({
   assignments,
-  onSelect,
+  onBreakdown,
+  onPlanDirectly,
+  planningAssignmentId,
 }: {
   assignments: Assignment[];
-  onSelect: (assignmentId: string) => void;
+  onBreakdown: (assignmentId: string) => void;
+  onPlanDirectly: (assignment: Assignment) => void;
+  planningAssignmentId: string | null;
 }) {
   return (
     <ul className="flex flex-col gap-2">
       {assignments.map((assignment) => (
-        <li key={assignment.id}>
+        <li key={assignment.id} className="flex flex-col gap-2">
           <Button
             type="button"
             variant="outline"
             className="min-h-11 w-full justify-start rounded-2xl text-left"
-            onClick={() => onSelect(assignment.id)}
+            onClick={() => onBreakdown(assignment.id)}
           >
             Break down &ldquo;{assignment.title}&rdquo;
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={planningAssignmentId === assignment.id}
+            className="min-h-11 w-full justify-start rounded-2xl text-left text-muted-foreground"
+            onClick={() => onPlanDirectly(assignment)}
+          >
+            {planningAssignmentId === assignment.id
+              ? "Planning…"
+              : `Plan “${assignment.title}” as one task instead`}
           </Button>
         </li>
       ))}
@@ -145,10 +172,14 @@ function BreakdownList({
 // of whether other, already-selectable candidates also exist.
 function BreakdownNotice({
   assignments,
-  onSelect,
+  onBreakdown,
+  onPlanDirectly,
+  planningAssignmentId,
 }: {
   assignments: Assignment[];
-  onSelect: (assignmentId: string) => void;
+  onBreakdown: (assignmentId: string) => void;
+  onPlanDirectly: (assignment: Assignment) => void;
+  planningAssignmentId: string | null;
 }) {
   if (assignments.length === 0) return null;
   return (
@@ -157,13 +188,21 @@ function BreakdownNotice({
         {assignments.length === 1 ? (
           <>
             &ldquo;{assignments[0].title}&rdquo; needs to be broken into steps before it can be
-            scheduled.
+            scheduled &mdash; or, if it&rsquo;s not worth breaking down, plan it as one task.
           </>
         ) : (
-          <>{assignments.length} assignments need to be broken into steps before they can be scheduled.</>
+          <>
+            {assignments.length} assignments need to be broken into steps before they can be
+            scheduled &mdash; or plan any of them as one task instead.
+          </>
         )}
       </p>
-      <BreakdownList assignments={assignments} onSelect={onSelect} />
+      <BreakdownList
+        assignments={assignments}
+        onBreakdown={onBreakdown}
+        onPlanDirectly={onPlanDirectly}
+        planningAssignmentId={planningAssignmentId}
+      />
     </div>
   );
 }
@@ -177,6 +216,12 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
   const [times, setTimes] = useState<Record<string, string>>({});
   const [showAll, setShowAll] = useState(false);
   const [justConfirmed, setJustConfirmed] = useState(false);
+  const [planningAssignmentId, setPlanningAssignmentId] = useState<string | null>(null);
+  const [planDirectlyError, setPlanDirectlyError] = useState<string | null>(null);
+  const [movingSessionId, setMovingSessionId] = useState<string | null>(null);
+  const [moveTargetDate, setMoveTargetDate] = useState<string | null>(null);
+  const [moveSubmitting, setMoveSubmitting] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
 
   const {
     activities,
@@ -241,11 +286,14 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
   );
 
   // Work items that already have a planned session on a *different* date
-  // — used by Select to warn before a student re-schedules something
-  // they've already committed elsewhere, rather than leaving that
-  // commitment silently invisible. docs/features/iterations/
-  // daily-planning/daily-planning.i03.md FR-1. Maps workItemId -> the
-  // date it's already planned for.
+  // — used by Select to tell the student, before they pick it again,
+  // that it's already committed elsewhere, rather than leaving that
+  // commitment silently invisible. Continuing an item across more than
+  // one day is an expected outcome (not finishing Monday, picking it
+  // back up Tuesday), not a mistake — see daily-planning.i04.md FR-2 for
+  // why this reads as informational rather than a warning.
+  // docs/features/iterations/daily-planning/daily-planning.i03.md FR-1.
+  // Maps workItemId -> the date it's already planned for.
   const scheduledElsewhere = useMemo(() => {
     const map = new Map<string, string>();
     for (const session of allSessions) {
@@ -262,6 +310,18 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
     (assignment) => !assignment.completedAt && assignment.dueDate === date,
   );
   const slots = useMemo(() => studySlots(activities, date), [activities, date]);
+
+  // FR-3 (docs/features/iterations/daily-planning/daily-planning.i04.md):
+  // capacity for whichever day is currently chosen as a move's target, so
+  // the move panel can show the same calm over-capacity notice Estimate
+  // already uses, before the move is confirmed.
+  const movingSession = workSessions.find((session) => session.id === movingSessionId);
+  const moveTargetCapacity =
+    moveTargetDate !== null ? availableMinutes(activities, allSessions, moveTargetDate) : null;
+  const moveOverCapacity =
+    movingSession !== undefined &&
+    moveTargetCapacity !== null &&
+    movingSession.plannedMinutes > moveTargetCapacity;
 
   const chosenIds = Object.keys(chosen);
   const planned = chosenIds.reduce((sum, id) => sum + (chosen[id] ?? 0), 0);
@@ -285,6 +345,87 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
     setTimes({});
     setShowAll(false);
     setJustConfirmed(false);
+  }
+
+  // The alternative to "Break down ..." offered by BreakdownList/Notice:
+  // not every assignment is meaningfully decomposable ("Read chapter 1 by
+  // Tuesday"), so this creates a single Work Item mirroring the
+  // assignment's own title/estimate via the same service the full
+  // breakdown flow's confirm step uses, skipping the multi-step wizard
+  // entirely. Recorded as a (trivial, one-item) confirmed Work Breakdown
+  // like any other, rather than a separate "unbroken-down but schedulable
+  // assignment" concept — see docs/decisions/
+  // 20260816-plan-directly-without-breakdown.md.
+  async function planWithoutBreakdown(assignment: Assignment) {
+    setPlanningAssignmentId(assignment.id);
+    setPlanDirectlyError(null);
+    try {
+      await workBreakdownService.confirmWorkBreakdown(
+        studentId,
+        assignment,
+        [],
+        [{ title: assignment.title, effortMinutes: assignment.effortMinutes }],
+        0,
+      );
+      retryAssignments();
+    } catch (error) {
+      setPlanDirectlyError(errorMessage(error));
+    } finally {
+      setPlanningAssignmentId(null);
+    }
+  }
+
+  // FR-3: relocates an already-planned (not-yet-started) session to a
+  // different day in one action, instead of the student separately
+  // re-planning it elsewhere and removing the original. Create-before-
+  // remove — same insert-before-delete ordering this codebase always
+  // uses for a multi-step write, so a failure partway through never
+  // deletes the original without anything replacing it. Deliberately
+  // does not record a Planning Session Domain Event: this mirrors
+  // Remove, which is also a single-item plan edit outside the wizard and
+  // doesn't record one today — only a full wizard confirm does. See
+  // docs/features/iterations/daily-planning/daily-planning.i04.md.
+  function startMove(sessionId: string) {
+    setMovingSessionId(sessionId);
+    setMoveTargetDate(null);
+    setMoveError(null);
+  }
+
+  function cancelMove() {
+    setMovingSessionId(null);
+    setMoveTargetDate(null);
+    setMoveError(null);
+  }
+
+  async function confirmMove(session: WorkSession) {
+    if (!moveTargetDate) return;
+    setMoveSubmitting(true);
+    setMoveError(null);
+    try {
+      await workSessionService.createWorkSessions(studentId, [
+        {
+          workItemId: session.workItemId,
+          date: moveTargetDate,
+          plannedMinutes: session.plannedMinutes,
+          // The target day's open slots differ from the original day's,
+          // so there's no reliable time to carry over — left unset
+          // rather than guessed.
+          startTime: null,
+        },
+      ]);
+    } catch (error) {
+      setMoveError(errorMessage(error));
+      setMoveSubmitting(false);
+      return;
+    }
+    refetchAllSessions();
+    const removed = await removeSession(session.id);
+    setMoveSubmitting(false);
+    // If removal failed, useDailyPlanning's own actionError already
+    // surfaces it (rendered near the top of this page); leave the move
+    // panel open so the student can see the new session now also exists
+    // and retry removing the original from here.
+    if (removed) cancelMove();
   }
 
   function toggleCandidate(itemId: string, estimateMinutes: number) {
@@ -394,6 +535,12 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
         </p>
       )}
 
+      {planDirectlyError && (
+        <p role="alert" className={errorBoxStyle}>
+          {planDirectlyError}
+        </p>
+      )}
+
       {!loading && !loadError && (
         <>
           <p className="mb-6 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
@@ -408,7 +555,9 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
 
               <BreakdownNotice
                 assignments={assignmentsNeedingBreakdown}
-                onSelect={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                onBreakdown={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                onPlanDirectly={planWithoutBreakdown}
+                planningAssignmentId={planningAssignmentId}
               />
 
               {dueThatDay.length > 0 && (
@@ -454,41 +603,127 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
                         ? assignments.find((a) => a.id === item.assignmentId)
                         : undefined;
                       const done = session.status === "done";
+                      const itemLabel = item?.title ?? "this session";
+                      const moving = movingSessionId === session.id;
                       return (
-                        <li
-                          key={session.id}
-                          className="flex items-center gap-2 text-sm text-foreground"
-                        >
-                          {done ? (
-                            <Check className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
-                          ) : (
-                            <span
-                              aria-hidden="true"
-                              className="size-1.5 shrink-0 rounded-full bg-primary"
-                            />
-                          )}
-                          <span className={`min-w-0 flex-1 ${done ? "line-through opacity-60" : ""}`}>
-                            <span className="block truncate">{item?.title ?? "Study session"}</span>
-                            {item && assignment && (
-                              <span className="block truncate text-xs text-muted-foreground">
-                                {assignment.title} · {courseName(assignment.courseId)}
-                              </span>
+                        <li key={session.id} className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2 text-sm text-foreground">
+                            {done ? (
+                              <Check className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+                            ) : (
+                              <span
+                                aria-hidden="true"
+                                className="size-1.5 shrink-0 rounded-full bg-primary"
+                              />
                             )}
-                          </span>
-                          <span className="shrink-0 text-xs text-muted-foreground">
-                            {session.startTime ? `${timeLabel(session.startTime)} · ` : ""}
-                            {effortLabel(session.plannedMinutes)}
-                          </span>
-                          {!done && (
-                            <Button
-                              aria-label={`Remove ${item?.title ?? "this session"} from ${dayLabel(date, today)}'s plan`}
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 shrink-0"
-                              onClick={() => removeSession(session.id)}
-                            >
-                              <X className="size-3.5 text-muted-foreground" />
-                            </Button>
+                            <span className={`min-w-0 flex-1 ${done ? "line-through opacity-60" : ""}`}>
+                              <span className="block truncate">{item?.title ?? "Study session"}</span>
+                              {item && assignment && (
+                                <span className="block truncate text-xs text-muted-foreground">
+                                  {assignment.title} · {courseName(assignment.courseId)}
+                                </span>
+                              )}
+                            </span>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {session.startTime ? `${timeLabel(session.startTime)} · ` : ""}
+                              {effortLabel(session.plannedMinutes)}
+                            </span>
+                            {!done && (
+                              <>
+                                <Button
+                                  aria-label={`Move ${itemLabel} to another day`}
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 shrink-0"
+                                  onClick={() => (moving ? cancelMove() : startMove(session.id))}
+                                >
+                                  <ArrowRightLeft className="size-3.5 text-muted-foreground" />
+                                </Button>
+                                <Button
+                                  aria-label={`Remove ${itemLabel} from ${dayLabel(date, today)}'s plan`}
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 shrink-0"
+                                  onClick={() => removeSession(session.id)}
+                                >
+                                  <X className="size-3.5 text-muted-foreground" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+
+                          {moving && (
+                            <div className="rounded-2xl border border-border bg-card p-3">
+                              <p className="mb-2 text-xs font-medium text-foreground">
+                                Move &ldquo;{itemLabel}&rdquo; to:
+                              </p>
+                              <div
+                                role="radiogroup"
+                                aria-label={`Choose a day to move ${itemLabel} to`}
+                                className="mb-2 flex flex-wrap gap-2"
+                              >
+                                {Array.from({ length: DAY_STRIP_LENGTH }, (_, i) =>
+                                  addDaysISODate(today, i),
+                                )
+                                  .filter((d) => d !== date)
+                                  .map((d) => {
+                                    const active = d === moveTargetDate;
+                                    return (
+                                      <button
+                                        key={d}
+                                        type="button"
+                                        role="radio"
+                                        aria-checked={active}
+                                        onClick={() => setMoveTargetDate(d)}
+                                        className={`min-h-11 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                                          active
+                                            ? "border-primary bg-accent/60 text-foreground"
+                                            : "border-border bg-card text-muted-foreground"
+                                        }`}
+                                      >
+                                        {shortDayLabel(d, today)}
+                                      </button>
+                                    );
+                                  })}
+                              </div>
+
+                              {moveOverCapacity && moveTargetDate && (
+                                <p className="mb-2 rounded-2xl bg-attention px-3 py-2 text-xs text-attention-foreground">
+                                  This is{" "}
+                                  {effortLabel(
+                                    session.plannedMinutes - (moveTargetCapacity ?? 0),
+                                  )}{" "}
+                                  more than {dayLabel(moveTargetDate, today)} has. That is worth
+                                  knowing now rather than at 10pm.
+                                </p>
+                              )}
+
+                              {moveError && (
+                                <p role="alert" className="mb-2 text-xs text-destructive">
+                                  {moveError}
+                                </p>
+                              )}
+
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="rounded-2xl"
+                                  disabled={moveSubmitting}
+                                  onClick={cancelMove}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="flex-1 rounded-2xl"
+                                  disabled={!moveTargetDate || moveSubmitting}
+                                  onClick={() => confirmMove(session)}
+                                >
+                                  Move here
+                                </Button>
+                              </div>
+                            </div>
                           )}
                         </li>
                       );
@@ -522,7 +757,9 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
                 </p>
                 <BreakdownList
                   assignments={assignmentsNeedingBreakdown}
-                  onSelect={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                  onBreakdown={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                  onPlanDirectly={planWithoutBreakdown}
+                  planningAssignmentId={planningAssignmentId}
                 />
                 <Button
                   variant="ghost"
@@ -545,7 +782,9 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
               </h2>
               <BreakdownNotice
                 assignments={assignmentsNeedingBreakdown}
-                onSelect={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                onBreakdown={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                onPlanDirectly={planWithoutBreakdown}
+                planningAssignmentId={planningAssignmentId}
               />
               <ul className="flex flex-col gap-2">
                 {visibleCandidates.map(({ assignment, workItem }) => {
@@ -578,8 +817,8 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
                             {dueRelativeLabel(assignment.dueDate, today)}
                           </span>
                           {elsewhereDate && (
-                            <span className="mt-1 inline-block truncate rounded-full bg-attention px-2 py-0.5 text-xs font-medium text-attention-foreground">
-                              Already planned for {dayLabel(elsewhereDate, today)}
+                            <span className="mt-1 inline-block truncate rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                              Also planned for {dayLabel(elsewhereDate, today)}
                             </span>
                           )}
                         </span>
@@ -719,42 +958,32 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
                           {effortLabel(chosen[id] ?? 0)}
                         </span>
                       </div>
-                      <div
-                        role="radiogroup"
-                        aria-label={`Time for ${entry.workItem.title}`}
-                        className="mt-3 flex flex-wrap items-center gap-2"
-                      >
-                        {slots.map((slot) => {
-                          const active = times[id] === slot.start;
-                          return (
-                            <button
-                              key={slot.start}
-                              type="button"
-                              role="radio"
-                              aria-checked={active}
-                              onClick={() => setTimes((prev) => ({ ...prev, [id]: slot.start }))}
-                              className={`min-h-11 rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                                active
-                                  ? "border-primary bg-accent/60 text-foreground"
-                                  : "border-border text-muted-foreground"
-                              }`}
-                            >
-                              {slot.label} · {timeLabel(slot.start)}
-                            </button>
-                          );
-                        })}
-                        <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>or</span>
-                          <input
-                            type="time"
-                            aria-label={`Choose a custom time for ${entry.workItem.title}`}
-                            value={times[id] ?? ""}
-                            onChange={(e) =>
-                              setTimes((prev) => ({ ...prev, [id]: e.target.value }))
-                            }
-                            className="h-11 rounded-full border border-border bg-background px-3 text-xs text-foreground"
-                          />
-                        </span>
+                      <div className="mt-3 flex flex-col gap-2">
+                        <input
+                          type="time"
+                          aria-label={`Time for ${entry.workItem.title}`}
+                          value={times[id] ?? ""}
+                          onChange={(e) =>
+                            setTimes((prev) => ({ ...prev, [id]: e.target.value }))
+                          }
+                          className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm text-foreground"
+                        />
+                        {slots.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {slots.map((slot) => (
+                              <button
+                                key={slot.start}
+                                type="button"
+                                onClick={() =>
+                                  setTimes((prev) => ({ ...prev, [id]: slot.start }))
+                                }
+                                className="min-h-11 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/40"
+                              >
+                                {slot.label} · {timeLabel(slot.start)}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </li>
                   );
