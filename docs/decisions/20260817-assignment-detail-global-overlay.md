@@ -116,3 +116,18 @@ own lists are wired.
   prop-driven unit tests (tapping a card calls `onOpenAssignment`;
   deleting calls `onDeleteImmediate`) instead of exercising a full nested
   render of `AssignmentDetailPage`.
+
+**Update (2026-08-17, Undo-window delete removed):** the "Product-owner
+direction" note above proved out — the Undo-window soft-delete this
+record centralized was replaced the same day with a plain
+confirm-before-delete dialog, exactly the swap this record anticipated.
+See `docs/decisions/20260817-remove-undo-delete.md`. Everything else in
+this record still holds: Assignment Detail is still a single overlay
+owned by `App.tsx`, reached the same way from every tab. What changed is
+narrower than it sounds — `UNDO_WINDOW_MS`, the timer, the toast, and
+`hiddenAssignmentIds` are gone from `App.tsx`; `onDeleteImmediate` is gone
+from `AssignmentDetailPageProps`/`AssignmentsPageProps`/
+`AssignmentCardProps`. The "two overlays... plus the Undo-delete
+timer/toast" line in Consequences above is accordingly stale — `App.tsx`
+now owns just the two overlays (`executingToday`, `openAssignmentId`),
+nothing more.

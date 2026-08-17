@@ -78,3 +78,19 @@ existing reset-on-re-tap convention is still potentially relevant to it.
 - If a future increment needs mid-flow selections to survive as well
   (e.g. Estimate/Schedule state), lifting `chosen`/`times` the same way
   is a small, structurally identical follow-up — nothing here blocks it.
+
+**Update (2026-08-17):** week-lookahead.md added a second top-level Plan
+tab (the wizard vs. "Look ahead," week-lookahead.md's own read-only
+7-day view) as local `PlanPage` state at first. Live testing surfaced
+exactly the failure mode this decision already predicts for anything not
+lifted: opening Assignment Detail from Look Ahead and tapping Back
+unmounted/remounted `PlanPage` (same mechanism as the Assignment Detail
+global overlay, `docs/decisions/20260817-assignment-detail-global-overlay.md`),
+resetting the local view back to "wizard" and stranding the student on
+the Day step instead of back in Look Ahead. Fixed by lifting this choice
+too — `planTab`/`onTabChange`, alongside `planDate`/`planStep` — following
+this decision's own reasoning exactly: it's idle orientation state a
+student can be interrupted out of at any time, not an in-progress,
+throwaway-on-interruption flow like the breakdown sub-view or
+chosen/times remain. Re-tapping the Plan tab still resets `planTab` to
+"wizard" (`App.tsx`'s `handleTabChange`), consistent with #3 above.

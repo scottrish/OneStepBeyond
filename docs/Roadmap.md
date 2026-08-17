@@ -134,15 +134,14 @@ question about whether their breakdown actually worked.
 
 # Phase 4 — Planning and execution
 
-**Status: mostly done.** Daily Planning and Today Execution are both
-built; Week Look-Ahead is the one piece of this phase not yet started.
+**Status: done (2026-08-17).**
 
 | Feature | Spec | Status |
 |---|---|---|
 | Daily Planning | [daily-planning.md](features/daily-planning.md) | Done (2026-08-16) |
 | Student Preferences (Study Hours) | [student-preferences.md](features/student-preferences.md) | Done (2026-08-17) |
 | Today Execution (incl. Reflection Moment C) | [today-execution.md](features/today-execution.md) | Done (2026-08-16) |
-| Week Look-Ahead | [week-lookahead.md](features/week-lookahead.md) | Not started |
+| Week Look-Ahead | [week-lookahead.md](features/week-lookahead.md) | Done (2026-08-17) |
 
 **Why next:** Daily Planning needs open Work Items (Phase 2/3) and
 Activities (Phase 1) to compute realistic capacity. Today Execution is
@@ -199,12 +198,28 @@ amendment to Daily Planning's own capacity calculation (and, once built,
 Risk Detection's below) rather than an independent feature. See
 `student-preferences.md`'s own Status note.
 
-**Demoable at the end of this phase (achieved, except Week Look-Ahead):**
-a student can run a full planning session in under five minutes on their
-own configured study hours, execute today's plan one task at a time, and
-answer the one reflection question after each session. Glancing at the
-week to see where it's crowded is not yet possible — Week Look-Ahead
-remains the one unbuilt piece of this phase (see Backlog).
+**Week Look-Ahead implementation note (2026-08-17):** built as a second
+tab on the Plan screen (`{ name: "wizard" } | { name: "lookahead" }`,
+lifted to `App.tsx` alongside `planDate`/`planStep` — see
+`docs/decisions/20260816-plan-tab-state-lifted-not-reset-on-retap.md`'s
+own update), reusing `studyCapacity.ts`'s existing `availableMinutes` plus
+a newly-ported `capacityPhrase` qualitative-phrase function. Assignment
+links go through the same global Assignment Detail overlay every other
+screen uses (`docs/decisions/20260817-assignment-detail-global-overlay.md`),
+resolving the one open question the earlier build plan had flagged.
+Session data comes from a new `useWeekSessions` hook (a real
+loadError/retry surface, unlike `useAllWorkSessions`'s deliberately
+non-critical one) rather than reusing Daily Planning's own single-date
+hook. Live browser testing (not just the automated test suite) caught and
+fixed one bug before considering this done: opening Assignment Detail
+from Look Ahead and tapping Back was landing on the wizard's Day step
+instead of back in Look Ahead.
+
+**Demoable at the end of this phase (achieved):** a student can run a
+full planning session in under five minutes on their own configured
+study hours, execute today's plan one task at a time, answer the one
+reflection question after each session, and glance at the week to see
+where it's crowded.
 
 ---
 
@@ -245,9 +260,8 @@ lingers once everything it describes is finished.
 **Demoable at the end of this phase (achieved):** the full three-question
 promise ("What do I need to do? What should I do next? Am I on track?")
 is answerable from Home within five seconds, per `Product-Vision.md`'s
-Primary Goal. Increment 1 is not quite feature-complete even so — Week
-Look-Ahead (Phase 4) is the one spec across all five phases still
-unbuilt; see Backlog.
+Primary Goal. With Week Look-Ahead (Phase 4) also since shipped, every
+spec across all five phases of Increment 1 is now built.
 
 ---
 
@@ -322,16 +336,6 @@ calls out that this shared ZPD/Skill Competency infrastructure "should
 serve both rather than being implemented twice" when it's eventually
 built — schedule it as one piece of work, not two.
 
-## Week Look-Ahead — the one unbuilt Phase 4 spec
-
-[week-lookahead.md](features/week-lookahead.md) was deliberately sequenced
-last within Phase 4 (it's a thin layer over Daily Planning's own
-`availableMinutes`), and stayed unbuilt when Today Execution and Student
-Preferences were prioritized instead. Nothing further blocks it — Daily
-Planning's capacity logic it depends on has existed since Phase 4 started,
-and now also reflects per-student Preferences. Picking this up doesn't
-require revisiting any other phase first.
-
 ## Smaller open items inside already-built specs
 
 - **Assignment Detail's CTA hierarchy needs reconsidering, not just
@@ -363,7 +367,7 @@ require revisiting any other phase first.
   `course-setup.md`, worth revisiting once real students have used the
   create/rename/list-only version from Phase 1.
 - A true calendar grid/month view (`week-lookahead.md` explicitly scopes
-  out anything beyond the 7-day list, once the base view above is built).
+  out anything beyond the 7-day list).
 - Cross-day drag-and-drop rescheduling (`daily-planning.md`).
 - A running timer/time-tracking UI for Today Execution (deliberately
   excluded per Design-Principles.md's "no elapsed-time pressure").

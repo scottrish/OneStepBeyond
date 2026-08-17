@@ -13,7 +13,6 @@ import { remainingMinutes } from "../domain/remainingMinutes";
 import { useAssignment } from "../hooks/useAssignment";
 import { useCourses } from "../hooks/useCourses";
 import { useWorkItems } from "../hooks/useWorkItems";
-import type { Assignment } from "../services/assignmentService";
 import ReflectionPrompt from "./ReflectionPrompt";
 import WorkBreakdownPage from "./WorkBreakdownPage";
 
@@ -21,11 +20,6 @@ type AssignmentDetailPageProps = {
   user: User;
   assignmentId: string;
   onBack: () => void;
-  // When provided, a delete with no completed steps is handed to the
-  // caller (which owns a brief Undo window) instead of being sent to the
-  // server immediately. Omitted when this screen is reached somewhere
-  // with no list to return an undo affordance to.
-  onDeleteImmediate?: (assignment: Assignment) => void;
 };
 
 const errorBoxStyle =
@@ -35,7 +29,6 @@ export default function AssignmentDetailPage({
   user,
   assignmentId,
   onBack,
-  onDeleteImmediate,
 }: AssignmentDetailPageProps) {
   const {
     assignment,
@@ -83,16 +76,7 @@ export default function AssignmentDetailPage({
   }
 
   function handleDeleteClick() {
-    if (hasCompletedSteps) {
-      setConfirmingDelete(true);
-    } else if (onDeleteImmediate && assignment) {
-      onDeleteImmediate(assignment);
-      onBack();
-    } else {
-      deleteAssignment().then((succeeded) => {
-        if (succeeded) onBack();
-      });
-    }
+    setConfirmingDelete(true);
   }
 
   async function handleConfirmDelete() {
@@ -150,11 +134,15 @@ export default function AssignmentDetailPage({
 
       {assignment && confirmingDelete && (
         <div className="rounded-lg border border-destructive bg-card p-4">
-          <p className="mb-1 text-sm font-medium">Delete this assignment?</p>
-          <p className="mb-3 text-sm text-muted-foreground">
-            This assignment already has completed steps. Deleting it will
-            erase that progress.
-          </p>
+          <div className="mb-3 flex flex-col gap-1">
+            <p className="text-sm font-medium">Delete this assignment?</p>
+            {hasCompletedSteps && (
+              <p className="text-sm text-muted-foreground">
+                This assignment already has completed steps. Deleting it
+                will erase that progress.
+              </p>
+            )}
+          </div>
           <div className="flex gap-2">
             <Button
               variant="ghost"

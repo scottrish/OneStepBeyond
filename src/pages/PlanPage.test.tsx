@@ -58,7 +58,7 @@ import * as planningSessionService from "../services/planningSessionService";
 import * as decompositionAttemptService from "../services/decompositionAttemptService";
 import * as preferencesService from "../services/preferencesService";
 import PlanPage from "./PlanPage";
-import type { Step } from "./PlanPage";
+import type { PlanTab, Step } from "./PlanPage";
 
 const mockedActivityService = activityService as unknown as {
   listActivities: ReturnType<typeof vi.fn>;
@@ -117,6 +117,7 @@ function ControlledPlanPage({
 }) {
   const [date, setDate] = useState(TODAY_ISO);
   const [step, setStep] = useState<Step>("day");
+  const [tab, setTab] = useState<PlanTab>("wizard");
   return (
     <PlanPage
       user={user}
@@ -124,6 +125,8 @@ function ControlledPlanPage({
       step={step}
       onDateChange={setDate}
       onStepChange={setStep}
+      tab={tab}
+      onTabChange={setTab}
       onStartExecution={onStartExecution}
       onGoToAssignments={onGoToAssignments}
       onOpenAssignment={onOpenAssignment}
@@ -1099,6 +1102,7 @@ describe("PlanPage", () => {
         const [mounted, setMounted] = useState(true);
         const [date, setDate] = useState(TODAY_ISO);
         const [step, setStep] = useState<Step>("day");
+        const [tab, setTab] = useState<PlanTab>("wizard");
         return (
           <>
             <button type="button" onClick={() => setMounted((m) => !m)}>
@@ -1111,6 +1115,8 @@ describe("PlanPage", () => {
                 step={step}
                 onDateChange={setDate}
                 onStepChange={setStep}
+                tab={tab}
+                onTabChange={setTab}
                 onStartExecution={vi.fn()}
                 onGoToAssignments={vi.fn()}
                 onOpenAssignment={vi.fn()}
@@ -1156,6 +1162,8 @@ describe("PlanPage", () => {
           step="estimate"
           onDateChange={vi.fn()}
           onStepChange={vi.fn()}
+          tab="wizard"
+          onTabChange={vi.fn()}
           onStartExecution={vi.fn()}
           onGoToAssignments={vi.fn()}
           onOpenAssignment={vi.fn()}
@@ -1281,6 +1289,64 @@ describe("PlanPage", () => {
       await userEventInstance.click(startButton);
 
       expect(onStartExecution).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("Look ahead tab (week-lookahead.md)", () => {
+    it("switches to the 7-day Look ahead view and back to the Plan wizard", async () => {
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByText(/step 1 of 5/i);
+
+      await userEventInstance.click(screen.getByRole("tab", { name: /look ahead/i }));
+
+      expect(await screen.findByRole("button", { name: "Today" })).toBeInTheDocument();
+      expect(screen.queryByText(/step 1 of 5/i)).not.toBeInTheDocument();
+
+      await userEventInstance.click(screen.getByRole("tab", { name: /^plan$/i }));
+
+      expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
+    });
+
+    it("tapping a date in Look ahead jumps to that day's own Day step of the wizard", async () => {
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByText(/step 1 of 5/i);
+      await userEventInstance.click(screen.getByRole("tab", { name: /look ahead/i }));
+      await screen.findByRole("button", { name: "Today" });
+
+      // 2026-03-18 is today (03-16) + 2 days.
+      await userEventInstance.click(
+        screen.getByRole("button", { name: /wednesday, march 18/i }),
+      );
+
+      expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: /let.s plan wednesday/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("opens Assignment Detail when a Look ahead due item is tapped", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        assignment({ id: "a1", title: "Essay", dueDate: TODAY_ISO }),
+      ]);
+      const onOpenAssignment = vi.fn();
+      const userEventInstance = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+
+      render(<ControlledPlanPage user={user} onOpenAssignment={onOpenAssignment} />);
+      await screen.findByText(/step 1 of 5/i);
+      await userEventInstance.click(screen.getByRole("tab", { name: /look ahead/i }));
+
+      await userEventInstance.click(await screen.findByRole("button", { name: /due: essay/i }));
+      expect(onOpenAssignment).toHaveBeenCalledWith("a1");
     });
   });
 });

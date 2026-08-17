@@ -1,26 +1,15 @@
-import { useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { todayISODate } from "./domain/planningDate";
-import * as assignmentService from "./services/assignmentService";
-import type { Assignment } from "./services/assignmentService";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 import PlanPage from "./pages/PlanPage";
-import type { Step } from "./pages/PlanPage";
+import type { PlanTab, Step } from "./pages/PlanPage";
 import AssignmentsPage from "./pages/AssignmentsPage";
 import AssignmentDetailPage from "./pages/AssignmentDetailPage";
 import TodayExecutionPage from "./pages/TodayExecutionPage";
 import AppShell from "./components/AppShell";
 import type { Tab } from "./components/AppShell";
-
-// How long a delete with no completed steps stays reversible before it's
-// sent to the server. docs/features/iterations/assignment-management/
-// assignment-management.i02.md FR-1 — exact duration left to
-// implementation judgment. Owned here (not AssignmentsPage) so the same
-// Undo behavior applies regardless of which tab Assignment Detail was
-// reached from — see docs/decisions/20260817-assignment-detail-global-overlay.md.
-const UNDO_WINDOW_MS = 5000;
 
 // Tabs whose own page owns nested internal navigation (a `view` state)
 // that can land on something other than that tab's landing screen.
@@ -53,6 +42,17 @@ export default function App() {
   // re-tap.
   const [planDate, setPlanDate] = useState(() => todayISODate());
   const [planStep, setPlanStep] = useState<Step>("day");
+  // Which of Plan's two top-level tabs (the wizard, or week-lookahead.md's
+  // "Look ahead" view) is showing — lifted for the same reason as
+  // planDate/planStep above: discovered live while testing the Assignment
+  // Detail global-overlay change (docs/decisions/
+  // 20260817-assignment-detail-global-overlay.md), where opening Detail
+  // from Look Ahead and tapping Back landed back on the wizard's Day step
+  // instead, because PlanPage's own local view state reset on the remount
+  // that round trip causes. Re-tapping the Plan tab still resets this to
+  // "wizard" (see handleTabChange) — that's a deliberate return-to-landing
+  // gesture, unlike returning from Detail.
+  const [planTab, setPlanTab] = useState<PlanTab>("wizard");
 
   // Today Execution is reached from both Home's "Next" card
   // (home-dashboard.md) and Plan's own entry points (daily-planning.md's
@@ -72,36 +72,9 @@ export default function App() {
   // automatically — no explicit refetch-on-back plumbing needed anywhere.
   // See docs/decisions/20260817-assignment-detail-global-overlay.md.
   const [openAssignmentId, setOpenAssignmentId] = useState<string | null>(null);
-  // The Undo-window soft-delete (see UNDO_WINDOW_MS) is likewise owned
-  // here rather than by AssignmentsPage, so a delete triggered from
-  // Detail behaves identically no matter which tab launched it.
-  const [pendingDelete, setPendingDelete] = useState<Assignment | null>(null);
-  const pendingDeleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   if (!user) {
     return <LoginPage signIn={signIn} signUp={signUp} />;
-  }
-
-  function requestDeleteWithUndo(assignment: Assignment) {
-    // Only one undo window is meaningful at a time in this UI — if
-    // another delete is already pending, let it go through immediately
-    // rather than silently losing track of it.
-    if (pendingDeleteTimer.current) {
-      clearTimeout(pendingDeleteTimer.current);
-      if (pendingDelete) assignmentService.deleteAssignment(pendingDelete.id);
-    }
-    setPendingDelete(assignment);
-    pendingDeleteTimer.current = setTimeout(() => {
-      assignmentService.deleteAssignment(assignment.id);
-      pendingDeleteTimer.current = null;
-      setPendingDelete(null);
-    }, UNDO_WINDOW_MS);
-  }
-
-  function undoDelete() {
-    if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
-    pendingDeleteTimer.current = null;
-    setPendingDelete(null);
   }
 
   function handleTabChange(tab: Tab) {
@@ -118,6 +91,7 @@ export default function App() {
     if (tab === "home" || tab === "assignments" || tab === "plan") {
       setTabResetKeys((keys) => ({ ...keys, [tab]: keys[tab] + 1 }));
     }
+    if (tab === "plan") setPlanTab("wizard");
     setActiveTab(tab);
     // Today Execution and Assignment Detail both render in place of every
     // tab's own content (see executingToday/openAssignmentId above) —
@@ -131,22 +105,10 @@ export default function App() {
 
   return (
     <AppShell activeTab={activeTab} onTabChange={handleTabChange}>
-      {pendingDelete && (
-        <div
-          role="status"
-          className="mx-6 mt-6 flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-sm"
-        >
-          <span>&ldquo;{pendingDelete.title}&rdquo; deleted.</span>
-          <Button variant="ghost" size="sm" onClick={undoDelete}>
-            Undo
-          </Button>
-        </div>
-      )}
       {openAssignmentId ? (
         <AssignmentDetailPage
           user={user}
           assignmentId={openAssignmentId}
-          onDeleteImmediate={requestDeleteWithUndo}
           onBack={() => setOpenAssignmentId(null)}
         />
       ) : executingToday ? (
@@ -172,6 +134,8 @@ export default function App() {
               step={planStep}
               onDateChange={setPlanDate}
               onStepChange={setPlanStep}
+              tab={planTab}
+              onTabChange={setPlanTab}
               onStartExecution={() => setExecutingToday(true)}
               onGoToAssignments={() => handleTabChange("assignments")}
               onOpenAssignment={setOpenAssignmentId}
@@ -183,8 +147,6 @@ export default function App() {
               user={user}
               onGoToHome={() => handleTabChange("home")}
               onOpenAssignment={setOpenAssignmentId}
-              pendingDeleteAssignmentId={pendingDelete?.id ?? null}
-              onDeleteImmediate={requestDeleteWithUndo}
             />
           )}
         </>

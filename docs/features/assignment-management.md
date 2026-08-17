@@ -30,12 +30,24 @@ Breakdown, not yet started.
 from this feature's own Assignments list. It's now a global overlay owned
 by `App.tsx`, reachable from Home (Needs Attention, Coming Up, and
 straight after capturing a new assignment) and from Plan's Day step
-"Due:" list, with the same delete/Undo behavior regardless of entry
-point — see `docs/decisions/20260817-assignment-detail-global-overlay.md`.
-This spec's own UX Flow and Acceptance Criteria are unaffected (Detail's
-own behavior didn't change), but "reached from the Assignments list" in
-the sections below should be read as "reached from anywhere an assignment
-is displayed."
+"Due:" list, with the same delete behavior regardless of entry point —
+see `docs/decisions/20260817-assignment-detail-global-overlay.md`. This
+spec's own UX Flow and Acceptance Criteria are unaffected (Detail's own
+behavior didn't change), but "reached from the Assignments list" in the
+sections below should be read as "reached from anywhere an assignment is
+displayed."
+
+**Update (2026-08-17): the iteration-2 "Undo" affordance was removed.**
+Every delete — regardless of completed-steps state — now requires the
+same in-place confirmation the has-completed-steps case already used,
+rather than deleting immediately with a 5-second Undo toast. Raised
+directly: deleting two assignments within the old Undo window silently
+made the first one permanent with no warning, and correctly hiding a
+pending delete across every screen it could be triggered from turned out
+to need more machinery than the rarity of deleting an assignment
+justified. See `docs/decisions/20260817-remove-undo-delete.md`. The
+line above ("a brief 'Undo' affordance after an unconfirmed delete") now
+describes iteration 2's historical behavior only, not the current build.
 
 ## Summary
 

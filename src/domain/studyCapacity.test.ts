@@ -3,6 +3,7 @@ import {
   PROTECTED_MINUTES,
   activitiesOn,
   availableMinutes,
+  capacityPhrase,
   minutesBetween,
   studySlots,
 } from "./studyCapacity";
@@ -186,5 +187,37 @@ describe("studySlots", () => {
   it("returns no suggested slots for a weekend date, regardless of Activities", () => {
     expect(studySlots([], WEEKEND, preferences)).toEqual([]);
     expect(studySlots([activity({ days: [0] })], WEEKEND, preferences)).toEqual([]);
+  });
+});
+
+describe("capacityPhrase", () => {
+  it("returns 'No study time today' at and below zero", () => {
+    expect(capacityPhrase(0)).toBe("No study time today");
+    expect(capacityPhrase(-10)).toBe("No study time today");
+  });
+
+  it("returns 'Tight day' just above zero and just under 45", () => {
+    expect(capacityPhrase(1)).toBe("Tight day");
+    expect(capacityPhrase(44)).toBe("Tight day");
+  });
+
+  it("returns a figure rounded to the nearest 30 minutes from 45 up to just under 120", () => {
+    expect(capacityPhrase(45)).toBe("About 60 min study time available");
+    expect(capacityPhrase(119)).toBe("About 120 min study time available");
+  });
+
+  it("returns 'About 2 hr study time available' from 120 up to just under 210", () => {
+    expect(capacityPhrase(120)).toBe("About 2 hr study time available");
+    expect(capacityPhrase(209)).toBe("About 2 hr study time available");
+  });
+
+  it("returns 'Mostly open' from 210 up to just under 300", () => {
+    expect(capacityPhrase(210)).toBe("Mostly open");
+    expect(capacityPhrase(299)).toBe("Mostly open");
+  });
+
+  it("returns 'Plenty of room' at and above 300", () => {
+    expect(capacityPhrase(300)).toBe("Plenty of room");
+    expect(capacityPhrase(600)).toBe("Plenty of room");
   });
 });

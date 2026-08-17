@@ -27,6 +27,7 @@ import * as workBreakdownService from "../services/workBreakdownService";
 import * as workSessionService from "../services/workSessionService";
 import type { Assignment } from "../services/assignmentService";
 import type { WorkSession } from "../services/workSessionService";
+import WeekLookAhead from "./WeekLookAhead";
 import WorkBreakdownPage from "./WorkBreakdownPage";
 
 // Step and the selected day are lifted into App.tsx and passed down as
@@ -38,6 +39,10 @@ import WorkBreakdownPage from "./WorkBreakdownPage";
 // just-confirmed acknowledgment) stays local: FR-2's acceptance criteria
 // only require the day/step to survive, not in-progress selections.
 export type Step = "day" | "select" | "estimate" | "schedule" | "confirm";
+// Which of Plan's two top-level tabs is showing — the wizard, or
+// week-lookahead.md's own "Look ahead" view. Controlled/lifted for the
+// same reason date/step are (see PlanPageProps.tab below).
+export type PlanTab = "wizard" | "lookahead";
 
 type PlanPageProps = {
   user: User;
@@ -45,6 +50,16 @@ type PlanPageProps = {
   step: Step;
   onDateChange: (date: string) => void;
   onStepChange: (step: Step) => void;
+  // Lifted to App.tsx alongside date/step so it survives PlanPage
+  // unmounting — not just on a tab switch (date/step's original reason)
+  // but also across an Assignment Detail round trip, discovered live
+  // while testing: opening Detail from Look Ahead and tapping Back landed
+  // back on the wizard's Day step instead of Look Ahead, since this used
+  // to be local state that reset on remount. Re-tapping the Plan tab
+  // still resets it to "wizard" (App.tsx's handleTabChange) — a
+  // deliberate return-to-landing gesture, unlike returning from Detail.
+  tab: PlanTab;
+  onTabChange: (tab: PlanTab) => void;
   // Today Execution is reached from here (Day step, and the Confirm
   // step's success screen) and from Home's own Next card
   // (home-dashboard.md) — lifted up to App.tsx rather than owned by
@@ -66,10 +81,14 @@ type PlanPageProps = {
   onOpenAssignment: (assignmentId: string) => void;
 };
 
-// A nested view within the Plan tab, distinct from the wizard's own
-// `step`. Reached from FR-1's breakdown signal (see needsBreakdown
-// below) — reuses WorkBreakdownPage exactly as Assignment Detail does,
-// rather than inventing a new UI for the same job (CLAUDE.md YAGNI).
+// A nested view within the Plan tab, distinct from both the wizard's own
+// `step` and the top-level wizard/lookahead `tab` above. Reached from
+// FR-1's breakdown signal (see needsBreakdown below) — reuses
+// WorkBreakdownPage exactly as Assignment Detail does, rather than
+// inventing a new UI for the same job (CLAUDE.md YAGNI). Deliberately
+// stays local (not lifted): unlike the tab choice, a mid-breakdown flow
+// resetting on remount is the same accepted tradeoff `chosen`/`times`
+// selections already have.
 type View = { name: "wizard" } | { name: "breakdown"; assignmentId: string };
 
 const STEP_LABEL: Record<Step, string> = {
@@ -81,8 +100,8 @@ const STEP_LABEL: Record<Step, string> = {
 };
 
 // Today + next 4 days (docs/features/daily-planning.md's day picker strip
-// — the "Look ahead" tab it also mentions is week-lookahead.md's own
-// separate feature, not built here).
+// — see the `View` union above for the "Look ahead" tab it also
+// mentions, week-lookahead.md's own separate 7-day view).
 const DAY_STRIP_LENGTH = 5;
 
 const errorBoxStyle =
@@ -233,6 +252,8 @@ export default function PlanPage({
   step,
   onDateChange,
   onStepChange,
+  tab,
+  onTabChange,
   onStartExecution,
   onGoToAssignments,
   onOpenAssignment,
@@ -544,58 +565,114 @@ export default function PlanPage({
       <h1 className="mb-1 text-3xl">Plan</h1>
       <p className="mb-4 text-sm text-muted-foreground">{longPlanDate(date)}</p>
 
-      <div
-        role="radiogroup"
-        aria-label="Choose a day to plan"
-        className="-mx-1 mb-6 flex gap-2 overflow-x-auto px-1 pb-1"
-      >
-        {Array.from({ length: DAY_STRIP_LENGTH }, (_, i) => addDaysISODate(today, i)).map((d) => {
-          const active = d === date;
-          return (
-            <button
-              key={d}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              onClick={() => pickDay(d)}
-              className={`min-h-11 shrink-0 rounded-2xl border px-3 py-2 text-xs font-medium transition-colors ${
-                active
-                  ? "border-primary bg-accent/60 text-foreground"
-                  : "border-border bg-card text-muted-foreground"
-              }`}
-            >
-              {shortDayLabel(d, today)}
-            </button>
-          );
-        })}
+      <div role="tablist" aria-label="Plan view" className="mb-4 flex gap-2">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab !== "lookahead"}
+          onClick={() => onTabChange("wizard")}
+          className={`min-h-11 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors ${
+            tab !== "lookahead"
+              ? "border-primary bg-accent/60 text-foreground"
+              : "border-border bg-card text-muted-foreground"
+          }`}
+        >
+          Plan
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "lookahead"}
+          onClick={() => onTabChange("lookahead")}
+          className={`min-h-11 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors ${
+            tab === "lookahead"
+              ? "border-primary bg-accent/60 text-foreground"
+              : "border-border bg-card text-muted-foreground"
+          }`}
+        >
+          Look ahead
+        </button>
       </div>
 
-      {loadError && (
-        <div role="alert" className={errorBoxStyle}>
-          <p className="mb-2">Couldn&rsquo;t load your plan.</p>
-          <Button onClick={retry}>Try again</Button>
-        </div>
-      )}
-
-      {actionError && (
-        <p role="alert" className={errorBoxStyle}>
-          {actionError}
-        </p>
-      )}
-
-      {planDirectlyError && (
-        <p role="alert" className={errorBoxStyle}>
-          {planDirectlyError}
-        </p>
-      )}
-
-      {!loading && !loadError && (
+      {tab === "lookahead" ? (
         <>
-          <p className="mb-6 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            {STEP_LABEL[safeStep]}
-          </p>
+          {loadError && (
+            <div role="alert" className={errorBoxStyle}>
+              <p className="mb-2">Couldn&rsquo;t load your plan.</p>
+              <Button onClick={retry}>Try again</Button>
+            </div>
+          )}
+          {!loading && !loadError && (
+            <WeekLookAhead
+              studentId={studentId}
+              activities={activities}
+              assignments={assignments}
+              workItems={workItems}
+              preferences={preferences}
+              today={today}
+              courseName={courseName}
+              onPickDay={(d) => {
+                pickDay(d);
+                onTabChange("wizard");
+              }}
+              onOpenAssignment={onOpenAssignment}
+            />
+          )}
+        </>
+      ) : (
+        <>
+          <div
+            role="radiogroup"
+            aria-label="Choose a day to plan"
+            className="-mx-1 mb-6 flex gap-2 overflow-x-auto px-1 pb-1"
+          >
+            {Array.from({ length: DAY_STRIP_LENGTH }, (_, i) => addDaysISODate(today, i)).map((d) => {
+              const active = d === date;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => pickDay(d)}
+                  className={`min-h-11 shrink-0 rounded-2xl border px-3 py-2 text-xs font-medium transition-colors ${
+                    active
+                      ? "border-primary bg-accent/60 text-foreground"
+                      : "border-border bg-card text-muted-foreground"
+                  }`}
+                >
+                  {shortDayLabel(d, today)}
+                </button>
+              );
+            })}
+          </div>
 
-          {safeStep === "day" ? (
+          {loadError && (
+            <div role="alert" className={errorBoxStyle}>
+              <p className="mb-2">Couldn&rsquo;t load your plan.</p>
+              <Button onClick={retry}>Try again</Button>
+            </div>
+          )}
+
+          {actionError && (
+            <p role="alert" className={errorBoxStyle}>
+              {actionError}
+            </p>
+          )}
+
+          {planDirectlyError && (
+            <p role="alert" className={errorBoxStyle}>
+              {planDirectlyError}
+            </p>
+          )}
+
+          {!loading && !loadError && (
+            <>
+              <p className="mb-6 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                {STEP_LABEL[safeStep]}
+              </p>
+
+              {safeStep === "day" ? (
             <section>
               <h2 className="mb-3 text-base font-medium text-foreground">
                 Let&rsquo;s plan {dayLabel(date, today)}.
@@ -1135,6 +1212,8 @@ export default function PlanPage({
                 </Button>
               </div>
             </section>
+              )}
+            </>
           )}
         </>
       )}

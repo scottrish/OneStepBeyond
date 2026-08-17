@@ -65,8 +65,7 @@ const doneAssignment = {
 
 // Assignment Detail is a global overlay owned by App.tsx now (see
 // docs/decisions/20260817-assignment-detail-global-overlay.md) — this
-// page just requests it open / reports deletes upward. Round-trip
-// behavior (opening Detail, the Undo toast, the Undo window itself) is
+// page just requests it open. Round-trip behavior (opening Detail) is
 // covered by App.test.tsx instead.
 function renderAssignmentsPage(overrides: Record<string, unknown> = {}) {
   return render(
@@ -74,8 +73,6 @@ function renderAssignmentsPage(overrides: Record<string, unknown> = {}) {
       user={user}
       onGoToHome={vi.fn()}
       onOpenAssignment={vi.fn()}
-      pendingDeleteAssignmentId={null}
-      onDeleteImmediate={vi.fn()}
       {...overrides}
     />,
   );
@@ -156,17 +153,6 @@ describe("AssignmentsPage", () => {
     expect(onOpenAssignment).toHaveBeenCalledWith("a2");
   });
 
-  it("hides an assignment that's mid-Undo-window (pendingDeleteAssignmentId), without touching the rest of the list", async () => {
-    mockedCourseService.listCourses.mockResolvedValue([course]);
-    mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment, doneAssignment]);
-    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
-
-    renderAssignmentsPage({ pendingDeleteAssignmentId: "a1" });
-
-    await screen.findByText("Reading response");
-    expect(screen.queryByText("Chapter 7 problem set")).not.toBeInTheDocument();
-  });
-
   it("shows step progress and a progress bar when the assignment has more than one work item", async () => {
     mockedCourseService.listCourses.mockResolvedValue([course]);
     mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
@@ -224,26 +210,53 @@ describe("AssignmentsPage", () => {
     expect(await screen.findByText("Chapter 8 problem set")).toBeInTheDocument();
   });
 
-  it("calls onDeleteImmediate (not the server) when deleting an assignment with no completed steps", async () => {
+  it("requires confirmation before deleting, even with no completed steps, and deletes only once confirmed", async () => {
     mockedCourseService.listCourses.mockResolvedValue([course]);
     mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
     mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
-    const onDeleteImmediate = vi.fn();
+    mockedAssignmentService.deleteAssignment.mockResolvedValue(undefined);
     const userEventInstance = userEvent.setup();
 
-    renderAssignmentsPage({ onDeleteImmediate });
+    renderAssignmentsPage();
     await screen.findByText("Chapter 7 problem set");
 
     await userEventInstance.click(
       screen.getByRole("button", { name: /delete chapter 7 problem set/i }),
     );
 
-    expect(onDeleteImmediate).toHaveBeenCalledWith(openAssignment);
+    expect(await screen.findByText(/delete this assignment\?/i)).toBeInTheDocument();
+    // No completed steps — the "erase that progress" warning doesn't apply.
+    expect(screen.queryByText(/erase that progress/i)).not.toBeInTheDocument();
+    expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
+
+    await userEventInstance.click(screen.getByRole("button", { name: /^delete$/i }));
+    await waitFor(() =>
+      expect(mockedAssignmentService.deleteAssignment).toHaveBeenCalledWith("a1"),
+    );
+    expect(screen.queryByText("Chapter 7 problem set")).not.toBeInTheDocument();
+  });
+
+  it("cancelling the confirmation leaves the assignment in the list", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([course]);
+    mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
+    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
+    const userEventInstance = userEvent.setup();
+
+    renderAssignmentsPage();
+    await screen.findByText("Chapter 7 problem set");
+
+    await userEventInstance.click(
+      screen.getByRole("button", { name: /delete chapter 7 problem set/i }),
+    );
+    await screen.findByText(/delete this assignment\?/i);
+    await userEventInstance.click(screen.getByRole("button", { name: /^cancel$/i }));
+
     expect(screen.queryByText(/delete this assignment\?/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Chapter 7 problem set")).toBeInTheDocument();
     expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
   });
 
-  it("requires confirmation to delete an assignment with completed steps", async () => {
+  it("warns that progress will be erased when a step is already complete", async () => {
     mockedCourseService.listCourses.mockResolvedValue([course]);
     mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
     mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
@@ -261,6 +274,7 @@ describe("AssignmentsPage", () => {
     expect(
       await screen.findByText(/delete this assignment\?/i),
     ).toBeInTheDocument();
+    expect(screen.getByText(/erase that progress/i)).toBeInTheDocument();
     expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
 
     await userEventInstance.click(screen.getByRole("button", { name: /^delete$/i }));

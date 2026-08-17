@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 import { useAuth } from "./hooks/useAuth";
@@ -340,6 +340,46 @@ describe("App", () => {
     );
   });
 
+  it("opening Assignment Detail from Plan's Look ahead tab and tapping Back returns to Look ahead, not the wizard", async () => {
+    // Regression test: planTab used to be PlanPage's own local state, so
+    // the remount an Assignment Detail round trip causes reset it back to
+    // "wizard" every time — discovered live while testing week-lookahead.md.
+    // See the tab/onTabChange wiring in App.tsx and docs/decisions/
+    // 20260817-assignment-detail-global-overlay.md.
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: "student-1", email: "person@example.com" } as User,
+      signIn: vi.fn(),
+      signUp: vi.fn(),
+      signOut: vi.fn(),
+    });
+    mockedCourseService.listCourses.mockResolvedValue([
+      { id: "course-1", name: "Biology", colorIndex: 0 },
+    ]);
+    const assignment = {
+      id: "a1",
+      courseId: "course-1",
+      title: "Essay",
+      dueDate: "2026-08-17",
+      effortMinutes: 60,
+      notes: null,
+      completedAt: null,
+    };
+    mockedAssignmentService.listAssignments.mockResolvedValue([assignment]);
+    mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+
+    render(<App />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Plan" }));
+    await userEvent.click(await screen.findByRole("tab", { name: /look ahead/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /due: essay/i }));
+    expect(await screen.findByRole("heading", { name: "Essay" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /back/i }));
+
+    expect(await screen.findByRole("tab", { name: /look ahead/i, selected: true })).toBeInTheDocument();
+    expect(screen.queryByText(/step 1 of 5/i)).not.toBeInTheDocument();
+  });
+
   it("tapping a tab exits Assignment Detail instead of leaving it stuck on top", async () => {
     vi.mocked(useAuth).mockReturnValue({
       user: { id: "student-1", email: "person@example.com" } as User,
@@ -377,6 +417,13 @@ describe("App", () => {
   });
 
   describe("deleting an assignment from Detail", () => {
+    // Every delete requires this in-card/in-page confirmation, regardless
+    // of completed-steps state or which tab Detail was reached from — see
+    // docs/decisions/20260817-remove-undo-delete.md. Simpler than the
+    // Undo-window soft-delete it replaced, which could only track one
+    // pending delete at a time and left a real bug (found live in the
+    // browser) where a completed delete could keep showing indefinitely
+    // on whichever tab it was launched from.
     const assignment = {
       id: "a1",
       courseId: "course-1",
@@ -402,7 +449,10 @@ describe("App", () => {
       mockedAssignmentService.deleteAssignment.mockResolvedValue(undefined);
     }
 
-    async function openDetailAndDelete(userEventInstance: ReturnType<typeof userEvent.setup>) {
+    it("requires confirmation, then deletes and returns to Assignments", async () => {
+      setUp();
+      const userEventInstance = userEvent.setup();
+
       render(<App />);
       await userEventInstance.click(screen.getByRole("button", { name: "Assignments" }));
       const card = await screen.findByText("Chapter 7 problem set");
@@ -411,47 +461,65 @@ describe("App", () => {
       await userEventInstance.click(
         screen.getByRole("button", { name: /delete assignment/i }),
       );
-    }
 
-    it("shows an Undo toast and defers the real delete, regardless of which tab launched Detail", async () => {
-      setUp();
-      const userEventInstance = userEvent.setup();
+      expect(await screen.findByText(/delete this assignment\?/i)).toBeInTheDocument();
+      expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
 
-      await openDetailAndDelete(userEventInstance);
+      await userEventInstance.click(screen.getByRole("button", { name: /^delete$/i }));
 
       expect(await screen.findByRole("heading", { name: /^assignments$/i })).toBeInTheDocument();
-      expect(screen.getByRole("status")).toHaveTextContent(/chapter 7 problem set.*deleted/i);
-      expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
+      expect(mockedAssignmentService.deleteAssignment).toHaveBeenCalledWith("a1");
     });
 
-    it("commits the delete once the Undo window elapses", async () => {
+    it("requires confirmation when reached via Home too, and returns to Home once confirmed", async () => {
       setUp();
       const userEventInstance = userEvent.setup();
-      // Spy on the real setTimeout rather than replacing the whole timer
-      // subsystem (vi.useFakeTimers) — this avoids interfering with
-      // user-event's and React's own internal scheduling.
-      const setTimeoutSpy = vi.spyOn(window, "setTimeout");
 
-      await openDetailAndDelete(userEventInstance);
-      expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
-
-      const undoTimerCall = setTimeoutSpy.mock.calls.find(([, ms]) => ms === 5000);
-      (undoTimerCall![0] as () => void)();
-
-      await waitFor(() =>
-        expect(mockedAssignmentService.deleteAssignment).toHaveBeenCalledWith("a1"),
+      render(<App />);
+      // Reach Detail via Home's own Coming Up list this time, not
+      // Assignments — the confirmation must behave identically regardless
+      // of entry point.
+      await userEventInstance.click(
+        await screen.findByRole("button", { name: /chapter 7 problem set/i }),
       );
-      setTimeoutSpy.mockRestore();
+      await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+      await userEventInstance.click(
+        screen.getByRole("button", { name: /delete assignment/i }),
+      );
+      await screen.findByText(/delete this assignment\?/i);
+      // Home remounts on return, which refetches — reflect the delete in
+      // that next fetch, the same way the real server would.
+      mockedAssignmentService.listAssignments.mockResolvedValue([]);
+      await userEventInstance.click(screen.getByRole("button", { name: /^delete$/i }));
+
+      expect(await screen.findByRole("heading", { name: /hi person\./i })).toBeInTheDocument();
+      expect(mockedAssignmentService.deleteAssignment).toHaveBeenCalledWith("a1");
+      // Home remounts on return (same as any Assignment Detail round
+      // trip), so the now-deleted assignment is simply gone from its
+      // fresh fetch — no special hiding logic required.
+      expect(
+        screen.queryByRole("button", { name: /chapter 7 problem set/i }),
+      ).not.toBeInTheDocument();
     });
 
-    it("Undo cancels the pending delete and never calls the server", async () => {
+    it("cancelling the confirmation leaves the assignment untouched and Detail open", async () => {
       setUp();
       const userEventInstance = userEvent.setup();
 
-      await openDetailAndDelete(userEventInstance);
-      await userEventInstance.click(screen.getByRole("button", { name: /^undo$/i }));
+      render(<App />);
+      await userEventInstance.click(screen.getByRole("button", { name: "Assignments" }));
+      const card = await screen.findByText("Chapter 7 problem set");
+      await userEventInstance.click(card.closest("button")!);
+      await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+      await userEventInstance.click(
+        screen.getByRole("button", { name: /delete assignment/i }),
+      );
+      await screen.findByText(/delete this assignment\?/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /^cancel$/i }));
 
-      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Chapter 7 problem set" }),
+      ).toBeInTheDocument();
       expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
     });
   });

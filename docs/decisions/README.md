@@ -27,3 +27,4 @@ directory.
 | 8 | [Daily Planning: allow scheduling an assignment without a Work Breakdown](20260816-plan-directly-without-breakdown.md) | 2026-08-16 |
 | 9 | [Today Execution: interim entry point before Home Dashboard exists](20260816-today-execution-interim-entry-point.md) | 2026-08-16 |
 | 10 | [Assignment Detail becomes a global overlay owned by App.tsx](20260817-assignment-detail-global-overlay.md) | 2026-08-17 |
+| 11 | [Remove the Undo-window soft-delete; confirm before every delete instead](20260817-remove-undo-delete.md) | 2026-08-17 |

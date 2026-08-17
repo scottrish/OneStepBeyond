@@ -81,6 +81,22 @@ export function availableMinutes(
   return Math.max(0, total - busy - PROTECTED_MINUTES - alreadyPlanned);
 }
 
+// Honest, qualitative phrasing for a day's capacity — never a raw "X hr
+// free" figure (Design-Principles.md Eighth Principle: personal time
+// isn't automatically homework capacity). Used by Week Look-Ahead
+// (week-lookahead.md); Daily Planning's own Day step still states a raw
+// effort figure ("about 1h 30m of study time") rather than this — see
+// week-lookahead.md's own note on that divergence. Thresholds ported
+// directly from the prototype's own `capacityPhrase`.
+export function capacityPhrase(minutes: number): string {
+  if (minutes <= 0) return "No study time today";
+  if (minutes < 45) return "Tight day";
+  if (minutes < 120) return `About ${Math.round(minutes / 30) * 30} min study time available`;
+  if (minutes < 210) return "About 2 hr study time available";
+  if (minutes < 300) return "Mostly open";
+  return "Plenty of room";
+}
+
 export type StudySlot = {
   start: string; // HH:MM
   finish: string; // HH:MM

@@ -24,13 +24,6 @@ type AssignmentsPageProps = {
   // docs/decisions/20260817-assignment-detail-global-overlay.md), not a
   // local view here — tapping a card just requests it open.
   onOpenAssignment: (assignmentId: string) => void;
-  // The Undo-window soft-delete is likewise owned by App.tsx, shared with
-  // Assignment Detail's own delete action, so behavior is identical
-  // regardless of which tab a delete was triggered from. This list must
-  // still hide whichever assignment is mid-undo-window itself, since the
-  // server delete hasn't actually happened yet.
-  pendingDeleteAssignmentId: string | null;
-  onDeleteImmediate: (assignment: Assignment) => void;
 };
 
 const errorBoxStyle =
@@ -42,11 +35,10 @@ type AssignmentCardProps = {
   items: WorkItem[];
   onOpen: () => void;
   onEdit: (patch: AssignmentEdit) => Promise<boolean>;
-  // No completed steps: soft-deletes with a brief Undo window, no
-  // confirmation prompt (see UNDO_WINDOW_MS).
-  onDeleteImmediate: () => void;
-  // Has completed steps: real, immediate delete after the in-card
-  // confirmation below — deleting completed work is never undoable.
+  // Every delete requires this in-card confirmation — deleting is
+  // infrequent enough that the extra tap is worth it in exchange for
+  // never silently losing something the student didn't mean to delete
+  // (see docs/decisions/20260817-remove-undo-delete.md).
   onDeleteConfirmed: () => Promise<boolean>;
 };
 
@@ -56,7 +48,6 @@ function AssignmentCard({
   items,
   onOpen,
   onEdit,
-  onDeleteImmediate,
   onDeleteConfirmed,
 }: AssignmentCardProps) {
   const [editing, setEditing] = useState(false);
@@ -68,6 +59,7 @@ function AssignmentCard({
 
   const structured = items.length > 1;
   const doneCount = items.filter((item) => item.completedAt !== null).length;
+  const hasCompletedSteps = doneCount > 0;
   const remaining = remainingMinutes(assignment, items);
   const percentDone = structured ? Math.round((doneCount / items.length) * 100) : 0;
 
@@ -79,12 +71,7 @@ function AssignmentCard({
   }
 
   function handleDeleteClick() {
-    const hasCompletedSteps = items.some((item) => item.completedAt !== null);
-    if (hasCompletedSteps) {
-      setConfirmingDelete(true);
-    } else {
-      onDeleteImmediate();
-    }
+    setConfirmingDelete(true);
   }
 
   if (editing) {
@@ -150,11 +137,15 @@ function AssignmentCard({
   if (confirmingDelete) {
     return (
       <div className="rounded-lg border border-destructive bg-card p-4">
-        <p className="mb-1 text-sm font-medium">Delete this assignment?</p>
-        <p className="mb-3 text-sm text-muted-foreground">
-          This assignment already has completed steps. Deleting it will
-          erase that progress.
-        </p>
+        <div className="mb-3 flex flex-col gap-1">
+          <p className="text-sm font-medium">Delete this assignment?</p>
+          {hasCompletedSteps && (
+            <p className="text-sm text-muted-foreground">
+              This assignment already has completed steps. Deleting it
+              will erase that progress.
+            </p>
+          )}
+        </div>
         <div className="flex gap-2">
           <Button
             variant="ghost"
@@ -236,8 +227,6 @@ export default function AssignmentsPage({
   user,
   onGoToHome,
   onOpenAssignment,
-  pendingDeleteAssignmentId,
-  onDeleteImmediate,
 }: AssignmentsPageProps) {
   const {
     assignments,
@@ -252,9 +241,9 @@ export default function AssignmentsPage({
   const { courses } = useCourses(user.id);
 
   const open = assignments
-    .filter((a) => !a.completedAt && a.id !== pendingDeleteAssignmentId)
+    .filter((a) => !a.completedAt)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  const done = assignments.filter((a) => a.completedAt && a.id !== pendingDeleteAssignmentId);
+  const done = assignments.filter((a) => a.completedAt);
 
   return (
     <main className="p-8">
@@ -291,7 +280,6 @@ export default function AssignmentsPage({
                 items={workItems.filter((w) => w.assignmentId === assignment.id)}
                 onOpen={() => onOpenAssignment(assignment.id)}
                 onEdit={(patch) => editAssignment(assignment.id, patch)}
-                onDeleteImmediate={() => onDeleteImmediate(assignment)}
                 onDeleteConfirmed={() => removeAssignment(assignment.id)}
               />
             </li>
