@@ -9,6 +9,7 @@ vi.mock("../lib/supabase", () => ({
 import { supabase } from "../lib/supabase";
 import {
   completeAllForAssignment,
+  completeWorkItem,
   createWorkItems,
   deleteWorkItems,
   listWorkItems,
@@ -169,5 +170,21 @@ describe("completeAllForAssignment", () => {
     );
 
     await expect(completeAllForAssignment("a1")).rejects.toThrow("boom");
+  });
+});
+
+describe("completeWorkItem", () => {
+  it("completes a single work item", async () => {
+    mockedFrom.mockReturnValue(mockQuery({ data: null, error: null }));
+
+    await expect(completeWorkItem("w1")).resolves.toBeUndefined();
+  });
+
+  it("throws when the update errors", async () => {
+    mockedFrom.mockReturnValue(
+      mockQuery({ data: null, error: new Error("boom") }),
+    );
+
+    await expect(completeWorkItem("w1")).rejects.toThrow("boom");
   });
 });

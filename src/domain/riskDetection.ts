@@ -3,6 +3,7 @@ import { availableMinutes } from "./studyCapacity";
 import { remainingMinutes } from "./remainingMinutes";
 import type { Assignment } from "../services/assignmentService";
 import type { Activity } from "../services/activityService";
+import type { Preferences } from "../services/preferencesService";
 import type { WorkItem } from "../services/workItemService";
 import type { WorkSession } from "../services/workSessionService";
 
@@ -32,12 +33,13 @@ function sumAvailableMinutesThroughDueDate(
   workSessions: WorkSession[],
   todayISO: string,
   dueDateISO: string,
+  preferences: Preferences,
 ): number {
   let total = 0;
   let cursor = todayISO;
   // Lexicographic comparison is valid directly on YYYY-MM-DD strings.
   while (cursor <= dueDateISO) {
-    total += availableMinutes(activities, workSessions, cursor);
+    total += availableMinutes(activities, workSessions, cursor, preferences);
     cursor = addDaysISODate(cursor, 1);
   }
   return total;
@@ -66,6 +68,7 @@ export function assignmentsNeedingAttention(
   workSessions: WorkSession[],
   activities: Activity[],
   todayISO: string,
+  preferences: Preferences,
 ): AttentionItem[] {
   const results: AttentionItem[] = [];
 
@@ -80,6 +83,7 @@ export function assignmentsNeedingAttention(
       workSessions,
       todayISO,
       assignment.dueDate,
+      preferences,
     );
     const notEnoughTime = remaining > capacityThroughDueDate;
 

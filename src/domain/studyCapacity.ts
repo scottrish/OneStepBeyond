@@ -1,4 +1,5 @@
 import type { Activity } from "../services/activityService";
+import type { Preferences } from "../services/preferencesService";
 
 // Capacity/scheduling math for Daily Planning
 // (docs/features/daily-planning.md), ported from
@@ -6,15 +7,14 @@ import type { Activity } from "../services/activityService";
 // studySlots) — same algorithm, adapted to this app's own Activity/
 // WorkSession shapes.
 
-export type StudyWindow = { start: string; finish: string };
-
-// A calm, realistic study window — planning is not about filling every
-// minute. Shorter on weekends' later finish balanced by an earlier
-// start; weekdays start later (after school) and run later. Validated
-// product-design constants (Design-Principles.md's Eighth Principle,
-// "Protect What Matters"), not something to redesign here.
-export const WEEKDAY_WINDOW: StudyWindow = { start: "15:15", finish: "21:00" };
-export const WEEKEND_WINDOW: StudyWindow = { start: "10:00", finish: "20:00" };
+// Weekday start is fixed, not student-configurable — students aren't
+// expected to use pre-school time for work
+// (docs/features/student-preferences.md's Design Decisions). Weekday
+// finish and weekend's hours budget both come from the student's own
+// Preferences instead; there is deliberately no equivalent fixed
+// "weekend start" — see studySlots below for why weekend has no window
+// at all, only a budget.
+export const WEEKDAY_START = "15:15";
 // Minutes deliberately left for dinner, family and rest — never
 // presented to the student as free time, and never fully consumable by
 // planning.
@@ -34,13 +34,9 @@ function parseISODate(dateISO: string): Date {
   return new Date(year ?? 1970, (month ?? 1) - 1, day ?? 1);
 }
 
-function isWeekend(dayOfWeek: number): boolean {
-  return dayOfWeek === 0 || dayOfWeek === 6;
-}
-
-function windowFor(dateISO: string): StudyWindow {
+function isWeekendDate(dateISO: string): boolean {
   const dow = parseISODate(dateISO).getDay();
-  return isWeekend(dow) ? WEEKEND_WINDOW : WEEKDAY_WINDOW;
+  return dow === 0 || dow === 6;
 }
 
 export function minutesBetween(start: string, finish: string): number {
@@ -54,22 +50,28 @@ export function activitiesOn(activities: Activity[], dateISO: string): Activity[
   return activities.filter((activity) => activity.days.includes(dow));
 }
 
-// The day's realistic study capacity: window minus Activities (+ their
-// travel time) minus the protected block minus minutes already planned
-// (and not yet done) for that date — the last term is this app's own
-// addition on top of the prototype's availableMinutes, mirroring the
+// The day's realistic study capacity: the student's configured total
+// (weekday window span, or weekend's raw hours budget) minus Activities
+// (+ their travel time) minus the protected block minus minutes already
+// planned (and not yet done) for that date — the last term is this app's
+// own addition on top of the prototype's availableMinutes, mirroring the
 // "capacity" calc in the prototype's plan.tsx (availableMinutes minus
 // alreadyPlanned).
 export function availableMinutes(
   activities: Activity[],
   workSessions: PlannedSession[],
   dateISO: string,
+  preferences: Preferences,
 ): number {
-  const window = windowFor(dateISO);
-  const total = minutesBetween(window.start, window.finish);
+  const total = isWeekendDate(dateISO)
+    ? preferences.weekendHours * 60
+    : minutesBetween(WEEKDAY_START, preferences.weekdayFinishTime);
   const busy = activitiesOn(activities, dateISO).reduce(
     (sum, activity) =>
-      sum + minutesBetween(activity.startTime, activity.finishTime) + activity.travelMinutes,
+      sum +
+      minutesBetween(activity.startTime, activity.finishTime) +
+      activity.travelToMinutes +
+      activity.travelFromMinutes,
     0,
   );
   const alreadyPlanned = workSessions
@@ -100,21 +102,34 @@ function fromMinutes(mins: number): string {
 // Open stretches of the day, around Activities and their travel time —
 // suggestions for the Schedule step, not rules. Stretches shorter than
 // 20 minutes aren't offered as a slot.
-export function studySlots(activities: Activity[], dateISO: string): StudySlot[] {
-  const dow = parseISODate(dateISO).getDay();
-  const weekend = isWeekend(dow);
-  const window = weekend ? WEEKEND_WINDOW : WEEKDAY_WINDOW;
+//
+// Weekend returns no slots at all: a plain hours budget has no
+// clock-time anchor to carve stretches from, and inventing one (e.g.
+// "always start at 9am") would just re-introduce the fixed slot
+// student-preferences.md's Design Decisions explicitly rejected —
+// students won't realistically hold to one on a weekend. This isn't a
+// gap: the Schedule step already always renders a manual time input
+// alongside any suggested chips regardless of whether chips exist, so a
+// weekend item falls back to "type whatever time makes sense" with no
+// UI change required.
+export function studySlots(
+  activities: Activity[],
+  dateISO: string,
+  preferences: Preferences,
+): StudySlot[] {
+  if (isWeekendDate(dateISO)) return [];
+
   const busy = activitiesOn(activities, dateISO)
     .map((activity) => ({
       name: activity.name,
-      start: toMinutes(activity.startTime) - activity.travelMinutes,
-      finish: toMinutes(activity.finishTime) + activity.travelMinutes,
+      start: toMinutes(activity.startTime) - activity.travelToMinutes,
+      finish: toMinutes(activity.finishTime) + activity.travelFromMinutes,
     }))
     .sort((a, b) => a.start - b.start);
 
   const slots: StudySlot[] = [];
-  let cursor = toMinutes(window.start);
-  const end = toMinutes(window.finish);
+  let cursor = toMinutes(WEEKDAY_START);
+  const end = toMinutes(preferences.weekdayFinishTime);
 
   const push = (from: number, to: number, before?: string, after?: string) => {
     if (to - from < 20) return;
@@ -123,9 +138,7 @@ export function studySlots(activities: Activity[], dateISO: string): StudySlot[]
       : before
         ? `Before ${before.toLowerCase()}`
         : slots.length === 0
-          ? weekend
-            ? "Morning"
-            : "After school"
+          ? "After school"
           : "Later on";
     slots.push({ start: fromMinutes(from), finish: fromMinutes(to), minutes: to - from, label });
   };

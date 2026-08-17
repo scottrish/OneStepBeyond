@@ -1,10 +1,11 @@
-import { BookOpen, CalendarClock, LogOut } from "lucide-react";
+import { BookOpen, CalendarClock, Clock, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type SettingsPageProps = {
   onBack: () => void;
   onGoToActivities: () => void;
   onGoToCourses: () => void;
+  onGoToPreferences: () => void;
   signOut: () => Promise<void>;
 };
 
@@ -17,6 +18,7 @@ export default function SettingsPage({
   onBack,
   onGoToActivities,
   onGoToCourses,
+  onGoToPreferences,
   signOut,
 }: SettingsPageProps) {
   return (
@@ -46,6 +48,16 @@ export default function SettingsPage({
           >
             <BookOpen className="size-5 text-muted-foreground" />
             Courses
+          </Button>
+        </li>
+        <li className="border-b border-border">
+          <Button
+            variant="ghost"
+            onClick={onGoToPreferences}
+            className="h-14 w-full justify-start gap-3 px-2 font-normal"
+          >
+            <Clock className="size-5 text-muted-foreground" />
+            Study hours
           </Button>
         </li>
         <li>

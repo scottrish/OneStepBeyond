@@ -116,3 +116,18 @@ export async function completeAllForAssignment(
 
   if (error) throw error;
 }
+
+// Today Execution's "Done" action (docs/features/today-execution.md)
+// completes one Work Item's underlying step — this is what Assignment
+// Detail's Steps checklist actually reads (completedAt), distinct from
+// the Work Session's own status the Plan/Today screens track. Without
+// this, a task marked Done in Today Execution shows as complete on Plan
+// but never on Assignment Detail.
+export async function completeWorkItem(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("work_items")
+    .update({ completed_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) throw error;
+}

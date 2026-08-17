@@ -1,15 +1,28 @@
 # Feature: Student Preferences (Study Hours)
 
+**Status:** Implemented (2026-08-17). New "Study hours" entry in Settings
+(behind Home's header gear icon, alongside Activities/Courses); weekday
+finish time and weekend hours budget both save immediately, no separate
+confirm step. `studyCapacity.ts`'s `availableMinutes`/`studySlots` and
+Risk Detection's capacity-through-due-date sum all read live preferences
+now instead of the old fixed `WEEKDAY_WINDOW`/`WEEKEND_WINDOW` constants
+(removed). A student who has never opened the screen sees unchanged
+capacity numbers — `student_preferences` defaults match the old
+constants exactly when no row exists yet.
+
 ## Summary
 
-Lets a student configure the realistic study window Daily Planning builds
+Lets a student configure the realistic study time Daily Planning builds
 every capacity calculation from — currently a single fixed pair of
 constants (`WEEKDAY_WINDOW`, `WEEKEND_WINDOW` in
 `src/domain/studyCapacity.ts`, identical for every student) — so that "how
 much time do I actually have" reflects this student's own schedule rather
-than an assumed one. Realizes Domain-Model.md's already-defined
-`Preferences` entity (Student context) and `Availability`'s "configured
-study limits" input, neither of which have been built yet.
+than an assumed one. Weekday is a **finish time** (start stays fixed);
+weekend is an **hours budget**, not a time window — see Design Decisions
+below for why the two are deliberately shaped differently. Realizes
+Domain-Model.md's already-defined `Preferences` entity (Student context)
+and `Availability`'s "configured study limits" input, neither of which
+have been built yet.
 
 ## Source
 
@@ -37,6 +50,34 @@ Saturday or Sunday exactly like any weekday as a plannable day (see
 `daily-planning.md`'s 5-day Today+4 strip, which has no weekend
 exclusion); this feature must preserve that. A student who studies more
 on weekends than on a school night is a normal case, not an edge case.
+Being shaped differently (finish time vs. hours budget — see Design
+Decisions) is not a lesser treatment; it's the more honest model for
+each.
+
+## Design Decisions (resolved 2026-08-17)
+
+- **Weekday start time stays fixed**, not configurable — students aren't
+  expected to use pre-school time for work, so there's nothing real to
+  configure there. Only the weekday *finish* time is a preference.
+- **Weekend is an hours budget, not a time window.** Students won't
+  realistically hold to a fixed weekend time slot the way a school day's
+  "after school" anchor holds. Concretely, this means weekend has no
+  start/finish time at all — just a single "hours available" number.
+- **The weekend budget is subtracted from the same way a weekday window
+  is** — Activities/travel and the fixed `PROTECTED_MINUTES` block still
+  come out of it, exactly like weekday's window span. It is not treated
+  as already-net free time. This keeps the weekday and weekend formulas
+  the same shape, just with the budget standing in for "window span" as
+  the starting total.
+- **`studySlots` (the Schedule step's suggested time chips) returns no
+  suggestions for a weekend date**, since a budget alone has no clock-time
+  anchor to carve stretches from — inventing one (e.g. "always start at
+  9am") would just be re-introducing the fixed slot this decision
+  explicitly rejected. This isn't a gap: the Schedule step already always
+  renders a manual time input alongside any suggested chips regardless of
+  whether chips exist, so a weekend item falls back to "type whatever
+  time makes sense" with no new UI required — it already works this way
+  for any day with zero open stretches.
 
 ## UX Flow
 
@@ -46,37 +87,44 @@ on weekends than on a school night is a normal case, not an edge case.
   cross-cutting touchpoint on that spec, not just this one; update its
   Settings list accordingly when this ships.
 - A single form, no wizard:
-  - **Weekday** — finish time (when the student is realistically done
-    studying on a school night). Replaces `WEEKDAY_WINDOW.finish`
-    ("21:00" today).
-  - **Weekend** — same shape as weekday (a start time and a finish time,
-    from which total available hours is derived), kept as its own,
-    independently set pair rather than a bare hours count — see Open
-    Questions for why "how many hours" needs one clarification before
-    this is final. Replaces `WEEKEND_WINDOW` ("10:00"–"20:00" today).
-- Defaults to today's hardcoded constants for a student who hasn't
-  configured anything yet, so nothing regresses for an existing account
-  the moment this ships.
+  - **Weekday** — finish time only (when the student is realistically
+    done studying on a school night). Replaces `WEEKDAY_WINDOW.finish`
+    ("21:00" today); start stays fixed at the current default (15:15).
+  - **Weekend** — a single "hours available" number, not a time window.
+    Replaces `WEEKEND_WINDOW` ("10:00"–"20:00" today, a 10-hour span) —
+    default this to the equivalent 10 hours so an unconfigured account's
+    capacity numbers don't change.
+- Defaults to today's hardcoded constants (as hours, for weekend) for a
+  student who hasn't configured anything yet, so nothing regresses for
+  an existing account the moment this ships.
 - Changes take effect immediately — the same "one source of truth, no
   separate confirm step" precedent `activities.md` already established
   for its own capacity-affecting settings.
 
 ## Functional Requirements
 
-- `src/domain/studyCapacity.ts`'s `windowFor(dateISO)` reads these
-  per-student values instead of the fixed `WEEKDAY_WINDOW`/
-  `WEEKEND_WINDOW` constants — every consumer (`availableMinutes`,
-  `studySlots`, and Risk Detection's own capacity-through-due-date sum)
-  updates automatically since they already go through `windowFor`
-  indirectly via those two functions.
+- `src/domain/studyCapacity.ts`'s `windowFor(dateISO)` (used by
+  `availableMinutes`) reads the student's weekday finish time and
+  weekend hours budget instead of the fixed `WEEKDAY_WINDOW`/
+  `WEEKEND_WINDOW` constants. `studySlots` needs its own explicit update
+  too — it currently duplicates `windowFor`'s weekday/weekend check
+  inline rather than sharing it, and per the Design Decisions above must
+  return `[]` for a weekend date rather than trying to derive a window
+  from the budget.
+- Risk Detection's capacity-through-due-date sum
+  (`src/domain/riskDetection.ts`) and `PlanPage.tsx`'s three call sites
+  (Day-step capacity, Schedule-step slots, Move's target-day capacity
+  check) all pick up the change automatically once `availableMinutes`/
+  `studySlots` do, with no call-site-specific logic of their own.
 - A change to these preferences immediately changes computed capacity
   everywhere it's used (Daily Planning, Week Look-Ahead once built, Risk
   Detection) — same immediacy guarantee `activities.md` already commits
   to for its own settings.
-- Validation: weekday and weekend finish times must be after their
-  respective start times (weekday start is addressed in Open Questions
-  below); this mirrors the existing Activity validation rule
-  (`finish_time > start_time`) exactly.
+- Validation: weekday finish time must be after the fixed start time
+  (15:15); weekend hours must be a positive number. This mirrors the
+  existing Activity validation rule's spirit (`finish_time > start_time`)
+  without a literal analog for weekend, since it no longer has two times
+  to compare.
 
 ## Acceptance Criteria
 
@@ -85,9 +133,12 @@ on weekends than on a school night is a normal case, not an edge case.
   being planned.
 - Changing weekend hours immediately changes the same figure for a
   Saturday/Sunday being planned, independently of any weekday change.
+- A weekend day's Schedule step shows no suggested time chips, only the
+  manual time input — never a fabricated slot with no real basis.
 - A student who has never opened this screen sees exactly the same
   capacity numbers as before this feature existed (default = today's
-  hardcoded constants).
+  hardcoded constants, weekend expressed as the equivalent 10-hour
+  budget).
 
 ## Domain Model Touchpoints
 
@@ -110,28 +161,6 @@ on weekends than on a school night is a normal case, not an edge case.
 - Any coach/parent visibility into or override of a student's own
   preferences (deferred, see
   `docs/decisions/20260813-student-only-first-increment.md`).
-
-## Open Questions
-
-- **Is weekday *start* time also meant to be configurable, or only the
-  finish time?** The request specifically named "when does the student
-  finish for the night" — this spec keeps weekday start fixed at the
-  current default (15:15, "after school") on that basis, but a school
-  day's actual end time varies by student just as much as bedtime does.
-  Worth confirming before implementation rather than assuming either
-  way.
-- **Is weekend availability really a raw hours *count*, or a time
-  *window* (start + finish) like weekday?** "How many hours at the
-  weekend" reads like a single number, but `studySlots` needs an actual
-  time-of-day window to suggest concrete slots against, not just a
-  duration. This spec's UX Flow above defaults to a start+finish window
-  (matching weekday's shape, with total hours as a derived, displayed
-  figure) as the more directly implementable reading — confirm before
-  building, since a pure-hours-budget model would need a different
-  slot-suggestion approach.
-- Should weekday and weekend both get independent *start* times, or does
-  only weekend need one (since weekday's start is arguably anchored to
-  "school ends")? Follows from the first question above.
 
 No deviations from the prototype are proposed for this feature (no
 prototype screen exists to deviate from).

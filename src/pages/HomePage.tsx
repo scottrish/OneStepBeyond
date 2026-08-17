@@ -15,10 +15,12 @@ import { useAllWorkSessions } from "../hooks/useAllWorkSessions";
 import { useAssignmentsList } from "../hooks/useAssignmentsList";
 import { useCourses } from "../hooks/useCourses";
 import { useDailyPlanning } from "../hooks/useDailyPlanning";
+import { usePreferences } from "../hooks/usePreferences";
 import ActivitiesPage from "./ActivitiesPage";
 import AssignmentCapturePage from "./AssignmentCapturePage";
 import AssignmentDetailPage from "./AssignmentDetailPage";
 import CoursesPage from "./CoursesPage";
+import PreferencesPage from "./PreferencesPage";
 import SettingsPage from "./SettingsPage";
 
 type HomePageProps = {
@@ -36,6 +38,7 @@ type View =
   | { name: "settings" }
   | { name: "activities" }
   | { name: "courses" }
+  | { name: "preferences" }
   | { name: "capture-assignment" }
   | { name: "assignment-detail"; assignmentId: string };
 
@@ -107,6 +110,7 @@ export default function HomePage({
   // each assignment's own due date, not just today — the one thing this
   // screen needs beyond what Daily Planning's own hooks already fetch.
   const { sessions: allSessions, loading: allSessionsLoading } = useAllWorkSessions(studentId);
+  const { preferences, loading: preferencesLoading } = usePreferences(studentId);
 
   function courseName(courseId: string): string {
     return courses.find((course) => course.id === courseId)?.name ?? "Course";
@@ -114,17 +118,19 @@ export default function HomePage({
 
   // Every one of these feeds visible primary content on this screen
   // (course names in the Next card, which assignment Needs Attention
-  // picks) — unlike PlanPage's own looser gating (where a not-yet-loaded
-  // course name is minor secondary text), all of them must be included
-  // here or the affected content flashes once between an incomplete and
-  // a final answer, violating home-dashboard.md's own "no flash of
-  // empty/wrong state" requirement.
+  // picks, and now the capacity math Needs Attention's rules run on) —
+  // unlike PlanPage's own looser gating (where a not-yet-loaded course
+  // name is minor secondary text), all of them must be included here or
+  // the affected content flashes once between an incomplete and a final
+  // answer, violating home-dashboard.md's own "no flash of empty/wrong
+  // state" requirement.
   const loading =
     activitiesLoading ||
     assignmentsLoading ||
     todaySessionsLoading ||
     coursesLoading ||
-    allSessionsLoading;
+    allSessionsLoading ||
+    preferencesLoading;
   const loadError = activitiesLoadError ?? assignmentsLoadError ?? todaySessionsLoadError;
 
   function retry() {
@@ -142,8 +148,16 @@ export default function HomePage({
   const todaysActivities = activitiesOn(activities, today);
 
   const attentionItems = useMemo(
-    () => assignmentsNeedingAttention(assignments, workItems, allSessions, activities, today),
-    [assignments, workItems, allSessions, activities, today],
+    () =>
+      assignmentsNeedingAttention(
+        assignments,
+        workItems,
+        allSessions,
+        activities,
+        today,
+        preferences,
+      ),
+    [assignments, workItems, allSessions, activities, today, preferences],
   );
   // "At most one item, the most urgent" (home-dashboard.md) —
   // assignmentsNeedingAttention already sorts soonest-due-first.
@@ -173,6 +187,7 @@ export default function HomePage({
         onBack={() => setView({ name: "home" })}
         onGoToActivities={() => setView({ name: "activities" })}
         onGoToCourses={() => setView({ name: "courses" })}
+        onGoToPreferences={() => setView({ name: "preferences" })}
         signOut={signOut}
       />
     );
@@ -187,6 +202,12 @@ export default function HomePage({
   if (view.name === "courses") {
     return (
       <CoursesPage user={user} onBack={() => setView({ name: "home" })} />
+    );
+  }
+
+  if (view.name === "preferences") {
+    return (
+      <PreferencesPage user={user} onBack={() => setView({ name: "home" })} />
     );
   }
 

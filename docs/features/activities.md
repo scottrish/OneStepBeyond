@@ -11,11 +11,12 @@ activity's name, times, or travel minutes currently requires delete and
 re-add, since the spec's own UX Flow only calls out day-editing as
 in-place. See `docs/Roadmap.md` Phase 1.
 
-**Pending amendment (2026-08-17, not yet implemented):** split the single
-`travelMinutes` field below into independent "travel to" and "travel
-from" values — see the Amendment section near the end of this document.
-Everything else in this spec describes the currently-shipped, single-
-value behavior until that lands.
+**Amendment implemented (2026-08-17):** the single `travelMinutes` field
+described in the sections below has been replaced with independent
+`travelToMinutes`/`travelFromMinutes` — see the Amendment section near
+the end of this document, now the accurate description of current
+behavior. References to "travel minutes"/"travel time each way" earlier
+in this file describe the pre-amendment shape only.
 
 ## Summary
 

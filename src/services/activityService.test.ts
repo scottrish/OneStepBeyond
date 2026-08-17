@@ -46,7 +46,8 @@ const row = {
   days: [1, 2, 3, 4, 5],
   start_time: "15:30:00",
   finish_time: "17:00:00",
-  travel_minutes: 15,
+  travel_to_minutes: 15,
+  travel_from_minutes: 10,
 };
 
 describe("listActivities", () => {
@@ -63,7 +64,8 @@ describe("listActivities", () => {
         days: [1, 2, 3, 4, 5],
         startTime: "15:30:00",
         finishTime: "17:00:00",
-        travelMinutes: 15,
+        travelToMinutes: 15,
+        travelFromMinutes: 10,
       },
     ]);
   });
@@ -92,7 +94,8 @@ describe("createActivity", () => {
       days: [1, 2, 3, 4, 5],
       startTime: "15:30",
       finishTime: "17:00",
-      travelMinutes: 15,
+      travelToMinutes: 15,
+      travelFromMinutes: 10,
     });
 
     expect(activity.name).toBe("Football practice");
@@ -109,7 +112,8 @@ describe("createActivity", () => {
         days: [1],
         startTime: "15:30",
         finishTime: "17:00",
-        travelMinutes: 0,
+        travelToMinutes: 0,
+        travelFromMinutes: 0,
       }),
     ).rejects.toThrow("boom");
   });

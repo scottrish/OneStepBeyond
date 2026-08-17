@@ -43,6 +43,11 @@ vi.mock("../services/planningSessionService", () => ({
 vi.mock("../services/decompositionAttemptService", () => ({
   recordDecompositionAttempt: vi.fn(),
 }));
+vi.mock("../services/preferencesService", () => ({
+  getPreferences: vi.fn(),
+  upsertPreferences: vi.fn(),
+  DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", weekendHours: 10 },
+}));
 
 import * as activityService from "../services/activityService";
 import * as assignmentService from "../services/assignmentService";
@@ -51,6 +56,7 @@ import * as courseService from "../services/courseService";
 import * as workSessionService from "../services/workSessionService";
 import * as planningSessionService from "../services/planningSessionService";
 import * as decompositionAttemptService from "../services/decompositionAttemptService";
+import * as preferencesService from "../services/preferencesService";
 import PlanPage from "./PlanPage";
 import type { Step } from "./PlanPage";
 
@@ -80,6 +86,10 @@ const mockedPlanningSessionService = planningSessionService as unknown as {
 };
 const mockedDecompositionAttemptService = decompositionAttemptService as unknown as {
   recordDecompositionAttempt: ReturnType<typeof vi.fn>;
+};
+const mockedPreferencesService = preferencesService as unknown as {
+  getPreferences: ReturnType<typeof vi.fn>;
+  upsertPreferences: ReturnType<typeof vi.fn>;
 };
 
 const user = { id: "student-1", email: "person@example.com" } as User;
@@ -154,6 +164,13 @@ beforeEach(() => {
   mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([]);
   mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([]);
   mockedDecompositionAttemptService.recordDecompositionAttempt.mockResolvedValue(undefined);
+  // Matches today's pre-preferences hardcoded studyCapacity.ts constants
+  // exactly, so every existing capacity-math assertion in this file holds
+  // unchanged unless a test explicitly overrides it.
+  mockedPreferencesService.getPreferences.mockResolvedValue({
+    weekdayFinishTime: "21:00",
+    weekendHours: 10,
+  });
 });
 
 afterEach(() => {
@@ -178,6 +195,70 @@ describe("PlanPage", () => {
     expect(screen.getByText(/4h 15m/)).toBeInTheDocument();
   });
 
+  // docs/features/student-preferences.md
+  it("a configured weekday finish time changes the Day step's capacity figure", async () => {
+    mockedPreferencesService.getPreferences.mockResolvedValue({
+      weekdayFinishTime: "19:00",
+      weekendHours: 10,
+    });
+
+    render(<ControlledPlanPage user={user} />);
+
+    // Fixed 15:15 start through a configured 19:00 finish = 225 min,
+    // minus 90 protected = 2h 15m — not the default 4h 15m.
+    expect(await screen.findByText(/that leaves about/i)).toBeInTheDocument();
+    expect(screen.getByText(/2h 15m/)).toBeInTheDocument();
+  });
+
+  // docs/features/student-preferences.md's Design Decisions — weekend is
+  // an hours budget, independent of any weekday change, and its Schedule
+  // step offers no suggested slots (manual entry only).
+  it("a configured weekend hours budget changes capacity for a weekend day and offers no suggested slots", async () => {
+    // Friday, so the 5-day Today+4 picker strip reaches into the
+    // weekend (Fri/Sat/Sun/Mon/Tue) — TODAY_ISO elsewhere in this file
+    // is a Monday, which never does.
+    const FRIDAY = new Date(2026, 2, 20, 9, 0, 0);
+    vi.setSystemTime(FRIDAY);
+    mockedPreferencesService.getPreferences.mockResolvedValue({
+      weekdayFinishTime: "21:00",
+      weekendHours: 3,
+    });
+    mockedAssignmentService.listAssignments.mockResolvedValue([
+      assignment({ id: "a1", title: "Essay", dueDate: "2026-03-25" }),
+    ]);
+    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+      workItem({ id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 20 }),
+    ]);
+    const userEventInstance = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    });
+
+    render(<ControlledPlanPage user={user} />);
+    await screen.findByText(/step 1 of 5/i);
+
+    const dayPicker = screen.getByRole("radiogroup", { name: /choose a day to plan/i });
+    const saturday = within(dayPicker).getAllByRole("radio")[1];
+    await userEventInstance.click(saturday);
+
+    // 3h budget minus 90 protected = 90 min, which effortLabel renders as
+    // "1.5h" (an exact preset match) — independent of the (unrelated,
+    // unchanged) weekday finish time.
+    expect(await screen.findByText(/that leaves about/i)).toBeInTheDocument();
+    expect(screen.getByText("1.5h")).toBeInTheDocument();
+
+    await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
+    await screen.findByText(/step 2 of 5/i);
+    await userEventInstance.click(screen.getByRole("button", { name: /draft outline/i }));
+    await userEventInstance.click(screen.getByRole("button", { name: /next: estimate time/i }));
+    await screen.findByText(/step 3 of 5/i);
+    await userEventInstance.click(screen.getByRole("button", { name: /next: when/i }));
+
+    expect(await screen.findByText(/step 4 of 5/i)).toBeInTheDocument();
+    // Manual entry only — no suggested slot chips for a weekend date.
+    expect(screen.getByLabelText(/time for draft outline/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /after school|later on|morning/i })).not.toBeInTheDocument();
+  });
+
   it("shows what's due that day and existing Activities on the Day step", async () => {
     mockedAssignmentService.listAssignments.mockResolvedValue([
       assignment({ id: "a1", dueDate: "2026-03-16" }),
@@ -189,7 +270,8 @@ describe("PlanPage", () => {
         days: [1],
         startTime: "17:00",
         finishTime: "18:00",
-        travelMinutes: 0,
+        travelToMinutes: 0,
+        travelFromMinutes: 0,
       },
     ]);
 
@@ -538,7 +620,8 @@ describe("PlanPage", () => {
           days: [1],
           startTime: "17:00",
           finishTime: "18:00",
-          travelMinutes: 0,
+          travelToMinutes: 0,
+          travelFromMinutes: 0,
         },
       ]);
       const userEventInstance = userEvent.setup({

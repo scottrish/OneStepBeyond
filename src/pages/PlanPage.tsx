@@ -22,6 +22,7 @@ import { useAssignmentsList } from "../hooks/useAssignmentsList";
 import { useCourses } from "../hooks/useCourses";
 import { useDailyPlanning } from "../hooks/useDailyPlanning";
 import { useEstimationDrift } from "../hooks/useEstimationDrift";
+import { usePreferences } from "../hooks/usePreferences";
 import * as workBreakdownService from "../services/workBreakdownService";
 import * as workSessionService from "../services/workSessionService";
 import type { Assignment } from "../services/assignmentService";
@@ -262,8 +263,13 @@ export default function PlanPage({
   } = useDailyPlanning(studentId, date);
   const drift = useEstimationDrift(studentId);
   const { sessions: allSessions, refetch: refetchAllSessions } = useAllWorkSessions(studentId);
+  const { preferences, loading: preferencesLoading } = usePreferences(studentId);
 
-  const loading = activitiesLoading || assignmentsLoading || sessionsLoading;
+  // preferences directly feeds capacity math below (availableMinutes/
+  // studySlots) — a not-yet-loaded default would show a wrong capacity
+  // figure that then jumps once the real preferences arrive, the same
+  // flash home-dashboard.md's loading gate was written to prevent.
+  const loading = activitiesLoading || assignmentsLoading || sessionsLoading || preferencesLoading;
   const loadError = activitiesLoadError ?? assignmentsLoadError ?? sessionsLoadError;
 
   function retry() {
@@ -318,12 +324,15 @@ export default function PlanPage({
     return map;
   }, [allSessions, date]);
 
-  const capacity = availableMinutes(activities, workSessions, date);
+  const capacity = availableMinutes(activities, workSessions, date, preferences);
   const commitments = activitiesOn(activities, date);
   const dueThatDay = assignments.filter(
     (assignment) => !assignment.completedAt && assignment.dueDate === date,
   );
-  const slots = useMemo(() => studySlots(activities, date), [activities, date]);
+  const slots = useMemo(
+    () => studySlots(activities, date, preferences),
+    [activities, date, preferences],
+  );
 
   // docs/decisions/20260816-today-execution-interim-entry-point.md — an
   // interim link into Today Execution, since Home's own "Next card"
@@ -340,7 +349,9 @@ export default function PlanPage({
   // already uses, before the move is confirmed.
   const movingSession = workSessions.find((session) => session.id === movingSessionId);
   const moveTargetCapacity =
-    moveTargetDate !== null ? availableMinutes(activities, allSessions, moveTargetDate) : null;
+    moveTargetDate !== null
+      ? availableMinutes(activities, allSessions, moveTargetDate, preferences)
+      : null;
   const moveOverCapacity =
     movingSession !== undefined &&
     moveTargetCapacity !== null &&

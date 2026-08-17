@@ -69,7 +69,8 @@ export default function ActivitiesPage({ user, onBack }: ActivitiesPageProps) {
   const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [startTime, setStartTime] = useState("15:30");
   const [finishTime, setFinishTime] = useState("17:00");
-  const [travelMinutes, setTravelMinutes] = useState("15");
+  const [travelToMinutes, setTravelToMinutes] = useState("15");
+  const [travelFromMinutes, setTravelFromMinutes] = useState("15");
 
   const canSave = isValidActivity({ name, days, startTime, finishTime });
 
@@ -90,7 +91,8 @@ export default function ActivitiesPage({ user, onBack }: ActivitiesPageProps) {
       days,
       startTime,
       finishTime,
-      travelMinutes: Number(travelMinutes) || 0,
+      travelToMinutes: Number(travelToMinutes) || 0,
+      travelFromMinutes: Number(travelFromMinutes) || 0,
     });
 
     if (succeeded) setName("");
@@ -133,8 +135,9 @@ export default function ActivitiesPage({ user, onBack }: ActivitiesPageProps) {
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {timeLabel(activity.startTime)}–{timeLabel(activity.finishTime)}
-                    {activity.travelMinutes > 0
-                      ? ` · +${activity.travelMinutes}m travel`
+                    {activity.travelToMinutes > 0 ? ` · +${activity.travelToMinutes}m there` : ""}
+                    {activity.travelFromMinutes > 0
+                      ? ` · +${activity.travelFromMinutes}m back`
                       : ""}
                   </p>
                 </div>
@@ -210,14 +213,25 @@ export default function ActivitiesPage({ user, onBack }: ActivitiesPageProps) {
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="activity-travel">Travel each way (minutes)</Label>
-          <Input
-            id="activity-travel"
-            inputMode="numeric"
-            value={travelMinutes}
-            onChange={(event) => setTravelMinutes(event.target.value)}
-          />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="activity-travel-to">Travel there (minutes)</Label>
+            <Input
+              id="activity-travel-to"
+              inputMode="numeric"
+              value={travelToMinutes}
+              onChange={(event) => setTravelToMinutes(event.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="activity-travel-from">Travel back (minutes)</Label>
+            <Input
+              id="activity-travel-from"
+              inputMode="numeric"
+              value={travelFromMinutes}
+              onChange={(event) => setTravelFromMinutes(event.target.value)}
+            />
+          </div>
         </div>
 
         {actionError && (

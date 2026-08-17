@@ -58,6 +58,11 @@ vi.mock("./services/workSessionService", () => ({
 vi.mock("./services/planningSessionService", () => ({
   recordPlanningSession: vi.fn(),
 }));
+vi.mock("./services/preferencesService", () => ({
+  getPreferences: vi.fn().mockResolvedValue({ weekdayFinishTime: "21:00", weekendHours: 10 }),
+  upsertPreferences: vi.fn(),
+  DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", weekendHours: 10 },
+}));
 
 import * as courseService from "./services/courseService";
 import * as assignmentService from "./services/assignmentService";

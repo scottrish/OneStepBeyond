@@ -8,6 +8,7 @@ vi.mock("../services/assignmentService", () => ({
 }));
 vi.mock("../services/workItemService", () => ({
   listWorkItemsForStudent: vi.fn(),
+  completeWorkItem: vi.fn(),
 }));
 vi.mock("../services/courseService", () => ({
   listCourses: vi.fn(),
@@ -34,6 +35,7 @@ const mockedAssignmentService = assignmentService as unknown as {
 };
 const mockedWorkItemService = workItemService as unknown as {
   listWorkItemsForStudent: ReturnType<typeof vi.fn>;
+  completeWorkItem: ReturnType<typeof vi.fn>;
 };
 const mockedCourseService = courseService as unknown as {
   listCourses: ReturnType<typeof vi.fn>;
@@ -94,6 +96,7 @@ beforeEach(() => {
   vi.setSystemTime(TODAY);
   mockedAssignmentService.listAssignments.mockResolvedValue([assignment]);
   mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
+  mockedWorkItemService.completeWorkItem.mockResolvedValue(undefined);
   mockedCourseService.listCourses.mockResolvedValue([course]);
   mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([]);
 });
@@ -158,6 +161,9 @@ describe("TodayExecutionPage", () => {
     await userEventInstance.click(screen.getByRole("button", { name: /^done$/i }));
 
     expect(mockedWorkSessionService.updateWorkSessionStatus).toHaveBeenCalledWith("s1", "done");
+    // Assignment Detail's Steps checklist reads the Work Item's own
+    // completedAt, not the session's status.
+    expect(mockedWorkItemService.completeWorkItem).toHaveBeenCalledWith("w1");
     expect(
       await screen.findByText(/did this take longer than you expected/i),
     ).toBeInTheDocument();

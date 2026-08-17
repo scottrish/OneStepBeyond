@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../lib/errorMessage";
+import * as workItemService from "../services/workItemService";
 import * as workSessionService from "../services/workSessionService";
 import type { WorkSession } from "../services/workSessionService";
 
@@ -56,11 +57,20 @@ export function useTodayExecution(studentId: string, date: string) {
   }
 
   async function complete(id: string): Promise<boolean> {
+    const session = sessions.find((s) => s.id === id);
+    if (!session) return false;
     setActionError(null);
     try {
-      await workSessionService.updateWorkSessionStatus(id, "done");
+      // Completing the session (what Plan/Today track) and completing its
+      // underlying Work Item's step (what Assignment Detail's checklist
+      // reads) are two different records — both must be marked done, or
+      // the two screens silently disagree about what's finished.
+      await Promise.all([
+        workSessionService.updateWorkSessionStatus(id, "done"),
+        workItemService.completeWorkItem(session.workItemId),
+      ]);
       setSessions((prev) =>
-        prev.map((session) => (session.id === id ? { ...session, status: "done" } : session)),
+        prev.map((s) => (s.id === id ? { ...s, status: "done" } : s)),
       );
       return true;
     } catch (error) {

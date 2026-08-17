@@ -24,7 +24,8 @@ const activity = {
   days: [1, 2, 3, 4, 5],
   startTime: "15:30",
   finishTime: "17:00",
-  travelMinutes: 15,
+  travelToMinutes: 15,
+  travelFromMinutes: 15,
 };
 
 beforeEach(() => {
@@ -65,7 +66,8 @@ describe("useActivities", () => {
         days: [1, 2, 3, 4, 5],
         startTime: "15:30",
         finishTime: "17:00",
-        travelMinutes: 15,
+        travelToMinutes: 15,
+        travelFromMinutes: 15,
       });
     });
 
@@ -112,7 +114,8 @@ describe("useActivities", () => {
         days: [1],
         startTime: "15:30",
         finishTime: "17:00",
-        travelMinutes: 0,
+        travelToMinutes: 0,
+        travelFromMinutes: 0,
       });
     });
 

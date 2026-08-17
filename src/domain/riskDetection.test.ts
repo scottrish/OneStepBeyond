@@ -4,6 +4,7 @@ import type { Assignment } from "../services/assignmentService";
 import type { WorkItem } from "../services/workItemService";
 import type { WorkSession } from "../services/workSessionService";
 import type { Activity } from "../services/activityService";
+import type { Preferences } from "../services/preferencesService";
 
 // 2026-03-16 is a Monday — every date used below stays on weekdays so
 // the weekday study window (15:15-21:00, 345 min, minus 90 protected =
@@ -52,6 +53,7 @@ function workSession(overrides: Partial<WorkSession> = {}): WorkSession {
 }
 
 const noActivities: Activity[] = [];
+const preferences: Preferences = { weekdayFinishTime: "21:00", weekendHours: 10 };
 
 describe("assignmentsNeedingAttention", () => {
   it("stays silent when there's a breakdown, enough capacity, and a session already scheduled", () => {
@@ -61,6 +63,7 @@ describe("assignmentsNeedingAttention", () => {
       [workSession({ date: TODAY })],
       noActivities,
       TODAY,
+      preferences,
     );
 
     expect(results).toEqual([]);
@@ -76,6 +79,7 @@ describe("assignmentsNeedingAttention", () => {
       [],
       noActivities,
       TODAY,
+      preferences,
     );
 
     expect(results).toEqual([
@@ -94,6 +98,7 @@ describe("assignmentsNeedingAttention", () => {
       [],
       noActivities,
       TODAY,
+      preferences,
     );
 
     expect(results).toEqual([
@@ -112,6 +117,7 @@ describe("assignmentsNeedingAttention", () => {
       [], // nothing scheduled for w1 at all
       noActivities,
       TODAY,
+      preferences,
     );
 
     expect(results).toEqual([
@@ -130,6 +136,7 @@ describe("assignmentsNeedingAttention", () => {
       [],
       noActivities,
       TODAY,
+      preferences,
     );
 
     expect(results).toEqual([
@@ -148,6 +155,7 @@ describe("assignmentsNeedingAttention", () => {
       [workSession({ date: "2026-03-17", status: "planned" })],
       noActivities,
       TODAY,
+      preferences,
     );
 
     expect(results).toEqual([]);
@@ -160,6 +168,7 @@ describe("assignmentsNeedingAttention", () => {
       [workSession({ workItemId: "w-other", date: TODAY })],
       noActivities,
       TODAY,
+      preferences,
     );
 
     expect(results[0]?.action).toBe("find-time");
@@ -172,6 +181,7 @@ describe("assignmentsNeedingAttention", () => {
       [workSession({ date: TODAY, status: "done" })],
       noActivities,
       TODAY,
+      preferences,
     );
 
     expect(results[0]?.action).toBe("find-time");
@@ -184,6 +194,7 @@ describe("assignmentsNeedingAttention", () => {
       [workSession({ date: "2026-03-10" })],
       noActivities,
       TODAY,
+      preferences,
     );
 
     expect(results[0]?.action).toBe("find-time");
@@ -196,6 +207,7 @@ describe("assignmentsNeedingAttention", () => {
       [],
       noActivities,
       TODAY,
+      preferences,
     );
 
     expect(results).toEqual([]);
@@ -208,6 +220,7 @@ describe("assignmentsNeedingAttention", () => {
       [],
       noActivities,
       TODAY,
+      preferences,
     );
 
     expect(results).toEqual([]);
@@ -223,6 +236,7 @@ describe("assignmentsNeedingAttention", () => {
       [],
       noActivities,
       TODAY,
+      preferences,
     );
 
     expect(results.map((r) => r.assignment.id)).toEqual(["sooner", "later"]);
@@ -235,6 +249,7 @@ describe("assignmentsNeedingAttention", () => {
       [],
       noActivities,
       TODAY,
+      preferences,
     );
 
     expect(results[0]?.message).not.toMatch(/\d/);

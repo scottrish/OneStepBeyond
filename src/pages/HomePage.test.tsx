@@ -32,11 +32,18 @@ vi.mock("../services/workSessionService", () => ({
   listWorkSessionsForStudent: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock("../services/preferencesService", () => ({
+  getPreferences: vi.fn(),
+  upsertPreferences: vi.fn(),
+  DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", weekendHours: 10 },
+}));
+
 import * as courseService from "../services/courseService";
 import * as assignmentService from "../services/assignmentService";
 import * as workItemService from "../services/workItemService";
 import * as activityService from "../services/activityService";
 import * as workSessionService from "../services/workSessionService";
+import * as preferencesService from "../services/preferencesService";
 
 const mockedCourseService = courseService as unknown as {
   listCourses: ReturnType<typeof vi.fn>;
@@ -53,6 +60,10 @@ const mockedActivityService = activityService as unknown as {
 const mockedWorkSessionService = workSessionService as unknown as {
   listWorkSessionsForDate: ReturnType<typeof vi.fn>;
   listWorkSessionsForStudent: ReturnType<typeof vi.fn>;
+};
+const mockedPreferencesService = preferencesService as unknown as {
+  getPreferences: ReturnType<typeof vi.fn>;
+  upsertPreferences: ReturnType<typeof vi.fn>;
 };
 
 const user = { id: "student-1", email: "person@example.com" } as User;
@@ -87,6 +98,10 @@ beforeEach(() => {
   mockedActivityService.listActivities.mockResolvedValue([]);
   mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([]);
   mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([]);
+  mockedPreferencesService.getPreferences.mockResolvedValue({
+    weekdayFinishTime: "21:00",
+    weekendHours: 10,
+  });
 });
 
 afterEach(() => {

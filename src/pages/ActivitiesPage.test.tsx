@@ -28,7 +28,8 @@ const activity = {
   days: [1, 2, 3, 4, 5],
   startTime: "15:30",
   finishTime: "17:00",
-  travelMinutes: 15,
+  travelToMinutes: 15,
+  travelFromMinutes: 10,
 };
 
 describe("ActivitiesPage", () => {
@@ -40,14 +41,27 @@ describe("ActivitiesPage", () => {
     expect(await screen.findByText(/no activities yet/i)).toBeInTheDocument();
   });
 
-  it("lists existing activities with days, times, and travel", async () => {
+  it("lists existing activities with days, times, and travel to/from independently", async () => {
     mockedService.listActivities.mockResolvedValue([activity]);
 
     render(<ActivitiesPage user={user} onBack={vi.fn()} />);
 
     expect(await screen.findByText("Football practice")).toBeInTheDocument();
-    expect(screen.getByText(/3:30 PM–5:00 PM/)).toBeInTheDocument();
-    expect(screen.getByText(/15m travel/)).toBeInTheDocument();
+    const details = screen.getByText(/3:30 PM–5:00 PM/);
+    expect(details).toHaveTextContent("+15m there");
+    expect(details).toHaveTextContent("+10m back");
+  });
+
+  it("omits a travel side entirely when it's zero, rather than showing '+0m'", async () => {
+    mockedService.listActivities.mockResolvedValue([
+      { ...activity, travelToMinutes: 0, travelFromMinutes: 10 },
+    ]);
+
+    render(<ActivitiesPage user={user} onBack={vi.fn()} />);
+
+    const details = await screen.findByText(/3:30 PM–5:00 PM/);
+    expect(details).not.toHaveTextContent("there");
+    expect(details).toHaveTextContent("+10m back");
   });
 
   it("disables Add activity until name, a day, and a valid time range are set", async () => {
@@ -93,6 +107,32 @@ describe("ActivitiesPage", () => {
       ),
     );
     await waitFor(() => expect(input).toHaveValue(""));
+  });
+
+  it("submits travel-to and travel-from as independent values", async () => {
+    mockedService.listActivities.mockResolvedValue([]);
+    mockedService.createActivity.mockResolvedValue(activity);
+    const userEventInstance = userEvent.setup();
+
+    render(<ActivitiesPage user={user} onBack={vi.fn()} />);
+    await screen.findByText(/no activities yet/i);
+
+    await userEventInstance.type(screen.getByLabelText(/what is it\?/i), "Football practice");
+    const travelTo = screen.getByLabelText(/travel there/i);
+    const travelFrom = screen.getByLabelText(/travel back/i);
+    await userEventInstance.clear(travelTo);
+    await userEventInstance.type(travelTo, "0");
+    await userEventInstance.clear(travelFrom);
+    await userEventInstance.type(travelFrom, "20");
+
+    await userEventInstance.click(screen.getByRole("button", { name: /add activity/i }));
+
+    await waitFor(() =>
+      expect(mockedService.createActivity).toHaveBeenCalledWith(
+        "student-1",
+        expect.objectContaining({ travelToMinutes: 0, travelFromMinutes: 20 }),
+      ),
+    );
   });
 
   it("toggles a day off in the add form", async () => {

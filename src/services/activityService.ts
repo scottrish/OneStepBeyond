@@ -6,7 +6,8 @@ export type Activity = {
   days: number[];
   startTime: string;
   finishTime: string;
-  travelMinutes: number;
+  travelToMinutes: number;
+  travelFromMinutes: number;
 };
 
 export type NewActivity = {
@@ -14,8 +15,12 @@ export type NewActivity = {
   days: number[];
   startTime: string;
   finishTime: string;
-  travelMinutes: number;
+  travelToMinutes: number;
+  travelFromMinutes: number;
 };
+
+const SELECT_COLUMNS =
+  "id, name, days, start_time, finish_time, travel_to_minutes, travel_from_minutes";
 
 function toActivity(row: {
   id: string;
@@ -23,7 +28,8 @@ function toActivity(row: {
   days: number[];
   start_time: string;
   finish_time: string;
-  travel_minutes: number;
+  travel_to_minutes: number;
+  travel_from_minutes: number;
 }): Activity {
   return {
     id: row.id,
@@ -31,14 +37,15 @@ function toActivity(row: {
     days: row.days,
     startTime: row.start_time,
     finishTime: row.finish_time,
-    travelMinutes: row.travel_minutes,
+    travelToMinutes: row.travel_to_minutes,
+    travelFromMinutes: row.travel_from_minutes,
   };
 }
 
 export async function listActivities(studentId: string): Promise<Activity[]> {
   const { data, error } = await supabase
     .from("activities")
-    .select("id, name, days, start_time, finish_time, travel_minutes")
+    .select(SELECT_COLUMNS)
     .eq("student_id", studentId)
     .order("created_at", { ascending: true });
 
@@ -59,9 +66,10 @@ export async function createActivity(
       days: input.days,
       start_time: input.startTime,
       finish_time: input.finishTime,
-      travel_minutes: input.travelMinutes,
+      travel_to_minutes: input.travelToMinutes,
+      travel_from_minutes: input.travelFromMinutes,
     })
-    .select("id, name, days, start_time, finish_time, travel_minutes")
+    .select(SELECT_COLUMNS)
     .single();
 
   if (error) throw error;
