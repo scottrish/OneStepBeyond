@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/EmptyState";
 import { effortLabel } from "../domain/effortPresets";
 import { todayISODate } from "../domain/planningDate";
+import { sortByStartTime } from "../domain/sessionOrder";
 import { useAssignmentsList } from "../hooks/useAssignmentsList";
 import { useCourses } from "../hooks/useCourses";
 import { useReflection } from "../hooks/useReflection";
@@ -32,13 +33,6 @@ const REFLECTION_CHOICES = [
 
 const errorBoxStyle =
   "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
-
-// Sessions without an assigned start time (e.g. moved from another day
-// without picking a new time — see daily-planning.i04.md FR-3) sort
-// after every timed session, rather than jumping the queue.
-function sortByStartTime(sessions: WorkSession[]): WorkSession[] {
-  return [...sessions].sort((a, b) => (a.startTime ?? "24:00").localeCompare(b.startTime ?? "24:00"));
-}
 
 export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageProps) {
   const studentId = user.id;

@@ -26,7 +26,6 @@ import * as workBreakdownService from "../services/workBreakdownService";
 import * as workSessionService from "../services/workSessionService";
 import type { Assignment } from "../services/assignmentService";
 import type { WorkSession } from "../services/workSessionService";
-import TodayExecutionPage from "./TodayExecutionPage";
 import WorkBreakdownPage from "./WorkBreakdownPage";
 
 // Step and the selected day are lifted into App.tsx and passed down as
@@ -45,18 +44,20 @@ type PlanPageProps = {
   step: Step;
   onDateChange: (date: string) => void;
   onStepChange: (step: Step) => void;
+  // Today Execution is reached from here (Day step, and the Confirm
+  // step's success screen) and from Home's own Next card
+  // (home-dashboard.md) — lifted up to App.tsx rather than owned by
+  // either page, so both entry points share one instance instead of
+  // duplicating it. See docs/decisions/
+  // 20260816-today-execution-interim-entry-point.md.
+  onStartExecution: () => void;
 };
 
 // A nested view within the Plan tab, distinct from the wizard's own
-// `step`. "breakdown" is reached from FR-1's breakdown signal (see
-// needsBreakdown below) — reuses WorkBreakdownPage exactly as Assignment
-// Detail does, rather than inventing a new UI for the same job (CLAUDE.md
-// YAGNI). "execute" is Today Execution — not a bottom-nav tab per
-// home-dashboard.md's Navigation section, so it's nested here instead,
-// reached from an interim link on the Day step and from the Confirm
-// step's success screen — see
-// docs/decisions/20260816-today-execution-interim-entry-point.md.
-type View = { name: "wizard" } | { name: "breakdown"; assignmentId: string } | { name: "execute" };
+// `step`. Reached from FR-1's breakdown signal (see needsBreakdown
+// below) — reuses WorkBreakdownPage exactly as Assignment Detail does,
+// rather than inventing a new UI for the same job (CLAUDE.md YAGNI).
+type View = { name: "wizard" } | { name: "breakdown"; assignmentId: string };
 
 const STEP_LABEL: Record<Step, string> = {
   day: "Step 1 of 5",
@@ -213,7 +214,14 @@ function BreakdownNotice({
   );
 }
 
-export default function PlanPage({ user, date, step, onDateChange, onStepChange }: PlanPageProps) {
+export default function PlanPage({
+  user,
+  date,
+  step,
+  onDateChange,
+  onStepChange,
+  onStartExecution,
+}: PlanPageProps) {
   const studentId = user.id;
   const today = useMemo(() => todayISODate(), []);
 
@@ -506,14 +514,6 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
     );
   }
 
-  // See docs/decisions/20260816-today-execution-interim-entry-point.md —
-  // Today Execution always operates on "today" regardless of which day
-  // this wizard currently has selected, so returning to the wizard lands
-  // back on the Day step rather than wherever it was left.
-  if (view.name === "execute") {
-    return <TodayExecutionPage user={user} onBack={() => setView({ name: "wizard" })} />;
-  }
-
   return (
     <main className="mx-auto w-full max-w-[420px] p-6">
       <h1 className="mb-1 text-3xl">Plan</h1>
@@ -765,7 +765,7 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
                   variant="outline"
                   size="lg"
                   className="mt-3 w-full rounded-2xl"
-                  onClick={() => setView({ name: "execute" })}
+                  onClick={onStartExecution}
                 >
                   Continue today&rsquo;s plan
                 </Button>
@@ -1042,7 +1042,7 @@ export default function PlanPage({ user, date, step, onDateChange, onStepChange 
                 <Button
                   size="lg"
                   className="mt-6 w-full rounded-2xl"
-                  onClick={() => setView({ name: "execute" })}
+                  onClick={onStartExecution}
                 >
                   Start today&rsquo;s plan
                 </Button>

@@ -17,7 +17,7 @@ beforeEach(() => {
 });
 
 describe("useAllWorkSessions", () => {
-  it("returns every session the service resolves with, across all dates", async () => {
+  it("starts loading, and stops once the fetch resolves", async () => {
     const sessions = [
       {
         id: "1",
@@ -39,14 +39,16 @@ describe("useAllWorkSessions", () => {
     mockedService.listWorkSessionsForStudent.mockResolvedValue(sessions);
 
     const { result } = renderHook(() => useAllWorkSessions("student-1"));
+    expect(result.current.loading).toBe(true);
 
     await waitFor(() =>
       expect(mockedService.listWorkSessionsForStudent).toHaveBeenCalledWith("student-1"),
     );
     await waitFor(() => expect(result.current.sessions).toEqual(sessions));
+    expect(result.current.loading).toBe(false);
   });
 
-  it("returns an empty array (rather than throwing) when the fetch fails", async () => {
+  it("stops loading (without throwing) when the fetch fails", async () => {
     mockedService.listWorkSessionsForStudent.mockRejectedValue(new Error("network down"));
 
     const { result } = renderHook(() => useAllWorkSessions("student-1"));
@@ -54,6 +56,7 @@ describe("useAllWorkSessions", () => {
     await waitFor(() =>
       expect(mockedService.listWorkSessionsForStudent).toHaveBeenCalledWith("student-1"),
     );
+    await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.sessions).toEqual([]);
   });
 

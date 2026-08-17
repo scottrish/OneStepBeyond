@@ -6,6 +6,7 @@ import HomePage from "./pages/HomePage";
 import PlanPage from "./pages/PlanPage";
 import type { Step } from "./pages/PlanPage";
 import AssignmentsPage from "./pages/AssignmentsPage";
+import TodayExecutionPage from "./pages/TodayExecutionPage";
 import AppShell from "./components/AppShell";
 import type { Tab } from "./components/AppShell";
 
@@ -41,6 +42,14 @@ export default function App() {
   const [planDate, setPlanDate] = useState(() => todayISODate());
   const [planStep, setPlanStep] = useState<Step>("day");
 
+  // Today Execution is reached from both Home's "Next" card
+  // (home-dashboard.md) and Plan's own entry points (daily-planning.md's
+  // Day/Confirm steps) — owned here, one level above both tabs, rather
+  // than by either page, so there's a single instance regardless of
+  // which one launched it. See docs/decisions/
+  // 20260816-today-execution-interim-entry-point.md.
+  const [executingToday, setExecutingToday] = useState(false);
+
   if (!user) {
     return <LoginPage signIn={signIn} signUp={signUp} />;
   }
@@ -60,29 +69,50 @@ export default function App() {
       setTabResetKeys((keys) => ({ ...keys, [tab]: keys[tab] + 1 }));
     }
     setActiveTab(tab);
+    // Today Execution renders in place of every tab's own content (see
+    // executingToday above) — tapping any tab must exit it, the same way
+    // it must always return to that tab's own landing view. Without this,
+    // the tab underneath silently changes while Today Execution keeps
+    // rendering on top of it, leaving "Change today's plan" as the only
+    // way out.
+    setExecutingToday(false);
   }
 
   return (
     <AppShell activeTab={activeTab} onTabChange={handleTabChange}>
-      {activeTab === "home" && (
-        <HomePage key={tabResetKeys.home} user={user} signOut={signOut} />
-      )}
-      {activeTab === "plan" && (
-        <PlanPage
-          key={tabResetKeys.plan}
-          user={user}
-          date={planDate}
-          step={planStep}
-          onDateChange={setPlanDate}
-          onStepChange={setPlanStep}
-        />
-      )}
-      {activeTab === "assignments" && (
-        <AssignmentsPage
-          key={tabResetKeys.assignments}
-          user={user}
-          onGoToHome={() => handleTabChange("home")}
-        />
+      {executingToday ? (
+        <TodayExecutionPage user={user} onBack={() => setExecutingToday(false)} />
+      ) : (
+        <>
+          {activeTab === "home" && (
+            <HomePage
+              key={tabResetKeys.home}
+              user={user}
+              signOut={signOut}
+              onStartExecution={() => setExecutingToday(true)}
+              onGoToPlan={() => handleTabChange("plan")}
+              onGoToAssignments={() => handleTabChange("assignments")}
+            />
+          )}
+          {activeTab === "plan" && (
+            <PlanPage
+              key={tabResetKeys.plan}
+              user={user}
+              date={planDate}
+              step={planStep}
+              onDateChange={setPlanDate}
+              onStepChange={setPlanStep}
+              onStartExecution={() => setExecutingToday(true)}
+            />
+          )}
+          {activeTab === "assignments" && (
+            <AssignmentsPage
+              key={tabResetKeys.assignments}
+              user={user}
+              onGoToHome={() => handleTabChange("home")}
+            />
+          )}
+        </>
       )}
     </AppShell>
   );

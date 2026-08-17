@@ -94,11 +94,24 @@ const TODAY_ISO = "2026-03-16";
 // daily-planning/daily-planning.i02.md FR-2) and are passed to PlanPage
 // as controlled props. This wrapper mimics App.tsx's own state so every
 // existing test keeps exercising PlanPage exactly as before.
-function ControlledPlanPage({ user }: { user: User }) {
+function ControlledPlanPage({
+  user,
+  onStartExecution = vi.fn(),
+}: {
+  user: User;
+  onStartExecution?: () => void;
+}) {
   const [date, setDate] = useState(TODAY_ISO);
   const [step, setStep] = useState<Step>("day");
   return (
-    <PlanPage user={user} date={date} step={step} onDateChange={setDate} onStepChange={setStep} />
+    <PlanPage
+      user={user}
+      date={date}
+      step={step}
+      onDateChange={setDate}
+      onStepChange={setStep}
+      onStartExecution={onStartExecution}
+    />
   );
 }
 
@@ -987,6 +1000,7 @@ describe("PlanPage", () => {
                 step={step}
                 onDateChange={setDate}
                 onStepChange={setStep}
+                onStartExecution={vi.fn()}
               />
             )}
           </>
@@ -1029,6 +1043,7 @@ describe("PlanPage", () => {
           step="estimate"
           onDateChange={vi.fn()}
           onStepChange={vi.fn()}
+          onStartExecution={vi.fn()}
         />,
       );
 
@@ -1055,16 +1070,16 @@ describe("PlanPage", () => {
       const userEventInstance = userEvent.setup({
         advanceTimers: vi.advanceTimersByTime,
       });
+      const onStartExecution = vi.fn();
 
-      render(<ControlledPlanPage user={user} />);
+      render(<ControlledPlanPage user={user} onStartExecution={onStartExecution} />);
       const continueButton = await screen.findByRole("button", {
         name: /continue today.s plan/i,
       });
 
       await userEventInstance.click(continueButton);
 
-      expect(await screen.findByText("Draft outline")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /^start$/i })).toBeInTheDocument();
+      expect(onStartExecution).toHaveBeenCalledTimes(1);
     });
 
     it("does not show 'Continue today's plan' when planning a future day", async () => {
@@ -1117,31 +1132,23 @@ describe("PlanPage", () => {
         workItem({ id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 20 }),
       ]);
       mockedWorkSessionService.deletePlannedSessionsForDate.mockResolvedValue(undefined);
-      const createdSession = {
-        id: "session-1",
-        workItemId: "w1",
-        date: TODAY_ISO,
-        plannedMinutes: 20,
-        startTime: "15:15",
-        status: "planned" as const,
-      };
-      mockedWorkSessionService.createWorkSessions.mockResolvedValue([createdSession]);
-      // TodayExecutionPage's own useTodayExecution hook fetches today's
-      // sessions independently once the "execute" view mounts — key the
-      // mock off whether the plan has actually been confirmed yet,
-      // matching this file's other confirm-then-refetch tests above.
-      let confirmed = false;
-      mockedPlanningSessionService.recordPlanningSession.mockImplementation(async () => {
-        confirmed = true;
-      });
-      mockedWorkSessionService.listWorkSessionsForDate.mockImplementation(() =>
-        Promise.resolve(confirmed ? [createdSession] : []),
-      );
+      mockedWorkSessionService.createWorkSessions.mockResolvedValue([
+        {
+          id: "session-1",
+          workItemId: "w1",
+          date: TODAY_ISO,
+          plannedMinutes: 20,
+          startTime: "15:15",
+          status: "planned",
+        },
+      ]);
+      mockedPlanningSessionService.recordPlanningSession.mockResolvedValue(undefined);
       const userEventInstance = userEvent.setup({
         advanceTimers: vi.advanceTimersByTime,
       });
+      const onStartExecution = vi.fn();
 
-      render(<ControlledPlanPage user={user} />);
+      render(<ControlledPlanPage user={user} onStartExecution={onStartExecution} />);
       await screen.findByText(/step 1 of 5/i);
       await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
       await screen.findByText(/step 2 of 5/i);
@@ -1158,8 +1165,7 @@ describe("PlanPage", () => {
       const startButton = screen.getByRole("button", { name: /start today.s plan/i });
       await userEventInstance.click(startButton);
 
-      expect(await screen.findByText("Draft outline")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /^start$/i })).toBeInTheDocument();
+      expect(onStartExecution).toHaveBeenCalledTimes(1);
     });
   });
 });

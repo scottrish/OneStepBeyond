@@ -4,6 +4,7 @@ import type { WorkSession } from "../services/workSessionService";
 
 export type UseAllWorkSessionsResult = {
   sessions: WorkSession[];
+  loading: boolean;
   refetch: () => void;
 };
 
@@ -15,6 +16,14 @@ export type UseAllWorkSessionsResult = {
 // fetch failure here should just mean the warning doesn't show, not that
 // planning is blocked.
 //
+// `loading` exists so a caller that treats this data as more than a
+// secondary signal (Home Dashboard's Needs Attention, which changes what
+// it shows once this resolves) can gate its own render on it — without
+// that, the affected content flashes once between an incomplete and a
+// final answer. Plan's own use of this hook ignores the field entirely,
+// which is fine: its "already planned elsewhere" badge is minor enough
+// secondary text that the same flash was never a real problem there.
+//
 // `refetch` exists because this hook otherwise only fetches once on mount:
 // confirming a plan creates a new Work Session without this hook's
 // knowledge, so a commitment made earlier in the same browsing session
@@ -24,6 +33,7 @@ export type UseAllWorkSessionsResult = {
 // confirmPlan.
 export function useAllWorkSessions(studentId: string): UseAllWorkSessionsResult {
   const [sessions, setSessions] = useState<WorkSession[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const fetchSessions = useCallback(() => {
     let cancelled = false;
@@ -36,6 +46,9 @@ export function useAllWorkSessions(studentId: string): UseAllWorkSessionsResult 
       .catch(() => {
         // Non-critical signal — leave sessions as they are; the warning
         // simply won't show/update.
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
 
     return () => {
@@ -45,5 +58,5 @@ export function useAllWorkSessions(studentId: string): UseAllWorkSessionsResult 
 
   useEffect(() => fetchSessions(), [fetchSessions]);
 
-  return { sessions, refetch: fetchSessions };
+  return { sessions, loading, refetch: fetchSessions };
 }

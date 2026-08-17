@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
@@ -62,6 +62,7 @@ vi.mock("./services/planningSessionService", () => ({
 import * as courseService from "./services/courseService";
 import * as assignmentService from "./services/assignmentService";
 import * as workItemService from "./services/workItemService";
+import * as workSessionService from "./services/workSessionService";
 
 const mockedCourseService = courseService as unknown as {
   listCourses: ReturnType<typeof vi.fn>;
@@ -73,6 +74,16 @@ const mockedAssignmentService = assignmentService as unknown as {
 const mockedWorkItemService = workItemService as unknown as {
   listWorkItemsForStudent: ReturnType<typeof vi.fn>;
 };
+const mockedWorkSessionService = workSessionService as unknown as {
+  listWorkSessionsForDate: ReturnType<typeof vi.fn>;
+};
+
+// 2026-03-16 is a Monday — only used by the Today Execution test below,
+// which needs a deterministic "today" to match Plan's own default
+// selected date; every other test in this file is unaffected by the
+// real current date.
+const TODAY = new Date(2026, 2, 16, 9, 0, 0);
+const TODAY_ISO = "2026-03-16";
 
 beforeEach(() => {
   vi.mocked(useAuth).mockReset();
@@ -80,6 +91,10 @@ beforeEach(() => {
   mockedCourseService.listCourses.mockResolvedValue([]);
   mockedAssignmentService.listAssignments.mockResolvedValue([]);
   mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("App", () => {
@@ -106,8 +121,7 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: /home/i })).toBeInTheDocument();
-    expect(screen.getByText(/person@example.com/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /hi person\./i })).toBeInTheDocument();
   });
 
   it("switches to the Plan tab", async () => {
@@ -162,7 +176,7 @@ describe("App", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Home" }));
 
-    expect(screen.getByRole("heading", { name: /^home$/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /hi person\./i })).toBeInTheDocument();
   });
 
   it("tapping the Assignments tab returns to the Assignments list even when already on that tab", async () => {
@@ -205,5 +219,72 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: /^assignments$/i }),
     ).toBeInTheDocument();
+  });
+
+  it("tapping any tab exits Today Execution instead of leaving it stuck on top", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(TODAY);
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: "student-1", email: "person@example.com" } as User,
+      signIn: vi.fn(),
+      signUp: vi.fn(),
+      signOut: vi.fn(),
+    });
+    mockedCourseService.listCourses.mockResolvedValue([
+      { id: "course-1", name: "Biology", colorIndex: 0 },
+    ]);
+    mockedAssignmentService.listAssignments.mockResolvedValue([
+      {
+        id: "a1",
+        courseId: "course-1",
+        title: "Essay",
+        dueDate: "2026-03-20",
+        effortMinutes: 30,
+        notes: null,
+        completedAt: null,
+      },
+    ]);
+    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+      {
+        id: "w1",
+        assignmentId: "a1",
+        title: "Draft outline",
+        effortMinutes: 30,
+        completedAt: null,
+        position: 0,
+      },
+    ]);
+    mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+      {
+        id: "s1",
+        workItemId: "w1",
+        date: TODAY_ISO,
+        plannedMinutes: 30,
+        startTime: "16:00",
+        status: "planned",
+      },
+    ]);
+    const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    render(<App />);
+
+    // Reach Today Execution via Plan's Day step (Plan defaults to
+    // today) — same entry point docs/decisions/
+    // 20260816-today-execution-interim-entry-point.md added.
+    await userEventInstance.click(screen.getByRole("button", { name: "Plan" }));
+    const continueButton = await screen.findByRole("button", {
+      name: /continue today.s plan/i,
+    });
+    await userEventInstance.click(continueButton);
+    expect(await screen.findByRole("heading", { name: /^today$/i })).toBeInTheDocument();
+
+    await userEventInstance.click(screen.getByRole("button", { name: "Home" }));
+
+    expect(await screen.findByRole("heading", { name: /hi person\./i })).toBeInTheDocument();
+    // Today Execution's own action, not Home's — its absence confirms
+    // Home actually replaced it rather than rendering underneath it.
+    expect(
+      screen.queryByRole("button", { name: /change today.s plan/i }),
+    ).not.toBeInTheDocument();
   });
 });

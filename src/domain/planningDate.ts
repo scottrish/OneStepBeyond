@@ -56,7 +56,7 @@ export function longPlanDate(dateISO: string): string {
   });
 }
 
-function daysBetween(fromISO: string, toISO: string): number {
+export function daysBetween(fromISO: string, toISO: string): number {
   const a = parseISODate(fromISO).getTime();
   const b = parseISODate(toISO).getTime();
   return Math.round((b - a) / 86400000);

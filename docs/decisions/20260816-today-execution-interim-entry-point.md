@@ -70,3 +70,13 @@ filtering, etc.).
   no removal is planned, but it's worth confirming they don't disagree
   about state (e.g. both should independently reflect an already-done
   plan the same way).
+
+**Update (2026-08-17, Home Dashboard implemented):** as anticipated
+above, `TodayExecutionPage` was lifted out of being owned by `PlanPage`
+alone — it's now a single instance owned by `App.tsx` (an `executingToday`
+boolean sibling to `activeTab`), reached from both Home's Next card and
+Plan's two existing entry points (Day step, Confirm success screen)
+without duplicating the page. `PlanPage` no longer renders
+`TodayExecutionPage` directly; it calls a new `onStartExecution` prop
+instead. Plan's own entry points were kept exactly as this record
+decided — Home's Next card became a *second* way in, not a replacement.

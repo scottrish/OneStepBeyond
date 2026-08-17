@@ -79,9 +79,10 @@ whole point of the screen):
    **excluding** whatever is already shown in Needs Attention (never
    duplicate an assignment across both sections). Links to full
    Assignments list. Empty state invites capturing a first assignment.
-7. **Ownership note** — dismissible reminder ("You decide the plan. This
-   app only helps you see it clearly.") shown only during onboarding (while
-   the student has completed fewer than three planning sessions) and never
+7. **Ownership note** *(deferred this increment — see Explicitly Out of
+   Scope)* — dismissible reminder ("You decide the plan. This app only
+   helps you see it clearly.") shown only during onboarding (while the
+   student has completed fewer than three planning sessions) and never
    occupying permanent space once the student has internalized the
    product.
 
@@ -89,9 +90,6 @@ whole point of the screen):
 
 - "Coming up" must actively filter out the Needs Attention item, not just
   happen to differ by sort order.
-- The ownership note's dismiss state and the "fewer than three planning
-  sessions" threshold are both persisted per student (not re-shown every
-  session once earned out).
 - This screen renders nothing until the student's data has finished
   loading (no flash of empty/wrong state).
 
@@ -117,6 +115,15 @@ whole point of the screen):
 - Any Profile/Account screen beyond the bare Sign Out entry in Settings —
   Domain-Model.md's Student context eventually owns "Profile" and
   "Preferences" in full, but nothing here builds toward that yet.
+- **UX Flow item 7, the Ownership note, including its persisted dismiss
+  state.** Deferred per product-owner direction (2026-08-17): not
+  integral to the screen's core "what's next" promise, and its FR (a
+  dismiss flag persisted per student, surviving past the derived
+  "fewer than three planning sessions" threshold) would need a new
+  table for a single boolean — more persistence complexity than
+  warranted for this increment. The other six UX Flow items are
+  unaffected and remain in scope. Revisit once the rest of Home has
+  been in front of real students.
 
 ## Deviation from the prototype — flagged for approval
 
