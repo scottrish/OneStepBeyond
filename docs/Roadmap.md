@@ -136,7 +136,7 @@ question about whether their breakdown actually worked.
 
 | Feature | Spec | Status |
 |---|---|---|
-| Daily Planning | [daily-planning.md](features/daily-planning.md) | Not started |
+| Daily Planning | [daily-planning.md](features/daily-planning.md) | Done (`experiment/daily-planning`, not yet merged to `main`) |
 | Today Execution (incl. Reflection Moment C) | [today-execution.md](features/today-execution.md) | Not started |
 | Week Look-Ahead | [week-lookahead.md](features/week-lookahead.md) | Not started |
 
@@ -150,6 +150,20 @@ the Planning screen (a tab, not a separate nav destination) and reuses
 Planning's own `availableMinutes` calculation, so it is a thin, low-risk
 addition once Daily Planning's capacity logic already exists — build it
 last in this phase, not first.
+
+**Daily Planning implementation note:** built across four iterations —
+the initial 5-step wizard, then three rounds of fixes/additions driven by
+persona-assessment findings and (iteration 4) direct product-owner
+review: the breakdown-prerequisite signal and its "plan as one task
+instead" alternative, tab-navigation state persistence, an
+already-scheduled-elsewhere indicator, a directly-editable Schedule-step
+time control, and a "Move to another day" action. See
+`daily-planning.md`'s own Status note,
+`docs/features/iterations/daily-planning/`, and
+`docs/playwright/daily-planning/` for full detail. Today Execution and
+Week Look-Ahead remain unbuilt — Daily Planning's own confirm step shows
+an inline success state in their place for now (see
+`docs/decisions/20260816-daily-planning-confirm-write-order.md`).
 
 Today Execution's reflection step is Reflection Moment C ("After-Work
 Calibration") of the much larger phased design in
