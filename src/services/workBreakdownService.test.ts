@@ -112,4 +112,90 @@ describe("confirmWorkBreakdown", () => {
 
     expect(mockedWorkItemService.deleteWorkItems).not.toHaveBeenCalled();
   });
+
+  it("never deletes or recreates a completed previous item, and folds its effort/title into the result", async () => {
+    // docs/features/work-breakdown-revision-preserves-completed-items.md —
+    // a completed item must survive a revision unchanged: not deleted, not
+    // recreated, its completedAt/session untouched, but still counted in
+    // the assignment's total effort and the DecompositionAttempt record.
+    const createdItems = [
+      { id: "w2", assignmentId: "a1", title: "Write report", effortMinutes: 45, completedAt: null, position: 1 },
+    ];
+    mockedWorkItemService.createWorkItems.mockResolvedValue(createdItems);
+    mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+    mockedWorkItemService.deleteWorkItems.mockResolvedValue(undefined);
+    mockedDecompositionAttemptService.recordDecompositionAttempt.mockResolvedValue(undefined);
+
+    const previousItems = [
+      {
+        id: "done-1",
+        assignmentId: "a1",
+        title: "Read book",
+        effortMinutes: 90,
+        completedAt: "2026-03-14T00:00:00Z",
+        position: 0,
+      },
+      { id: "old-2", assignmentId: "a1", title: "Draft outline", effortMinutes: 30, completedAt: null, position: 1 },
+    ];
+
+    await confirmWorkBreakdown(
+      "student-1",
+      assignment,
+      previousItems,
+      [{ title: "Write report", effortMinutes: 45 }],
+      2,
+    );
+
+    // Only the incomplete previous item is deleted — "done-1" never appears.
+    expect(mockedWorkItemService.deleteWorkItems).toHaveBeenCalledWith(["old-2"]);
+    // New item is positioned after the preserved completed item (position 0).
+    expect(mockedWorkItemService.createWorkItems).toHaveBeenCalledWith("student-1", [
+      { assignmentId: "a1", title: "Write report", effortMinutes: 45, position: 1 },
+    ]);
+    // Total effort includes the preserved completed item (90) + the new draft (45).
+    expect(mockedAssignmentService.updateAssignment).toHaveBeenCalledWith("a1", {
+      title: "Book report",
+      dueDate: "2026-03-15",
+      notes: "Bring a copy of the book",
+      effortMinutes: 135,
+    });
+    // Resulting breakdown reported for the attempt includes the preserved title.
+    expect(mockedDecompositionAttemptService.recordDecompositionAttempt).toHaveBeenCalledWith(
+      "student-1",
+      {
+        assignmentId: "a1",
+        initialWorkItems: ["Read book", "Draft outline"],
+        resultingWorkItems: ["Read book", "Write report"],
+        revisionCount: 2,
+        outcome: "confirmed",
+      },
+    );
+  });
+
+  it("does not call deleteWorkItems when every previous item is completed", async () => {
+    mockedWorkItemService.createWorkItems.mockResolvedValue([]);
+    mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+    mockedDecompositionAttemptService.recordDecompositionAttempt.mockResolvedValue(undefined);
+
+    const previousItems = [
+      {
+        id: "done-1",
+        assignmentId: "a1",
+        title: "Read book",
+        effortMinutes: 90,
+        completedAt: "2026-03-14T00:00:00Z",
+        position: 0,
+      },
+    ];
+
+    await confirmWorkBreakdown(
+      "student-1",
+      assignment,
+      previousItems,
+      [{ title: "Write report", effortMinutes: 45 }],
+      1,
+    );
+
+    expect(mockedWorkItemService.deleteWorkItems).not.toHaveBeenCalled();
+  });
 });

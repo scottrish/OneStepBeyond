@@ -172,6 +172,125 @@ describe("WorkBreakdownPage", () => {
     expect(inputs[1]).toHaveValue("First");
   });
 
+  it("shows completed items read-only, separate from the editable list, with no edit/delete/reorder controls", () => {
+    // docs/features/work-breakdown-revision-preserves-completed-items.md —
+    // completed items can't be renamed, estimated, reordered, or deleted
+    // through this flow.
+    render(
+      <WorkBreakdownPage
+        user={user}
+        assignment={assignment}
+        confirmedItems={[
+          {
+            id: "w1",
+            assignmentId: "a1",
+            title: "Read book",
+            effortMinutes: 90,
+            completedAt: "2026-03-14T00:00:00Z",
+            position: 0,
+          },
+          { id: "w2", assignmentId: "a1", title: "Write report", effortMinutes: 45, completedAt: null, position: 1 },
+        ]}
+        onCancel={vi.fn()}
+        onConfirmed={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Read book")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /read book complete/i })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: /read book complete/i })).toBeChecked();
+    expect(screen.queryByDisplayValue("Read book")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /delete read book/i }),
+    ).not.toBeInTheDocument();
+
+    // The still-open item is unaffected — normal editable row.
+    expect(screen.getByDisplayValue("Write report")).toBeInTheDocument();
+  });
+
+  it("never deletes or recreates a completed item when confirming a revision", async () => {
+    const created = [
+      { id: "w3", assignmentId: "a1", title: "Write report", effortMinutes: 45, completedAt: null, position: 1 },
+    ];
+    mockedWorkItemService.createWorkItems.mockResolvedValue(created);
+    mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+    mockedDecompositionAttemptService.recordDecompositionAttempt.mockResolvedValue(undefined);
+    const userEventInstance = userEvent.setup();
+
+    render(
+      <WorkBreakdownPage
+        user={user}
+        assignment={assignment}
+        confirmedItems={[
+          {
+            id: "w1",
+            assignmentId: "a1",
+            title: "Read book",
+            effortMinutes: 90,
+            completedAt: "2026-03-14T00:00:00Z",
+            position: 0,
+          },
+          { id: "w2", assignmentId: "a1", title: "Write report", effortMinutes: 45, completedAt: null, position: 1 },
+        ]}
+        onCancel={vi.fn()}
+        onConfirmed={vi.fn()}
+      />,
+    );
+
+    await userEventInstance.click(screen.getByRole("button", { name: /^next$/i }));
+    await userEventInstance.click(
+      within(
+        screen.getByRole("radiogroup", { name: /estimated time for write report/i }),
+      ).getByRole("radio", { name: "45m" }),
+    );
+    await userEventInstance.click(screen.getByRole("button", { name: /^next$/i }));
+
+    // The review step's total covers only the editable steps being
+    // confirmed, and says so when a completed step exists.
+    expect(screen.getByText(/about 45m total for these steps/i)).toBeInTheDocument();
+    expect(screen.getByText(/completed steps aren.t shown here/i)).toBeInTheDocument();
+
+    await userEventInstance.click(screen.getByRole("button", { name: /looks good/i }));
+
+    expect(mockedWorkItemService.createWorkItems).toHaveBeenCalledWith("student-1", [
+      { assignmentId: "a1", title: "Write report", effortMinutes: 45, position: 1 },
+    ]);
+    expect(mockedWorkItemService.deleteWorkItems).toHaveBeenCalledWith(["w2"]);
+  });
+
+  it("lets the student proceed once a new item is added, even when every existing item is already complete", async () => {
+    const userEventInstance = userEvent.setup();
+
+    render(
+      <WorkBreakdownPage
+        user={user}
+        assignment={assignment}
+        confirmedItems={[
+          {
+            id: "w1",
+            assignmentId: "a1",
+            title: "Read book",
+            effortMinutes: 90,
+            completedAt: "2026-03-14T00:00:00Z",
+            position: 0,
+          },
+        ]}
+        onCancel={vi.fn()}
+        onConfirmed={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /^next$/i })).toBeDisabled();
+
+    await userEventInstance.type(
+      screen.getByPlaceholderText(/questions 1–10/i),
+      "Write report",
+    );
+    await userEventInstance.click(screen.getByRole("button", { name: /^add$/i }));
+
+    expect(screen.getByRole("button", { name: /^next$/i })).toBeEnabled();
+  });
+
   it("cancel calls onCancel without touching the server", async () => {
     const onCancel = vi.fn();
     const userEventInstance = userEvent.setup();

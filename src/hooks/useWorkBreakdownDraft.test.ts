@@ -47,6 +47,37 @@ describe("useWorkBreakdownDraft", () => {
     ]);
   });
 
+  it("excludes completed items from the editable draft, and exposes them separately", () => {
+    // docs/features/work-breakdown-revision-preserves-completed-items.md —
+    // completed items can't be renamed, estimated, reordered, or deleted
+    // through this flow, so they never enter draftItems in the first place.
+    const doneItem = {
+      id: "w1",
+      assignmentId: "a1",
+      title: "Read book",
+      effortMinutes: 90,
+      completedAt: "2026-03-14T00:00:00Z",
+      position: 0,
+    };
+    const openItem = {
+      id: "w2",
+      assignmentId: "a1",
+      title: "Write report",
+      effortMinutes: 45,
+      completedAt: null,
+      position: 1,
+    };
+
+    const { result } = renderHook(() =>
+      useWorkBreakdownDraft("student-1", assignment, [doneItem, openItem]),
+    );
+
+    expect(result.current.draftItems).toEqual([
+      { key: "w2", title: "Write report", effortMinutes: 45 },
+    ]);
+    expect(result.current.completedItems).toEqual([doneItem]);
+  });
+
   it("adds, edits, estimates, reorders, and deletes items locally with no service calls", () => {
     const { result } = renderHook(() => useWorkBreakdownDraft("student-1", assignment, []));
 

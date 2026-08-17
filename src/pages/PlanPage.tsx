@@ -369,15 +369,6 @@ export default function PlanPage({
     [activities, date, preferences],
   );
 
-  // docs/decisions/20260816-today-execution-interim-entry-point.md — an
-  // interim link into Today Execution, since Home's own "Next card"
-  // entry point (home-dashboard.md) is Phase 5, not built yet. Scoped to
-  // today specifically and to a plan with something left to do, so it
-  // never appears for a future day being planned or once everything is
-  // already done.
-  const hasActiveWorkToday =
-    date === today && workSessions.some((session) => session.status !== "done");
-
   // FR-3 (docs/features/iterations/daily-planning/daily-planning.i04.md):
   // capacity for whichever day is currently chosen as a move's target, so
   // the move panel can show the same calm over-capacity notice Estimate
@@ -868,16 +859,6 @@ export default function PlanPage({
                 <span className="font-medium text-foreground">{effortLabel(Math.max(0, capacity))}</span>{" "}
                 of study time.
               </p>
-              {hasActiveWorkToday && (
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="mt-3 w-full rounded-2xl"
-                  onClick={onStartExecution}
-                >
-                  Continue today&rsquo;s plan
-                </Button>
-              )}
               <Button size="lg" className="mt-3 w-full rounded-2xl" onClick={() => onStepChange("select")}>
                 Continue
               </Button>

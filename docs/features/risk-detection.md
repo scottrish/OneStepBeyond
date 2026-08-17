@@ -13,6 +13,19 @@ which now covers this gap alongside the assignment-management.md items it
 was already tracking. Week Look-Ahead, this spec's third named consumer,
 doesn't exist yet either (see Roadmap Phase 4).
 
+**Fix (2026-08-17):** `assignmentsNeedingAttention` didn't actually
+enforce this spec's own "only assignments with remaining work... are
+considered" rule — it was only implied by rule 1's arithmetic (`remaining
+> capacity` is false when `remaining` is 0), never checked before rule 2.
+Completing every Work Item under an assignment (e.g. finishing all of
+today's sessions in Today Execution) completes each item but doesn't
+mark the assignment itself complete, so `assignment.completedAt` stayed
+null; rule 2's `hasFutureSession` check only looks at *open* items, so an
+assignment with zero open items vacuously had "no future session" and was
+flagged "Due soon and nothing planned for it yet." — for an assignment
+with nothing left to plan. Fixed by skipping any assignment with zero
+remaining minutes before either rule runs.
+
 ## Summary
 
 A derived signal — never stored as a score, never authored as a judgment

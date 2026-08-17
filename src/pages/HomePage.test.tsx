@@ -30,6 +30,7 @@ vi.mock("../services/activityService", () => ({
 vi.mock("../services/workSessionService", () => ({
   listWorkSessionsForDate: vi.fn().mockResolvedValue([]),
   listWorkSessionsForStudent: vi.fn().mockResolvedValue([]),
+  updateWorkSessionStatus: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../services/preferencesService", () => ({
@@ -60,6 +61,7 @@ const mockedActivityService = activityService as unknown as {
 const mockedWorkSessionService = workSessionService as unknown as {
   listWorkSessionsForDate: ReturnType<typeof vi.fn>;
   listWorkSessionsForStudent: ReturnType<typeof vi.fn>;
+  updateWorkSessionStatus: ReturnType<typeof vi.fn>;
 };
 const mockedPreferencesService = preferencesService as unknown as {
   getPreferences: ReturnType<typeof vi.fn>;
@@ -99,6 +101,7 @@ beforeEach(() => {
   mockedActivityService.listActivities.mockResolvedValue([]);
   mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([]);
   mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([]);
+  mockedWorkSessionService.updateWorkSessionStatus.mockResolvedValue(undefined);
   mockedPreferencesService.getPreferences.mockResolvedValue({
     weekdayFinishTime: "21:00",
     weekendHours: 10,
@@ -214,6 +217,102 @@ describe("HomePage", () => {
       expect(onStartExecution).toHaveBeenCalledTimes(1);
     });
 
+    it("marks the session in progress before navigating, so Today Execution never asks to Start it again", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        {
+          id: "a1",
+          courseId: "course-1",
+          title: "Cell structure project",
+          dueDate: "2026-03-25",
+          effortMinutes: 60,
+          notes: null,
+          completedAt: null,
+        },
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        {
+          id: "w1",
+          assignmentId: "a1",
+          title: "Draft outline",
+          effortMinutes: 30,
+          completedAt: null,
+          position: 0,
+        },
+      ]);
+      mockedCourseService.listCourses.mockResolvedValue([course]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        {
+          id: "s1",
+          workItemId: "w1",
+          date: TODAY_ISO,
+          plannedMinutes: 30,
+          startTime: "16:00",
+          status: "planned",
+        },
+      ]);
+
+      renderHomePage();
+
+      await screen.findByText("Draft outline");
+      await userEvent.click(screen.getByRole("button", { name: /^start$/i }));
+
+      expect(mockedWorkSessionService.updateWorkSessionStatus).toHaveBeenCalledWith(
+        "s1",
+        "in_progress",
+      );
+    });
+
+    it("shows 'Continue' instead of 'Start' once the session is already in progress, and doesn't re-issue the status update", async () => {
+      // Regression test: the Next card's button used to always read
+      // "Start" regardless of the session's actual status, even after
+      // this same button had already marked it in_progress — the button
+      // itself never reflected the transition it performs.
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        {
+          id: "a1",
+          courseId: "course-1",
+          title: "Cell structure project",
+          dueDate: "2026-03-25",
+          effortMinutes: 60,
+          notes: null,
+          completedAt: null,
+        },
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        {
+          id: "w1",
+          assignmentId: "a1",
+          title: "Draft outline",
+          effortMinutes: 30,
+          completedAt: null,
+          position: 0,
+        },
+      ]);
+      mockedCourseService.listCourses.mockResolvedValue([course]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        {
+          id: "s1",
+          workItemId: "w1",
+          date: TODAY_ISO,
+          plannedMinutes: 30,
+          startTime: "16:00",
+          status: "in_progress",
+        },
+      ]);
+      const onStartExecution = vi.fn();
+
+      renderHomePage({ onStartExecution });
+
+      await screen.findByText("Draft outline");
+      expect(screen.queryByRole("button", { name: /^start$/i })).not.toBeInTheDocument();
+      const continueButton = screen.getByRole("button", { name: /^continue$/i });
+
+      await userEvent.click(continueButton);
+
+      expect(mockedWorkSessionService.updateWorkSessionStatus).not.toHaveBeenCalled();
+      expect(onStartExecution).toHaveBeenCalledTimes(1);
+    });
+
     it("opens Assignment Detail when the Next card's assignment/course line is tapped", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([
         {
@@ -255,6 +354,61 @@ describe("HomePage", () => {
         await screen.findByRole("button", { name: /cell structure project · biology/i }),
       );
       expect(onOpenAssignment).toHaveBeenCalledWith("a1");
+    });
+
+    it("shows today's remaining planned tasks under 'After that', not just a count", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        {
+          id: "a1",
+          courseId: "course-1",
+          title: "Cell structure project",
+          dueDate: "2026-03-25",
+          effortMinutes: 60,
+          notes: null,
+          completedAt: null,
+        },
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        { id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 30, completedAt: null, position: 0 },
+        { id: "w2", assignmentId: "a1", title: "Write conclusion", effortMinutes: 20, completedAt: null, position: 1 },
+      ]);
+      mockedCourseService.listCourses.mockResolvedValue([course]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        { id: "s1", workItemId: "w1", date: TODAY_ISO, plannedMinutes: 30, startTime: "16:00", status: "planned" },
+        { id: "s2", workItemId: "w2", date: TODAY_ISO, plannedMinutes: 20, startTime: "17:00", status: "planned" },
+      ]);
+
+      renderHomePage();
+
+      await screen.findByText("Draft outline");
+      expect(screen.getByRole("heading", { name: /after that/i })).toBeInTheDocument();
+      expect(screen.getByText("Write conclusion")).toBeInTheDocument();
+    });
+
+    it("shows no 'After that' section when only one task is planned for today", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        {
+          id: "a1",
+          courseId: "course-1",
+          title: "Cell structure project",
+          dueDate: "2026-03-25",
+          effortMinutes: 60,
+          notes: null,
+          completedAt: null,
+        },
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        { id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 30, completedAt: null, position: 0 },
+      ]);
+      mockedCourseService.listCourses.mockResolvedValue([course]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        { id: "s1", workItemId: "w1", date: TODAY_ISO, plannedMinutes: 30, startTime: "16:00", status: "planned" },
+      ]);
+
+      renderHomePage();
+
+      await screen.findByText("Draft outline");
+      expect(screen.queryByRole("heading", { name: /after that/i })).not.toBeInTheDocument();
     });
 
     it("shows an empty state inviting planning when nothing is planned for today", async () => {
@@ -438,7 +592,7 @@ describe("HomePage", () => {
   });
 
   describe("Needs Attention", () => {
-    it("shows at most one item with its specific action, never a bare warning", async () => {
+    it("shows the soonest-due item prominently, with its specific action, never a bare warning", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([
         {
           id: "a1",
@@ -459,6 +613,77 @@ describe("HomePage", () => {
         screen.getByText(/due soon and nothing planned for it yet/i),
       ).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /break it down/i })).toBeInTheDocument();
+    });
+
+    it("'Break it down' routes to Plan, the same as 'Find time'/'Make a plan', instead of opening Assignment Detail directly", async () => {
+      // docs/features/home-dashboard-followthrough.md item 2 — Plan's own
+      // Day step already shows every assignment needing a breakdown with
+      // the full "Break down / Plan as one task instead" choice, so
+      // routing there gives the identical experience Plan itself offers.
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        {
+          id: "a1",
+          courseId: "course-1",
+          title: "Big project",
+          dueDate: "2026-03-16",
+          effortMinutes: 5000,
+          notes: null,
+          completedAt: null,
+        },
+      ]);
+      mockedCourseService.listCourses.mockResolvedValue([course]);
+      const onGoToPlan = vi.fn();
+      const onOpenAssignment = vi.fn();
+
+      renderHomePage({ onGoToPlan, onOpenAssignment });
+
+      await userEvent.click(await screen.findByRole("button", { name: /break it down/i }));
+
+      expect(onGoToPlan).toHaveBeenCalledTimes(1);
+      expect(onOpenAssignment).not.toHaveBeenCalled();
+    });
+
+    it("shows every additional qualifying assignment as a compact row with its own action, not just the soonest", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        {
+          id: "a1",
+          courseId: "course-1",
+          title: "Big project",
+          dueDate: "2026-03-16",
+          effortMinutes: 5000,
+          notes: null,
+          completedAt: null,
+        },
+        {
+          id: "a2",
+          courseId: "course-1",
+          title: "Smaller project",
+          dueDate: "2026-03-17",
+          effortMinutes: 5000,
+          notes: null,
+          completedAt: null,
+        },
+      ]);
+      mockedCourseService.listCourses.mockResolvedValue([course]);
+      const onOpenAssignment = vi.fn();
+      const onGoToPlan = vi.fn();
+
+      renderHomePage({ onOpenAssignment, onGoToPlan });
+
+      await screen.findByText(/needs attention/i);
+      // "Big project" (due first) is the primary card; "Smaller project"
+      // must still be visible and actionable, not silently dropped.
+      const secondaryRow = screen.getByRole("button", { name: "Smaller project" });
+      expect(secondaryRow).toBeInTheDocument();
+
+      await userEvent.click(secondaryRow);
+      expect(onOpenAssignment).toHaveBeenCalledWith("a2");
+
+      const secondaryActionButtons = screen.getAllByRole("button", { name: /break it down/i });
+      // One for the primary card, one for the secondary row.
+      expect(secondaryActionButtons).toHaveLength(2);
+      await userEvent.click(secondaryActionButtons[1]!);
+      expect(onGoToPlan).toHaveBeenCalledTimes(1);
     });
 
     it("opens Assignment Detail when the Needs Attention item's title is tapped", async () => {
@@ -504,7 +729,7 @@ describe("HomePage", () => {
   });
 
   describe("Coming up", () => {
-    it("lists open assignments by due date, excluding whatever Needs Attention is already showing", async () => {
+    it("lists open assignments by due date, including whatever Needs Attention is also showing", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([
         {
           id: "urgent",
@@ -530,12 +755,13 @@ describe("HomePage", () => {
       renderHomePage();
 
       await screen.findByText(/needs attention/i);
-      // "Big project" is the Needs Attention item — Coming Up must not
-      // duplicate it (home-dashboard.md's own explicit acceptance
-      // criterion).
+      // "Big project" is also the Needs Attention item — Coming Up shows
+      // it too, rather than hiding it, so it stays reachable the same way
+      // every other assignment is (docs/decisions/
+      // 20260817-coming-up-shows-attention-items.md).
       const comingUpHeading = screen.getByRole("heading", { name: /coming up/i });
       const comingUpSection = comingUpHeading.closest("div") as HTMLElement;
-      expect(comingUpSection).not.toHaveTextContent("Big project");
+      expect(comingUpSection).toHaveTextContent("Big project");
       expect(comingUpSection).toHaveTextContent("Reading response");
     });
 

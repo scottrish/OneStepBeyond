@@ -67,6 +67,21 @@ estimate, then confirm).
   Deferred: no precedent in this codebase yet, and the insert-then-delete
   ordering keeps the realistic failure mode non-destructive without it.
 
+**Update (2026-08-17):** point 2's premise — "the worst case is
+duplicate/stale rows rather than data loss" — held only because nothing
+in this codebase could yet mark a Work Item complete. Once Today
+Execution shipped (`docs/decisions/20260816-today-execution-interim-entry-point.md`),
+"delete every previous Work Item on any revision" started silently
+resetting completed items back to incomplete and cascade-deleting their
+`'done'` Work Sessions — a real data-loss case this decision didn't
+anticipate. Fixed in `docs/features/
+work-breakdown-revision-preserves-completed-items.md`: `confirmWorkBreakdown`
+now excludes completed previous items from the delete call entirely
+(they're never part of the draft to begin with), so the insert-before-delete
+ordering above now only ever applies to the still-open subset of a
+breakdown, where the original "worst case is stale rows" reasoning still
+holds.
+
 ## Consequences
 
 - If the confirm sequence fails partway after the insert step, a student

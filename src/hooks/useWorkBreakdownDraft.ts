@@ -15,17 +15,24 @@ export type DraftItem = {
 // (docs/features/manual-work-breakdown-reflection-v0.1.md §4). Nothing
 // here touches the server until confirm() — see
 // docs/decisions/20260815-manual-work-breakdown-draft-state.md for why.
+//
+// Completed items never enter the editable draft — they can't be
+// renamed, estimated, reordered, or deleted through this flow. See
+// docs/features/work-breakdown-revision-preserves-completed-items.md.
 export function useWorkBreakdownDraft(
   studentId: string,
   assignment: Assignment,
   confirmedItems: WorkItem[],
 ) {
+  const completedItems = confirmedItems.filter((item) => item.completedAt !== null);
   const [draftItems, setDraftItems] = useState<DraftItem[]>(() =>
-    confirmedItems.map((item) => ({
-      key: item.id,
-      title: item.title,
-      effortMinutes: item.effortMinutes,
-    })),
+    confirmedItems
+      .filter((item) => item.completedAt === null)
+      .map((item) => ({
+        key: item.id,
+        title: item.title,
+        effortMinutes: item.effortMinutes,
+      })),
   );
   const [revisionCount, setRevisionCount] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -83,6 +90,7 @@ export function useWorkBreakdownDraft(
 
   return {
     draftItems,
+    completedItems,
     actionError,
     addItem,
     editItem,

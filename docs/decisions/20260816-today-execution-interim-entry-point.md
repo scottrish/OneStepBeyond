@@ -80,3 +80,21 @@ without duplicating the page. `PlanPage` no longer renders
 `TodayExecutionPage` directly; it calls a new `onStartExecution` prop
 instead. Plan's own entry points were kept exactly as this record
 decided — Home's Next card became a *second* way in, not a replacement.
+
+**Update (2026-08-17, "Continue today's plan" removed):** contrary to the
+Consequences section's expectation above, this Day-step link was removed
+rather than kept. Once Home's Next card was fully built out (docs/features/
+home-dashboard-followthrough.md items 1a/1b/2/5 — visible "After that"
+list, full Needs Attention list, unified routing to Plan, and a Start
+button that actually starts the session), it became a fully-capable
+primary entry point, and having it alongside "Continue today's plan" meant
+two similarly-labeled buttons doing different things on the same Day-step
+screen ("Continue" advances the wizard; "Continue today's plan" leaves it
+for Today Execution). The user-facing motivation was a broader wish to
+keep Plan's job to *constructing* a plan and Home's job to *viewing/acting
+on* it, reducing capability overlap between the two tabs. The Confirm
+step's "Start today's plan" link (`docs/decisions/
+20260816-daily-planning-confirm-write-order.md`) was kept — it's a
+one-time shortcut immediately after finishing construction, not a
+persistent parallel path to Today Execution, so it doesn't have the same
+two-similar-buttons problem.

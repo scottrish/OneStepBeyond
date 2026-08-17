@@ -54,6 +54,7 @@ vi.mock("./services/workSessionService", () => ({
   createWorkSessions: vi.fn(),
   deletePlannedSessionsForDate: vi.fn(),
   deleteWorkSession: vi.fn(),
+  updateWorkSessionStatus: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("./services/planningSessionService", () => ({
   recordPlanningSession: vi.fn(),
@@ -274,14 +275,11 @@ describe("App", () => {
 
     render(<App />);
 
-    // Reach Today Execution via Plan's Day step (Plan defaults to
-    // today) — same entry point docs/decisions/
-    // 20260816-today-execution-interim-entry-point.md added.
-    await userEventInstance.click(screen.getByRole("button", { name: "Plan" }));
-    const continueButton = await screen.findByRole("button", {
-      name: /continue today.s plan/i,
-    });
-    await userEventInstance.click(continueButton);
+    // Reach Today Execution via Home's own Next card — the sole entry
+    // point now that Plan's "Continue today's plan" has been removed
+    // (docs/decisions/20260816-today-execution-interim-entry-point.md).
+    const startButton = await screen.findByRole("button", { name: "Start" });
+    await userEventInstance.click(startButton);
     expect(await screen.findByRole("heading", { name: /^today$/i })).toBeInTheDocument();
 
     await userEventInstance.click(screen.getByRole("button", { name: "Home" }));

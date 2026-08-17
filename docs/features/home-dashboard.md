@@ -33,6 +33,10 @@ active session's start time actually precedes, skipping ahead to a later
 Activity (or omitting the clause entirely) when the plan doesn't
 genuinely precede the first one.
 
+**Update (2026-08-17):** Coming Up no longer excludes the Needs Attention
+item(s) — UX Flow item 6 and the Acceptance Criteria below are superseded.
+See `docs/decisions/20260817-coming-up-shows-attention-items.md`.
+
 ## Summary
 
 The student's landing screen and the app shell around every other student
@@ -98,10 +102,12 @@ whole point of the screen):
    most urgent, with its specific action.
 5. **Today's activities** (only shown if any exist today) — simple list,
    name + time range.
-6. **Coming up** — the next three distinct open assignments by due date,
-   **excluding** whatever is already shown in Needs Attention (never
-   duplicate an assignment across both sections). Links to full
-   Assignments list. Empty state invites capturing a first assignment.
+6. **Coming up** — the next three distinct open assignments by due date.
+   ~~Excluding whatever is already shown in Needs Attention.~~ Superseded
+   2026-08-17 — see `docs/decisions/20260817-coming-up-shows-attention-items.md`;
+   Coming Up now includes Needs Attention's item(s) rather than hiding
+   them. Links to full Assignments list. Empty state invites capturing a
+   first assignment.
 7. **Ownership note** *(deferred this increment — see Explicitly Out of
    Scope)* — dismissible reminder ("You decide the plan. This app only
    helps you see it clearly.") shown only during onboarding (while the
@@ -111,8 +117,9 @@ whole point of the screen):
 
 ## Functional Requirements
 
-- "Coming up" must actively filter out the Needs Attention item, not just
-  happen to differ by sort order.
+- ~~"Coming up" must actively filter out the Needs Attention item, not
+  just happen to differ by sort order.~~ Superseded 2026-08-17 — see
+  `docs/decisions/20260817-coming-up-shows-attention-items.md`.
 - This screen renders nothing until the student's data has finished
   loading (no flash of empty/wrong state).
 
@@ -120,8 +127,9 @@ whole point of the screen):
 
 - A first-time student identifies today's next task within five seconds.
 - Exactly one dominant primary action is visible above the fold.
-- No assignment ever appears in both Needs Attention and Coming Up
-  simultaneously.
+- ~~No assignment ever appears in both Needs Attention and Coming Up
+  simultaneously.~~ Superseded 2026-08-17 — see `docs/decisions/
+  20260817-coming-up-shows-attention-items.md`.
 
 ## Domain Model Touchpoints
 

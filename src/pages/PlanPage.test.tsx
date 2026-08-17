@@ -1176,77 +1176,16 @@ describe("PlanPage", () => {
   });
 
   // docs/decisions/20260816-today-execution-interim-entry-point.md
-  describe("interim entry points into Today Execution", () => {
-    it("shows 'Continue today's plan' on the Day step when today already has active work planned", async () => {
-      mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
-      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
-      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
-        {
-          id: "session-1",
-          workItemId: "w1",
-          date: TODAY_ISO,
-          plannedMinutes: 30,
-          startTime: "16:00",
-          status: "planned",
-        },
-      ]);
-      const userEventInstance = userEvent.setup({
-        advanceTimers: vi.advanceTimersByTime,
-      });
-      const onStartExecution = vi.fn();
-
-      render(<ControlledPlanPage user={user} onStartExecution={onStartExecution} />);
-      const continueButton = await screen.findByRole("button", {
-        name: /continue today.s plan/i,
-      });
-
-      await userEventInstance.click(continueButton);
-
-      expect(onStartExecution).toHaveBeenCalledTimes(1);
-    });
-
-    it("does not show 'Continue today's plan' when planning a future day", async () => {
-      mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
-      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
-      const userEventInstance = userEvent.setup({
-        advanceTimers: vi.advanceTimersByTime,
-      });
-
-      render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 5/i);
-
-      const dayPicker = screen.getByRole("radiogroup", { name: /choose a day to plan/i });
-      const tuesday = within(dayPicker).getAllByRole("radio")[1];
-      await userEventInstance.click(tuesday);
-
-      expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: /continue today.s plan/i }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("does not show 'Continue today's plan' once everything for today is already done", async () => {
-      mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
-      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
-      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
-        {
-          id: "session-1",
-          workItemId: "w1",
-          date: TODAY_ISO,
-          plannedMinutes: 30,
-          startTime: "16:00",
-          status: "done",
-        },
-      ]);
-
-      render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 5/i);
-
-      expect(
-        screen.queryByRole("button", { name: /continue today.s plan/i }),
-      ).not.toBeInTheDocument();
-    });
-
+  describe("entry point into Today Execution", () => {
+    // Plan's Day step used to also offer "Continue today's plan" —
+    // removed (docs/decisions/20260816-today-execution-interim-entry-point.md's
+    // 2026-08-17 update) now that Home's own Next card is the fully-built,
+    // primary way in, and having both meant two similarly-worded buttons
+    // ("Continue" to advance the wizard, "Continue today's plan" to leave
+    // it) doing unrelated things on the same screen. The Confirm step's
+    // own "Start today's plan" — a one-time shortcut immediately after
+    // finishing construction, not a persistent parallel entry point —
+    // remains.
     it("shows 'Start today's plan' on the Confirm step's success screen when confirming today's plan", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([
         assignment({ id: "a1", title: "Essay", dueDate: "2026-03-17" }),

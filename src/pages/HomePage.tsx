@@ -16,6 +16,7 @@ import { useAssignmentsList } from "../hooks/useAssignmentsList";
 import { useCourses } from "../hooks/useCourses";
 import { useDailyPlanning } from "../hooks/useDailyPlanning";
 import { usePreferences } from "../hooks/usePreferences";
+import * as workSessionService from "../services/workSessionService";
 import ActivitiesPage from "./ActivitiesPage";
 import AssignmentCapturePage from "./AssignmentCapturePage";
 import CoursesPage from "./CoursesPage";
@@ -182,22 +183,39 @@ export default function HomePage({
   // assignmentsNeedingAttention already sorts soonest-due-first.
   const needsAttention = attentionItems[0];
 
+  // No longer excludes the Needs Attention item(s) — home-dashboard.md
+  // originally required that when Needs Attention showed at most one
+  // item. Once item 1b (home-dashboard-followthrough.md) allowed multiple
+  // qualifying assignments in Needs Attention, only the primary (index 0)
+  // stayed excluded here, since this filter was never updated to match —
+  // secondary Needs Attention rows already appeared in Coming Up too. That
+  // left the primary item as the only assignment ever hidden from Coming
+  // Up, which reads as a bug (an assignment "disappearing" from the list
+  // it would otherwise sort into) rather than intentional consistency. See
+  // docs/decisions/20260817-coming-up-shows-attention-items.md.
   const comingUp = useMemo(
     () =>
       assignments
         .filter((assignment) => assignment.completedAt === null)
-        .filter((assignment) => assignment.id !== needsAttention?.assignment.id)
         .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
         .slice(0, 3),
-    [assignments, needsAttention],
+    [assignments],
   );
 
-  function handleAttentionAction(item: AttentionItem) {
-    if (item.action === "break-it-down") {
-      onOpenAssignment(item.assignment.id);
-    } else {
-      onGoToPlan();
+  // Starts the session before navigating, rather than just navigating to
+  // a screen that also demands a "Start" tap for the identical task —
+  // docs/features/home-dashboard-followthrough.md item 5. Only transitions
+  // when still "planned" — a session already "in_progress" (the student
+  // started it, then came back to Home without finishing) is left alone;
+  // the button itself reflects this below rather than always reading
+  // "Start" regardless of what's actually true. Fire-and-forget: if the
+  // update fails, Today Execution still shows its own "Start" for this
+  // task, a safe fallback rather than a dead end here.
+  function handleStart() {
+    if (next && next.status === "planned") {
+      workSessionService.updateWorkSessionStatus(next.id, "in_progress");
     }
+    onStartExecution();
   }
 
   if (view.name === "settings") {
@@ -305,9 +323,9 @@ export default function HomePage({
                 size="lg"
                 variant="secondary"
                 className="mt-4 w-full rounded-2xl"
-                onClick={onStartExecution}
+                onClick={handleStart}
               >
-                Start
+                {next.status === "planned" ? "Start" : "Continue"}
               </Button>
             </div>
           ) : todaySessions.length > 0 ? (
@@ -328,6 +346,30 @@ export default function HomePage({
                 hint="Planning takes about five minutes and makes the rest of the day easier."
                 action={<Button onClick={onGoToPlan}>Plan today</Button>}
               />
+            </div>
+          )}
+
+          {next && activeTodaySessions.length > 1 && (
+            <div className="mt-3">
+              <h3 className="mb-2 text-sm font-semibold text-foreground">After that</h3>
+              <ul className="flex flex-col gap-1">
+                {activeTodaySessions.slice(1).map((session) => {
+                  const item = workItems.find((w) => w.id === session.workItemId);
+                  return (
+                    <li
+                      key={session.id}
+                      className="flex items-center gap-2 text-sm text-muted-foreground"
+                    >
+                      <span className="min-w-0 flex-1 truncate">
+                        {item?.title ?? "Study session"}
+                      </span>
+                      <span className="shrink-0 text-xs">
+                        {effortLabel(session.plannedMinutes)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           )}
 
@@ -355,14 +397,45 @@ export default function HomePage({
                 </button>
                 : {needsAttention.message}
               </p>
+              {/* Every action lands on Plan, including "Break it down" —
+                  Plan's own Day step already shows every assignment
+                  needing a breakdown (this one included) with the full
+                  "Break down / Plan as one task instead" choice, so
+                  routing there gives the identical experience Plan itself
+                  offers instead of a separate, thinner one opened here.
+                  See docs/features/home-dashboard-followthrough.md item 2. */}
               <Button
                 variant="outline"
                 size="sm"
                 className="mt-3 rounded-2xl"
-                onClick={() => handleAttentionAction(needsAttention)}
+                onClick={onGoToPlan}
               >
                 {ATTENTION_ACTION_LABEL[needsAttention.action]}
               </Button>
+
+              {attentionItems.length > 1 && (
+                <ul className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
+                  {attentionItems.slice(1).map((item) => (
+                    <li key={item.assignment.id} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onOpenAssignment(item.assignment.id)}
+                        className="min-w-0 flex-1 truncate text-left text-sm text-foreground underline-offset-4 hover:underline"
+                      >
+                        {item.assignment.title}
+                      </button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 rounded-2xl"
+                        onClick={onGoToPlan}
+                      >
+                        {ATTENTION_ACTION_LABEL[item.action]}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 

@@ -200,6 +200,24 @@ describe("assignmentsNeedingAttention", () => {
     expect(results[0]?.action).toBe("find-time");
   });
 
+  it("never flags an assignment whose Work Items are all done, even if the assignment record itself is still open", () => {
+    // Completing every session for the day (Today Execution) completes
+    // each session's Work Item but doesn't itself mark the assignment
+    // complete — the exact state that used to trip rule 2, since
+    // hasFutureSession only inspects *open* items and vacuously found
+    // none once every item was done.
+    const results = assignmentsNeedingAttention(
+      [assignment({ dueDate: "2026-03-17", effortMinutes: 30 })],
+      [workItem({ effortMinutes: 30, completedAt: "2026-03-16T12:00:00Z" })],
+      [workSession({ date: TODAY, status: "done" })],
+      noActivities,
+      TODAY,
+      preferences,
+    );
+
+    expect(results).toEqual([]);
+  });
+
   it("never flags a completed assignment", () => {
     const results = assignmentsNeedingAttention(
       [assignment({ completedAt: "2026-03-15T00:00:00Z", effortMinutes: 10000 })],

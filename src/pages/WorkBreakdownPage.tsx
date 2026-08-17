@@ -38,6 +38,7 @@ export default function WorkBreakdownPage({
   const [confirming, setConfirming] = useState(false);
   const {
     draftItems,
+    completedItems,
     actionError,
     addItem,
     editItem,
@@ -73,6 +74,31 @@ export default function WorkBreakdownPage({
         <>
           <h1 className="mb-1 text-2xl">What are the main pieces</h1>
           <p className="mb-6 text-2xl">you&rsquo;ll need to get done?</p>
+
+          {completedItems.length > 0 && (
+            <ul className="mb-4 flex flex-col gap-2">
+              {completedItems.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex items-center gap-3 rounded-lg border border-border bg-card p-2"
+                >
+                  <input
+                    type="checkbox"
+                    checked
+                    disabled
+                    aria-label={`${item.title} complete`}
+                    className="size-4"
+                  />
+                  <span className="flex-1 text-sm text-muted-foreground line-through">
+                    {item.title}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {effortLabel(item.effortMinutes)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
 
           {draftItems.length > 0 && (
             <ul className="mb-4 flex flex-col gap-2">
@@ -211,7 +237,8 @@ export default function WorkBreakdownPage({
           </ul>
 
           <p className="mb-6 text-sm text-muted-foreground">
-            About {effortLabel(totalMinutes)} total
+            About {effortLabel(totalMinutes)} total for these steps
+            {completedItems.length > 0 && " — completed steps aren't shown here"}
           </p>
 
           {actionError && (

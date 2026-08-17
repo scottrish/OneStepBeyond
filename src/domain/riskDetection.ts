@@ -78,6 +78,15 @@ export function assignmentsNeedingAttention(
 
     const items = workItems.filter((item) => item.assignmentId === assignment.id);
     const remaining = remainingMinutes(assignment, items);
+    // "Only assignments with remaining work... are considered" (this
+    // spec's own Logic section) — with a breakdown, every Work Item can
+    // be done for the day (each session marked "done" completes its
+    // item) while the assignment record itself is still open, since
+    // nothing here auto-completes the assignment. Without this guard,
+    // rule 2 below would flag it anyway: hasFutureSession only looks at
+    // *open* items, so an assignment with zero open items vacuously has
+    // no qualifying future session and reads as "unscheduled."
+    if (remaining === 0) continue;
     const capacityThroughDueDate = sumAvailableMinutesThroughDueDate(
       activities,
       workSessions,
