@@ -1,7 +1,7 @@
 # Feature: Daily Planning
 
-**Status:** Implemented (2026-08-16) on `experiment/daily-planning`, not
-yet merged to `main`, after four development iterations (see
+**Status:** Implemented and merged to `main` (2026-08-16), after four
+development iterations on `experiment/daily-planning` (see
 `docs/playwright/daily-planning/` and
 `docs/features/iterations/daily-planning/`). The five-step wizard,
 capacity math, and confirm flow described below are built and tested

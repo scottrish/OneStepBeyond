@@ -136,7 +136,7 @@ question about whether their breakdown actually worked.
 
 | Feature | Spec | Status |
 |---|---|---|
-| Daily Planning | [daily-planning.md](features/daily-planning.md) | Done (`experiment/daily-planning`, not yet merged to `main`) |
+| Daily Planning | [daily-planning.md](features/daily-planning.md) | Done (2026-08-16) |
 | Today Execution (incl. Reflection Moment C) | [today-execution.md](features/today-execution.md) | Not started |
 | Week Look-Ahead | [week-lookahead.md](features/week-lookahead.md) | Not started |
 
