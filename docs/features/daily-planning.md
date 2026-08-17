@@ -33,6 +33,11 @@ review rather than an assessment:
 - Wizard day/step selection now survives switching to another bottom-nav
   tab and back mid-session (iteration 2 FR-2).
 
+**Fix (2026-08-17):** Select's fully-empty state (no open assignments at
+all, distinct from the "needs breakdown" case above) had copy and a
+missing action carried over from that sibling case rather than written
+for its own — see the Amendment near the end of this document.
+
 Not yet built, because both depend on features not yet started (see
 `docs/Roadmap.md`): confirming a plan shows an inline success
 acknowledgment rather than navigating to Today Execution or Week
@@ -142,3 +147,42 @@ look-ahead if planning a future day.
 - Cross-day drag-and-drop rescheduling.
 
 No deviations from the prototype are proposed for this feature.
+
+## Amendment: correct Select's fully-empty-state copy and add an escape hatch
+
+Raised 2026-08-17. Select has two distinct "nothing to work with" states,
+and the fully-empty one was shipped (iteration 2) with copy and behavior
+copied from its sibling rather than written for itself:
+
+- **Assignments exist but need breaking down** — `BreakdownNotice`/
+  `BreakdownList`, unaffected by this amendment. Offers "Break down" and
+  "Plan '{title}' as one task instead."
+- **No open assignments at all** — previously reused that case's own
+  framing ("Break an assignment into steps first, then come back."),
+  which makes no sense when there is nothing to break down, and offered
+  no action at all — a dead end, contrary to this application's "never a
+  dead end" empty-state convention (see Home's and Assignments' own empty
+  states).
+
+### Decision
+
+For the fully-empty case only:
+
+- Corrected copy: "Nothing to plan yet." / "Add an assignment, then come
+  back."
+- An "Add assignment" button, routing to the Assignments tab (`onGoToAssignments`,
+  the same tab-switch shape `HomePage` already uses for its own "Nothing
+  coming up" empty state) rather than opening inline capture — Plan has no
+  capture UI of its own, and adding one was judged out of proportion to
+  this fix. Full inline capture from within Plan remains a candidate for a
+  future increment if it turns out to matter in practice.
+
+### Acceptance Criteria (additive)
+
+- When a student has no open assignments at all, Select shows "Nothing to
+  plan yet." / "Add an assignment, then come back." with a visible "Add
+  assignment" action — never the breakdown-flavored copy, and never a bare
+  empty state with no action.
+- Tapping "Add assignment" switches to the Assignments tab.
+- The "needs breakdown" case's own copy and actions are unchanged by this
+  amendment.

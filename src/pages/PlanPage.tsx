@@ -52,6 +52,12 @@ type PlanPageProps = {
   // duplicating it. See docs/decisions/
   // 20260816-today-execution-interim-entry-point.md.
   onStartExecution: () => void;
+  // Select's true-empty state ("no open assignments at all," distinct
+  // from "assignments exist but need breaking down first") routes to
+  // the Assignments tab rather than capturing inline, since Plan has no
+  // capture UI of its own — same tab-switch shape as Home's own
+  // onGoToAssignments.
+  onGoToAssignments: () => void;
 };
 
 // A nested view within the Plan tab, distinct from the wizard's own
@@ -222,6 +228,7 @@ export default function PlanPage({
   onDateChange,
   onStepChange,
   onStartExecution,
+  onGoToAssignments,
 }: PlanPageProps) {
   const studentId = user.id;
   const today = useMemo(() => todayISODate(), []);
@@ -816,7 +823,8 @@ export default function PlanPage({
             ) : (
               <EmptyState
                 title="Nothing to plan yet."
-                hint="Break an assignment into steps first, then come back."
+                hint="Add an assignment, then come back."
+                action={<Button onClick={onGoToAssignments}>Add assignment</Button>}
               />
             )
           ) : safeStep === "select" ? (

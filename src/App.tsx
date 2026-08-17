@@ -103,6 +103,7 @@ export default function App() {
               onDateChange={setPlanDate}
               onStepChange={setPlanStep}
               onStartExecution={() => setExecutingToday(true)}
+              onGoToAssignments={() => handleTabChange("assignments")}
             />
           )}
           {activeTab === "assignments" && (

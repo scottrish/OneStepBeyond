@@ -107,9 +107,11 @@ const TODAY_ISO = "2026-03-16";
 function ControlledPlanPage({
   user,
   onStartExecution = vi.fn(),
+  onGoToAssignments = vi.fn(),
 }: {
   user: User;
   onStartExecution?: () => void;
+  onGoToAssignments?: () => void;
 }) {
   const [date, setDate] = useState(TODAY_ISO);
   const [step, setStep] = useState<Step>("day");
@@ -121,6 +123,7 @@ function ControlledPlanPage({
       onDateChange={setDate}
       onStepChange={setStep}
       onStartExecution={onStartExecution}
+      onGoToAssignments={onGoToAssignments}
     />
   );
 }
@@ -654,13 +657,20 @@ describe("PlanPage", () => {
     });
   });
 
-  it("shows a course-context empty state on Select when there are no open work items", async () => {
-    render(<ControlledPlanPage user={user} />);
+  it("invites adding an assignment (not breaking one down) on Select when there are no open assignments at all", async () => {
+    const onGoToAssignments = vi.fn();
+    render(<ControlledPlanPage user={user} onGoToAssignments={onGoToAssignments} />);
     await screen.findByText(/step 1 of 5/i);
 
     await userEvent.click(screen.getByRole("button", { name: /continue/i }));
 
     expect(await screen.findByText(/nothing to plan yet/i)).toBeInTheDocument();
+    // Not "break an assignment into steps" — there's nothing to break
+    // down when no assignment exists at all.
+    expect(screen.getByText(/add an assignment, then come back/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /add assignment/i }));
+    expect(onGoToAssignments).toHaveBeenCalledTimes(1);
   });
 
   it("switching to a different day in the picker resets the flow to the Day step", async () => {
@@ -1084,6 +1094,7 @@ describe("PlanPage", () => {
                 onDateChange={setDate}
                 onStepChange={setStep}
                 onStartExecution={vi.fn()}
+                onGoToAssignments={vi.fn()}
               />
             )}
           </>
@@ -1127,6 +1138,7 @@ describe("PlanPage", () => {
           onDateChange={vi.fn()}
           onStepChange={vi.fn()}
           onStartExecution={vi.fn()}
+          onGoToAssignments={vi.fn()}
         />,
       );
 
