@@ -1,5 +1,18 @@
 # Feature: Risk Detection ("Needs Attention")
 
+**Status:** Implemented (2026-08-17), merged to `main`, as part of Home
+Dashboard's Phase 5 build. Both rules (not-enough-time,
+due-soon-unscheduled), the priority order for choosing between them, and
+all three next-actions ("Break it down" / "Find time" / "Make a plan")
+are built in `src/domain/riskDetection.ts` and tested against this spec's
+Acceptance Criteria — consumed today only by Home's Needs Attention
+section. It is **not yet** consumed by Assignment Detail, despite this
+spec's own Summary naming `assignment-management.md` as a consumer — see
+`docs/Roadmap.md`'s Backlog item on Assignment Detail's CTA hierarchy,
+which now covers this gap alongside the assignment-management.md items it
+was already tracking. Week Look-Ahead, this spec's third named consumer,
+doesn't exist yet either (see Roadmap Phase 4).
+
 ## Summary
 
 A derived signal — never stored as a score, never authored as a judgment

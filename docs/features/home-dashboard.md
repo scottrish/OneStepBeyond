@@ -1,14 +1,18 @@
 # Feature: Home Dashboard & Navigation Shell
 
-**Status:** Partially implemented (2026-08-15). The "Navigation" section
-below — bottom tab bar and the header's Settings list — is built and
-tested (`docs/Roadmap.md` Phase 1). The rest of this spec (the "UX Flow"
-section: Next card, Today's plan summary, Needs Attention, Today's
-activities, Coming up, Ownership note) is **not built** — it's Phase 5,
-deliberately last, since it composes data from Daily Planning, Risk
-Detection, and Activities working end-to-end. Home currently renders only
-its header; the body is still the bare "You are logged in as..." text
-from the auth skeleton.
+**Status:** Implemented (2026-08-17), merged to `main` as Phase 5. The
+"Navigation" section (bottom tab bar, header Settings list) shipped
+earlier in Phase 1. The rest of the UX Flow — Next card, Today's plan
+summary, Needs Attention, Today's activities, Coming up — is now built
+and tested against this spec's Acceptance Criteria, composing Daily
+Planning, Risk Detection, and Activities data as designed. UX Flow item 7
+(the Ownership note) is the one deliberate exception — deferred by
+product-owner direction (2026-08-17), see Explicitly Out of Scope below.
+Two correctness fixes landed after the initial build: the Next card now
+shows a calm all-done confirmation (reusing Today Execution's own copy)
+instead of the "no plan" empty state once every session for the day is
+complete, and the "Today's plan: N tasks" summary no longer lingers once
+everything it describes is finished.
 
 ## Summary
 
@@ -125,7 +129,7 @@ whole point of the screen):
   unaffected and remain in scope. Revisit once the rest of Home has
   been in front of real students.
 
-## Deviation from the prototype — flagged for approval
+## Deviation from the prototype — resolved
 
 The prototype has **no account/settings/sign-out surface anywhere**,
 because it mocked authentication entirely. OneStepBeyond already has real

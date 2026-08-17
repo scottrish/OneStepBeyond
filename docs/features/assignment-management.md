@@ -10,15 +10,21 @@ persona-assessment findings: a brief "Undo" affordance after an
 unconfirmed delete (no completed steps), and the Detail/list screens now
 always show the assignment's own estimate alongside the itemized-steps
 remaining total once any step exists, rather than one silently replacing
-the other. Two things are deliberately not built yet, both because they
-depend on features not yet started (see `docs/Roadmap.md`): the "Plan
-work for today" action and the Assignment Brief/"What this needs" card
-(depend on Daily Planning and Assignment Understanding & Guided
-Breakdown), and — as a consequence — the confirmation-required delete
-path (an assignment with at least one completed step) exists in the code
-and is tested, but has no way to be reached through today's UI, since
-per-step completion only happens via Today Execution, also not yet
-built.
+the other.
+
+**Update (2026-08-17):** the confirmation-required delete path (an
+assignment with at least one completed step) is now reachable through
+real UI, not just tested code — Today Execution shipped and marks a Work
+Item's `completedAt` when its session is marked Done. The "Plan work for
+today" action and the Assignment Brief/"What this needs" card remain
+unbuilt, but their original blocker no longer holds: Daily Planning and
+Risk Detection both now exist. What's actually blocking them is a design
+question, not a missing dependency — see `docs/Roadmap.md`'s Backlog item
+"Assignment Detail's CTA hierarchy needs reconsidering, not just
+completing," which also now covers wiring in Risk Detection here (also
+built, also not yet consumed by this screen). The Assignment Brief/
+"What this needs" card still depends on Assignment Understanding & Guided
+Breakdown, not yet started.
 
 ## Summary
 

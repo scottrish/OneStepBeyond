@@ -1,5 +1,18 @@
 # Feature: Today's Work & Reflection
 
+**Status:** Implemented (2026-08-16), merged to `main`. One task at a
+time, "After that" list, Start/Done/"Need more time"/"I'm stuck" actions,
+the after-Done reflection prompt, the all-done confirmation screen, and
+the empty-state link into Planning are all built and tested, matching
+this spec's Acceptance Criteria. Owned by `App.tsx` (an `executingToday`
+boolean sibling to the active tab) rather than by `PlanPage` alone, so a
+single instance is reachable from both Plan's own entry points and (once
+Phase 5 shipped) Home's Next card — see
+`docs/decisions/20260816-today-execution-interim-entry-point.md`. No
+deviations from this spec's scope; Moment C's before-work-prediction and
+periodic-review siblings remain deferred exactly as this spec's own
+Explicitly Out of Scope section says.
+
 ## Summary
 
 Support execution of the day's confirmed plan, one task at a time, and

@@ -134,10 +134,14 @@ question about whether their breakdown actually worked.
 
 # Phase 4 — Planning and execution
 
+**Status: mostly done.** Daily Planning and Today Execution are both
+built; Week Look-Ahead is the one piece of this phase not yet started.
+
 | Feature | Spec | Status |
 |---|---|---|
 | Daily Planning | [daily-planning.md](features/daily-planning.md) | Done (2026-08-16) |
-| Today Execution (incl. Reflection Moment C) | [today-execution.md](features/today-execution.md) | Not started |
+| Student Preferences (Study Hours) | [student-preferences.md](features/student-preferences.md) | Done (2026-08-17) |
+| Today Execution (incl. Reflection Moment C) | [today-execution.md](features/today-execution.md) | Done (2026-08-16) |
 | Week Look-Ahead | [week-lookahead.md](features/week-lookahead.md) | Not started |
 
 **Why next:** Daily Planning needs open Work Items (Phase 2/3) and
@@ -160,10 +164,23 @@ already-scheduled-elsewhere indicator, a directly-editable Schedule-step
 time control, and a "Move to another day" action. See
 `daily-planning.md`'s own Status note,
 `docs/features/iterations/daily-planning/`, and
-`docs/playwright/daily-planning/` for full detail. Today Execution and
-Week Look-Ahead remain unbuilt — Daily Planning's own confirm step shows
-an inline success state in their place for now (see
-`docs/decisions/20260816-daily-planning-confirm-write-order.md`).
+`docs/playwright/daily-planning/` for full detail. Its Select step's
+fully-empty-state copy and missing "Add assignment" escape hatch were
+also corrected after the fact (2026-08-17) — see `daily-planning.md`'s
+own Amendment section.
+
+**Today Execution implementation note (2026-08-16):** built immediately
+after Daily Planning per the "Why next" reasoning above — one task at a
+time, "Need more time"/"I'm stuck" actions, the after-Done reflection
+prompt, and the all-done confirmation screen, matching
+`today-execution.md`'s Acceptance Criteria. Owned by `App.tsx` (an
+`executingToday` boolean sibling to the active tab) rather than by Plan
+alone, so it's reachable from both Plan's own entry points and — once
+Phase 5 shipped — Home's Next card, without duplicating the screen; see
+`docs/decisions/20260816-today-execution-interim-entry-point.md` for how
+that ownership evolved. Daily Planning's own confirm step still shows an
+inline success state as its primary path, per
+`docs/decisions/20260816-daily-planning-confirm-write-order.md`.
 
 Today Execution's reflection step is Reflection Moment C ("After-Work
 Calibration") of the much larger phased design in
@@ -173,19 +190,32 @@ above. Building only Moment C here — one fixed question, a few tap
 choices, always skippable — is correct scope for this phase; see Backlog
 below for the rest of that document.
 
-**Demoable at the end of this phase:** a student can run a full planning
-session in under five minutes, execute today's plan one task at a time,
-answer the one reflection question after each session, and glance at the
-week to see where it's crowded.
+**Student Preferences (2026-08-17):** added after Daily Planning and
+Today Execution both shipped, replacing the fixed `WEEKDAY_WINDOW`/
+`WEEKEND_WINDOW` constants their capacity math had used until then with
+a per-student weekday finish time and weekend hours budget. Not part of
+this phase's original sequencing — folded in here because it's a direct
+amendment to Daily Planning's own capacity calculation (and, once built,
+Risk Detection's below) rather than an independent feature. See
+`student-preferences.md`'s own Status note.
+
+**Demoable at the end of this phase (achieved, except Week Look-Ahead):**
+a student can run a full planning session in under five minutes on their
+own configured study hours, execute today's plan one task at a time, and
+answer the one reflection question after each session. Glancing at the
+week to see where it's crowded is not yet possible — Week Look-Ahead
+remains the one unbuilt piece of this phase (see Backlog).
 
 ---
 
 # Phase 5 — Cross-cutting intelligence and Home
 
+**Status: done (2026-08-17).**
+
 | Feature | Spec | Status |
 |---|---|---|
-| Risk Detection | [risk-detection.md](features/risk-detection.md) | Not started |
-| Home Dashboard (full content) | [home-dashboard.md](features/home-dashboard.md) | Not started (nav shell already done — Phase 1) |
+| Risk Detection | [risk-detection.md](features/risk-detection.md) | Done (2026-08-17) |
+| Home Dashboard (full content) | [home-dashboard.md](features/home-dashboard.md) | Done (2026-08-17) |
 
 **Why last:** Risk Detection is a derived read-time computation over
 Assignments, Work Items, Activities, and Planning signals — it has nothing
@@ -197,10 +227,27 @@ already has real data to show instead of placeholders. Building Home last
 also avoids a stretch of the project where the landing screen looks "done"
 but is actually silently showing stale or fixture data.
 
-**Demoable at the end of this phase:** Increment 1 is feature-complete —
-the full three-question promise ("What do I need to do? What should I do
-next? Am I on track?") is answerable from Home within five seconds, per
-`Product-Vision.md`'s Primary Goal.
+**Implementation note:** Risk Detection's two rules (not-enough-time,
+due-soon-unscheduled) and three next-actions ("Break it down" / "Find
+time" / "Make a plan") are built exactly as specced and consumed by
+Home's Needs Attention section. It is not yet consumed by Assignment
+Detail, despite `risk-detection.md`'s own Summary naming
+`assignment-management.md` as a consumer — see the Backlog item below on
+Assignment Detail's CTA hierarchy, which covers this gap. Home Dashboard
+shipped all of its UX Flow except item 7 (the Ownership note), deferred
+by explicit product-owner direction — see `home-dashboard.md`'s own
+Explicitly Out of Scope section. A few small correctness fixes landed
+after the initial build: the Next card now distinguishes "all done" from
+"nothing planned" (previously showed the empty state even once every
+session was complete) and the "Today's plan: N tasks" summary no longer
+lingers once everything it describes is finished.
+
+**Demoable at the end of this phase (achieved):** the full three-question
+promise ("What do I need to do? What should I do next? Am I on track?")
+is answerable from Home within five seconds, per `Product-Vision.md`'s
+Primary Goal. Increment 1 is not quite feature-complete even so — Week
+Look-Ahead (Phase 4) is the one spec across all five phases still
+unbuilt; see Backlog.
 
 ---
 
@@ -275,6 +322,16 @@ calls out that this shared ZPD/Skill Competency infrastructure "should
 serve both rather than being implemented twice" when it's eventually
 built — schedule it as one piece of work, not two.
 
+## Week Look-Ahead — the one unbuilt Phase 4 spec
+
+[week-lookahead.md](features/week-lookahead.md) was deliberately sequenced
+last within Phase 4 (it's a thin layer over Daily Planning's own
+`availableMinutes`), and stayed unbuilt when Today Execution and Student
+Preferences were prioritized instead. Nothing further blocks it — Daily
+Planning's capacity logic it depends on has existed since Phase 4 started,
+and now also reflects per-student Preferences. Picking this up doesn't
+require revisiting any other phase first.
+
 ## Smaller open items inside already-built specs
 
 - **Assignment Detail's CTA hierarchy needs reconsidering, not just
@@ -295,19 +352,26 @@ built — schedule it as one piece of work, not two.
   suggesting a breakdown (does not force one)" line is the same shape of
   gap — see `docs/decisions/20260816-plan-directly-without-breakdown.md`
   for the equivalent capability already built in Daily Planning, not yet
-  wired into Assignment Detail's own "Break this down."
+  wired into Assignment Detail's own "Break this down." Risk Detection
+  (Phase 5, now built) is the same story a third time: `risk-detection.md`
+  names Assignment Detail as a consumer, but nothing there calls it yet —
+  worth folding into this same reconsideration rather than wiring it in
+  separately ahead of the CTA-hierarchy decision.
 - Course Setup: deleting a course (and whatever in-use protection that
   needs), manual color selection, and archiving a course at the end of a
   term/year — all deferred by the 2026-08-14 resolution in
   `course-setup.md`, worth revisiting once real students have used the
   create/rename/list-only version from Phase 1.
 - A true calendar grid/month view (`week-lookahead.md` explicitly scopes
-  out anything beyond the 7-day list).
+  out anything beyond the 7-day list, once the base view above is built).
 - Cross-day drag-and-drop rescheduling (`daily-planning.md`).
 - A running timer/time-tracking UI for Today Execution (deliberately
   excluded per Design-Principles.md's "no elapsed-time pressure").
 - One-off exceptions to a recurring Activity (`activities.md`) — e.g. "no
   practice this Friday."
+- Home Dashboard's Ownership note (UX Flow item 7) — deferred
+  2026-08-17 by explicit product-owner direction; see
+  `home-dashboard.md`'s Explicitly Out of Scope section.
 
 ---
 
