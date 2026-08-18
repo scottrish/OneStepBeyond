@@ -10,8 +10,8 @@
 set -euo pipefail
 
 SUPABASE_URL="http://127.0.0.1:54321"
-EMAIL="${PLAYWRIGHT_ADMIN_EMAIL:-playwright-test-student@local.test}"
-PASSWORD="${PLAYWRIGHT_ADMIN_PASSWORD:-playwright-local-test-password}"
+EMAIL="${PLAYWRIGHT_ADMIN_EMAIL:-aiden@local.test}"
+PASSWORD="${PLAYWRIGHT_ADMIN_PASSWORD:-aiden-local-test-password}"
 ENV_FILE=".env.playwright"
 
 if ! command -v jq >/dev/null 2>&1; then

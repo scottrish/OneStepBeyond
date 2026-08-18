@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Pencil, Trash2 } from "lucide-react";
@@ -9,9 +9,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { courseColorValue } from "../domain/courseColor";
 import { EFFORT_PRESETS, effortLabel } from "../domain/effortPresets";
 import { formatDueDate } from "../domain/dueDate";
+import { todayISODate } from "../domain/planningDate";
 import { remainingMinutes } from "../domain/remainingMinutes";
+import { assignmentsNeedingAttention } from "../domain/riskDetection";
+import { useActivities } from "../hooks/useActivities";
+import { useAllWorkSessions } from "../hooks/useAllWorkSessions";
 import { useAssignment } from "../hooks/useAssignment";
 import { useCourses } from "../hooks/useCourses";
+import { usePreferences } from "../hooks/usePreferences";
 import { useWorkItems } from "../hooks/useWorkItems";
 import ReflectionPrompt from "./ReflectionPrompt";
 import WorkBreakdownPage from "./WorkBreakdownPage";
@@ -20,6 +25,11 @@ type AssignmentDetailPageProps = {
   user: User;
   assignmentId: string;
   onBack: () => void;
+  // Bare tab switch, same pattern HomePage.tsx's own onGoToPlan uses —
+  // does not pass this assignment through to Plan (see
+  // docs/features/assignment-detail-cta-hierarchy.md's Explicitly Out of
+  // Scope, which defers that to home-dashboard-followthrough.md item 4).
+  onGoToPlan: () => void;
 };
 
 const errorBoxStyle =
@@ -29,6 +39,7 @@ export default function AssignmentDetailPage({
   user,
   assignmentId,
   onBack,
+  onGoToPlan,
 }: AssignmentDetailPageProps) {
   const {
     assignment,
@@ -46,6 +57,23 @@ export default function AssignmentDetailPage({
     refetch: refetchWorkItems,
     markAllComplete,
   } = useWorkItems(assignmentId);
+  // Only feed docs/features/assignment-detail-cta-hierarchy.md item 2's
+  // risk message — kept out of the loading/loadError gate above, which
+  // stays scoped to useAssignment alone. The rest of this screen renders
+  // from its own already-loaded data regardless of whether this trio has
+  // resolved.
+  const {
+    activities,
+    loading: activitiesLoading,
+    loadError: activitiesLoadError,
+  } = useActivities(user.id);
+  const { sessions: allSessions, loading: allSessionsLoading } = useAllWorkSessions(user.id);
+  const {
+    preferences,
+    loading: preferencesLoading,
+    loadError: preferencesLoadError,
+  } = usePreferences(user.id);
+  const today = useMemo(() => todayISODate(), []);
 
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -58,6 +86,27 @@ export default function AssignmentDetailPage({
 
   const course = courses.find((c) => c.id === assignment?.courseId);
   const hasCompletedSteps = workItems.some((item) => item.completedAt !== null);
+  // Fail closed, not open, on a load error — usePreferences keeps
+  // DEFAULT_PREFERENCES even after a failed fetch, so computing anyway
+  // would silently use placeholder capacity assumptions and could show a
+  // confidently wrong message instead of an honestly absent one. See
+  // docs/features/assignment-detail-cta-hierarchy.md item 2.
+  const readyForRisk =
+    !activitiesLoading && !allSessionsLoading && !preferencesLoading &&
+    !activitiesLoadError && !preferencesLoadError;
+  const attentionItem =
+    assignment && readyForRisk
+      ? assignmentsNeedingAttention(
+          [assignment],
+          workItems,
+          allSessions,
+          activities,
+          today,
+          preferences,
+        )[0]
+      : undefined;
+  const suggestBreakdown =
+    !!assignment && workItems.length === 0 && assignment.effortMinutes > 45;
 
   function startEditing() {
     if (!assignment) return;
@@ -270,12 +319,27 @@ export default function AssignmentDetailPage({
             )}
           </dl>
 
-          {assignment.completedAt ? (
-            <p className="mb-4 text-sm font-medium text-primary">Completed</p>
-          ) : (
-            <Button onClick={handleMarkComplete} className="mb-6 w-full">
-              Mark assignment complete
-            </Button>
+          {attentionItem && (
+            <div className="mb-4 rounded-3xl bg-attention px-5 py-4">
+              <p className="text-sm text-attention-foreground">{attentionItem.message}</p>
+            </div>
+          )}
+
+          {suggestBreakdown && (
+            <div className="mb-4 rounded-3xl border border-border bg-card px-5 py-4">
+              <p className="text-sm text-foreground">
+                This one is fairly big. Would it help to break it into
+                smaller steps? What do you think should happen first?
+              </p>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="mt-3 rounded-xl"
+                onClick={() => setBreakingDown(true)}
+              >
+                Yes, help me start
+              </Button>
+            </div>
           )}
 
           <section>
@@ -312,6 +376,23 @@ export default function AssignmentDetailPage({
               {workItems.length > 0 ? "Edit breakdown" : "Break this down"}
             </Button>
           </section>
+
+          <div className="mt-8 flex flex-col gap-3">
+            <Button size="lg" className="w-full" onClick={onGoToPlan}>
+              Plan work for today
+            </Button>
+            {assignment.completedAt ? (
+              <p className="text-center text-sm font-medium text-primary">Completed</p>
+            ) : (
+              <Button
+                variant="ghost"
+                className="w-full text-muted-foreground"
+                onClick={handleMarkComplete}
+              >
+                Mark assignment complete
+              </Button>
+            )}
+          </div>
         </>
       )}
     </main>

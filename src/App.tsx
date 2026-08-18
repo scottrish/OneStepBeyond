@@ -110,6 +110,7 @@ export default function App() {
           user={user}
           assignmentId={openAssignmentId}
           onBack={() => setOpenAssignmentId(null)}
+          onGoToPlan={() => handleTabChange("plan")}
         />
       ) : executingToday ? (
         <TodayExecutionPage user={user} onBack={() => setExecutingToday(false)} />
