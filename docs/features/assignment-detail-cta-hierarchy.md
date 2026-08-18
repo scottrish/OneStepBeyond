@@ -1,30 +1,51 @@
 # Feature: Assignment Detail — CTA Hierarchy, Risk Detection, and Breakdown Nudge
 
-**Status:** Partially implemented. Items 1 and 2, and item 3a's nudge
-card, were implemented and merged to `main` on 2026-08-18 as originally
-specced: "Plan work for today" restored as the dominant CTA (solid,
-`size="lg"`) with "Mark assignment complete" demoted to
+**Status:** Partially implemented. Items 1 and 2, item 3a's nudge card
+itself, and item 3b (inline add/edit/delete) were implemented and merged
+to `main` on 2026-08-18: "Plan work for today" restored as the dominant
+CTA (solid, `size="lg"`) with "Mark assignment complete" demoted to
 `variant="ghost"`/muted beneath it, both moved to the bottom of the
 screen after Steps; the Risk Detection message (`bg-attention` card,
 fails closed on an Activities/Preferences load error rather than
-computing from incomplete data); and the breakdown-nudge card (shown only
-when `workItems.length === 0 && effortMinutes > 45`). Verified live:
-opening an assignment flagged on Home's Needs Attention shows the
-identical message on Detail, the nudge appears for a large
-unbroken-down assignment, and "Plan work for today" correctly switches to
-the Plan tab.
+computing from incomplete data); the breakdown-nudge card (shown only
+when `workItems.length === 0 && effortMinutes > 45`); and inline Work
+Item management replacing `WorkBreakdownPage`/"Edit breakdown" for any
+non-empty breakdown. Verified live: opening an assignment flagged on
+Home's Needs Attention shows the identical message on Detail, the nudge
+appears for a large unbroken-down assignment, "Plan work for today"
+correctly switches to the Plan tab, and adding/editing/deleting steps
+inline works with no page navigation.
 
-**Not yet implemented:** item 3b, substantially expanded 2026-08-18 (see
-Correction 2 below) to add "Just add a step" and remove
-`WorkBreakdownPage`/"Edit breakdown" once any Work Item exists in favor
-of inline add/edit/delete — this is new scope, not yet built. The
-already-shipped code still has "Edit breakdown" opening `WorkBreakdownPage`
-for a non-empty breakdown; that needs to change per the revised item 3b
-below.
+**Item 3a not yet implemented — see Correction 5 below for the final
+design**, which replaces both the originally-shipped behavior and
+Corrections 3/4's back-and-forth. "Break this down" is removed; "Yes,
+help me start" becomes the sole path into `WorkBreakdownPage`, arriving
+with two understanding prompts instead of the plain create step.
+
+**Item 3b implemented (2026-08-18), merged to `main`, including inline
+delete.** `WorkBreakdownPage`/"Edit breakdown" is no longer reachable
+once an assignment has any Work Item — "Break this down" still opened it
+at the time, for `workItems.length === 0` only; **Correction 5 below
+removes "Break this down" entirely**, on top of what's described here.
+"Just add a step"/"+ Add another step" (`useWorkItems.addItem`), inline per-row editing
+(`useWorkItems.editItem`, never offered for a completed item), and inline
+delete (`useWorkItems.deleteItem`, immediate for an incomplete item,
+confirmation-gated for a completed one — mirroring the assignment-level
+delete warning) are all built and tested. `workItemService.ts` gained one
+new function, `updateWorkItem`. Add and edit each record one
+`DecompositionAttempt` (`revisionCount: 1`); delete does not. The
+assignment's `effortMinutes` is recomputed after every add/edit/delete via
+the existing `useAssignment.updateAssignment`. Verified live: added,
+edited, and deleted steps on a real assignment, confirming the "Remaining"
+total tracked each change and "Edit breakdown" never reappeared once a
+step existed.
+
+The decision record documenting this reversal of
+`docs/decisions/20260815-manual-work-breakdown-draft-state.md`'s
+single-entry-point premise is `docs/decisions/20260818-inline-work-item-management.md`.
 
 Resolves the Roadmap Backlog item "Assignment Detail's CTA hierarchy
-needs reconsidering, not just completing," raised 2026-08-16 — items 1
-and 2 fully; item 3 partially, pending 3b.
+needs reconsidering, not just completing," raised 2026-08-16 — in full.
 
 **Amends:** `docs/features/assignment-management.md` (UX Flow's Assignment
 Detail section, specifically the "Primary actions" line and its "Open
@@ -32,36 +53,78 @@ item" note) and closes the corresponding gap named in
 `docs/features/risk-detection.md`'s own Summary (Assignment Detail as a
 named consumer, never wired in).
 
-**Correction (2026-08-18, spec only — no code changed):** Item 3's
-original Source/Decision under-read the prototype. `assignments.$id.index.tsx`'s
-"Yes, help me start" and its empty-Steps-state "Break this down" both
-link to `/assignments/$id/breakdown` — a *different, richer* route with
-its own distinct prompts (Understand → Confirm → Sitting-check →
+**Correction history, in order (all 2026-08-18, spec only — Correction 5
+is current):**
+
+**Correction 1:** Item 3's original Source/Decision under-read the
+prototype. `assignments.$id.index.tsx`'s "Yes, help me start" and its
+empty-Steps-state "Break this down" both link to
+`/assignments/$id/breakdown` — a *different, richer* route with its own
+distinct prompts (Understand → Confirm → Sitting-check →
 Attempt-with-scaffold-ladder → Final review), not the same destination as
 this app's plain `WorkBreakdownPage`. The prototype also has a third,
 separate affordance — "Just add a step" — that this spec never
-considered at all. See the revised Item 3 below for what each of these
-actually implies for this increment, and why one is deliberately not
-followed. The already-shipped code (`setBreakingDown(true)` for both
-"Break this down" and "Yes, help me start") is unchanged by this
-correction — see Item 3's own reasoning for why that's the right call,
-not an oversight to fix.
+considered at all. The already-shipped code (`setBreakingDown(true)` for
+both "Break this down" and "Yes, help me start") was unchanged by this
+correction at the time — see Correction 5 below for where both buttons
+ultimately ended up.
 
-**Correction 2 (2026-08-18, spec only — no code changed yet):** item 3b's
-open question is now resolved by direct product-owner instruction:
-`WorkBreakdownPage` — a 3-step create/estimate/review wizard for what
-amounts to "type a title, pick an effort preset" — is more page than the
-underlying functionality warrants, especially now that *two* buttons
-("Break this down" and "Yes, help me start") both lead there for the
-empty-Steps case. "Just add a step" is added, matching the prototype;
-once at least one Work Item exists, `WorkBreakdownPage`/"Edit breakdown"
-is no longer offered at all — inline add and inline edit, directly on
-Assignment Detail, become the only way to manage an existing breakdown.
-See the rewritten item 3b below. This reverses the "single entry point"
-premise of `docs/decisions/20260815-manual-work-breakdown-draft-state.md`
-for the add/edit case — implementation should replace that decision
-record with a new one rather than editing it in place, per this project's
-convention of leaving a paper trail rather than rewriting history.
+**Correction 2:** item 3b's open question is resolved by direct
+product-owner instruction: `WorkBreakdownPage` — a 3-step
+create/estimate/review wizard for what amounts to "type a title, pick an
+effort preset" — is more page than the underlying functionality
+warrants, especially with two buttons ("Break this down" and "Yes, help
+me start") both leading there for the empty-Steps case. "Just add a
+step" is added, matching the prototype; once at least one Work Item
+exists, `WorkBreakdownPage`/"Edit breakdown" is no longer offered at all
+— inline add and inline edit become the only way to manage an existing
+breakdown. This reverses the "single entry point" premise of
+`docs/decisions/20260815-manual-work-breakdown-draft-state.md` for the
+add/edit case — implementation replaced that decision record with a new
+one (`docs/decisions/20260818-inline-work-item-management.md`) rather
+than editing it in place. **Implemented and merged 2026-08-18** — see
+item 3b below and the Status note above.
+
+**Correction 3:** item 3a's "deliberate, scope-driven deviation" —
+routing "Yes, help me start" to the same plain `WorkBreakdownPage`
+"Break this down" uses — is partially reversed by direct instruction:
+"Yes, help me start" should land on a screen offering the prototype's
+three "Understand" choices ("Paste what the teacher said" / "Say it in
+my own words" / "Help me figure out what it's asking"), not skip
+straight to `WorkBreakdownPage`.
+
+**Correction 4:** Correction 3 held before implementation. The gap
+Correction 3 itself already named — "Continue" stopping short of
+`parseDirections`, with the captured text going nowhere but
+`assignment.notes` — is the actual problem, not a defensible YAGNI trim.
+Asking a student "what do you have to do?" across three framed choices
+and then doing nothing with the answer but silently filing it away reads
+as broken, not restrained. Item 3a reverted to its pre-Correction-3
+behavior at this point: "Yes, help me start" calling the same
+`setBreakingDown(true)` transition "Break this down" used.
+
+**Correction 5 (current):** two more instructions, given in sequence,
+land on a design that resolves Correction 4's objection without either
+of the two intermediate shapes considered along the way:
+1. "Just add a step" (item 3b) makes "Break this down" *redundant*, not
+   just optional — a student can already build a full breakdown by using
+   it repeatedly. **"Break this down" is removed.**
+2. Rather than routing "Yes, help me start" to a standalone screen (the
+   shape Correction 3 tried) or to the inline "Just add a step" mechanism
+   (a shape considered and set aside in discussion), it becomes the
+   **sole** path into `WorkBreakdownPage`, landing on the existing
+   "create" step with two new understanding prompts prepended. This keeps
+   the wizard's real batch add/estimate/review capability (which the
+   inline-only shape would have discarded) while still making the
+   captured text genuinely useful — visible during the same step where
+   the student is decomposing the assignment, not filed away unread.
+
+See the rewritten item 3a below for the full design and the questions
+still open within it (exact prompt-field mechanic, when the captured text
+saves, how long it stays visible). **This reverses "no changes to
+`WorkBreakdownPage` itself"** (previously listed as Explicitly Out of
+Scope) — the create step now needs real, if modest, conditional UI. Not
+yet implemented — see the Status note above.
 
 ## Summary
 
@@ -284,9 +347,11 @@ they're actually looking at it.
 message-only card, no separate action button. Home already offers the
 "Break it down"/"Find time"/"Make a plan" action for a flagged assignment;
 this screen already offers its own "Plan work for today" and (once item 1
-above ships) "Break this down"/"Edit breakdown" — adding a third,
-risk-specific action button here would compete with those rather than
-add anything an equivalent existing button doesn't already cover.
+above ships) a way into building a breakdown — "Just add a step," and, for
+a large not-yet-broken-down assignment, "Yes, help me start" (item 3,
+final shape per Correction 5) — adding a third, risk-specific action
+button here would compete with those rather than add anything an
+equivalent existing button doesn't already cover.
 
 - Rendered directly beneath the progress/estimate block, above Steps —
   matching the prototype's position exactly.
@@ -347,67 +412,172 @@ suggesting a breakdown (does not force one)."* Never built.
 
 ### 3a. What "Yes, help me start" actually does
 
-**Decision, corrected 2026-08-18 (no code change — the already-shipped
-behavior is confirmed correct, for a different reason than originally
-written):** the prototype's "Yes, help me start" navigates to
-`assignments.$id.breakdown.tsx` — the full Assignment Understanding &
-Guided Breakdown screen, per the Source section's new excerpt above.
-Matching that destination literally would mean building the Understand /
-Confirm / Sitting-check / scaffold-ladder / Final-review flow that
-`manual-work-breakdown-reflection-v0.1.md` explicitly lists as excluded
-from this increment, and that CLAUDE.md's own Project Documentation
-section is direct about: *"do not pull later-phase functionality into
-the current increment merely because it's described in one of these
-[strategy docs]."* This app has exactly one breakdown experience
-(`WorkBreakdownPage`, the current increment's unassisted create → estimate
-→ review flow) and no coached alternative to route to — there is no
-in-scope way to give "Yes, help me start" the *different* prompts the
-prototype's version has, because this increment deliberately doesn't
-build any prompts beyond `WorkBreakdownPage`'s own single "What are the
-main pieces you'll need to get done?"
+**Exact prototype handling** (`assignments.$id.breakdown.tsx:149-202`,
+the `step === "understand"` block, re-verified against source rather
+than paraphrased from memory) — two of these three prompts are adopted
+below, per Correction 5:
 
-Kept as originally shipped: "Yes, help me start" calls the same
-`setBreakingDown(true)` transition "Break this down" already uses,
-landing on `WorkBreakdownPage`. This is a **deliberate, scope-driven
-deviation from the prototype's routing**, not the oversight the original
-Decision text implied ("a second, more visible entry point to one
-action, not a second action") — that framing was written without having
-actually read `assignments.$id.breakdown.tsx` yet, and happened to land
-on the right call for the wrong stated reason. Revisit this the moment
-Work Breakdown Coaching's Phase 2+ (`docs/reference/
-work-breakdown-coaching-feature-spec-v0.2.md`) is ever scheduled — at
-that point "Yes, help me start" is the natural, already-named place to
-point at the real guided flow instead of `WorkBreakdownPage`, and "Break
-this down" the natural place to keep pointing at the plain one, matching
-the prototype's own implicit distinction between a nudge response and a
-cold click even though today both happen to lead to the same place.
+```tsx
+<ScreenTitle eyebrow={dueLabel(assignment.dueDate)} title="What do you have to do?" />
+{mode === null ? (
+  <div className="space-y-3">
+    <ChoiceCard title="Paste what the teacher said"
+      hint="Instructions, an email, the rubric — anything they gave you."
+      onClick={() => setMode("paste")} />
+    <ChoiceCard title="Say it in my own words"
+      hint="A sentence or two is plenty."
+      onClick={() => setMode("summary")} />
+    <ChoiceCard title="Help me figure out what this is asking"
+      hint="We'll read it together and you get the final say."
+      onClick={() => setMode("assisted")} />
+  </div>
+) : (
+  <div>
+    <Textarea autoFocus value={raw} onChange={(e) => setRaw(e.target.value)} rows={7}
+      placeholder={mode === "summary" ? "What do you have to do?" : "Paste the directions here…"} />
+    <Button disabled={!raw.trim()} onClick={() => {
+      const b = buildBrief(mode, raw);   // parseDirections() — deterministic extraction
+      setBrief(b);
+      setStep("confirm");                // → the parsed-checklist screen, item 3a doesn't build this
+    }}>Continue</Button>
+    <Button variant="ghost" onClick={() => setMode(null)}>Back</Button>
+  </div>
+)}
+```
 
-No reusable `CoachNote` component is introduced. The prototype's
-`CoachNote` was never ported and this spec has exactly one call site for
-it — a small inline-styled block (reusing this app's existing card/border
-tokens) is enough; extract a shared component only if a second call site
-appears (YAGNI, per CLAUDE.md).
+Three tap-to-choose cards (title + one-line hint), each just sets which
+`mode` a single shared `Textarea` records against — **"assisted" ("Help
+me figure out what this is asking") is not a different interaction from
+"paste."** Same textarea, same placeholder as "paste," only the choice
+card's own copy differs; there is no conversational/assisted UI hiding
+behind it in the prototype, despite what "we'll read it together" implies.
+The only placeholder variation is "summary" mode getting "What do you
+have to do?" instead of "Paste the directions here…". "Continue" is
+disabled until non-empty text is entered, and calls `buildBrief` —
+`parseDirections`'s deterministic archetype/deliverable/requirement
+extraction — before advancing to the "confirm" step (the parsed checklist
+with "(my guess)" tags).
+
+**Decision (2026-08-18, Correction 5 — final design, supersedes
+Corrections 3 and 4):** "Break this down" is removed. "Yes, help me
+start" becomes the *only* way to reach `WorkBreakdownPage` from
+Assignment Detail, and it always arrives on the existing "create" step
+(unchanged prompt: "What are the main pieces you'll need to get done?")
+with a new preamble in front of it:
+
+- **If `assignment.notes` is already non-empty**, show it read-only and
+  go straight to the normal add-step UI — no prompts. Consistent with the
+  "never overwrite existing content" rule already established for this
+  feature.
+- **If `assignment.notes` is empty**, show two tappable labels — "Paste
+  what the teacher said" and "Say it in my own words" — matching the
+  prototype's own mechanic (tap one, *then* one shared textarea appears),
+  not two simultaneous fields. Only two of the prototype's three choices:
+  "Help me figure out what this is asking" is dropped, since the
+  prototype research above already established it isn't a distinct
+  interaction — same textarea, same placeholder as "paste," different
+  framing copy only. **Resolved (2026-08-18):** the chosen label's
+  textarea saves to `assignment.notes` on blur, and the add-step UI
+  becomes usable at that point — not before. Nothing is parsed, tagged,
+  or interpreted — same Domain Invariant 6 reasoning as the held
+  Correction 3 design. Blurring an empty textarea saves nothing and
+  leaves the add-step UI hidden; tapping the wizard's existing top-level
+  "← Cancel" before ever blurring the field discards whatever was typed,
+  consistent with "Cancel means cancel."
+
+Once the prompt is answered (or skipped, per the two bullets above), the
+student adds steps using the wizard's existing "create" step UI exactly
+as it works today, then "Next" advances through Estimate → Review →
+Confirm unchanged. **"Break this down" being removed narrows when the
+wizard is reachable from this screen at all**: only for a fresh
+(`workItems.length === 0`), large (`effortMinutes > 45`) assignment — the
+same condition that already gates the nudge card itself. A smaller
+assignment, or one with any existing Work Item, has no path back into
+`WorkBreakdownPage` from Assignment Detail — "Just add a step"/"Add
+another step" (item 3b) is the only route for those cases. This is a
+deliberate narrowing, not a side effect: it ties the wizard's batch
+capability to the same "big enough that a fuller planning session helps"
+signal already driving the nudge, rather than making it universally
+available regardless of size.
+
+This lands on a different resolution than either intermediate shape
+considered: unlike Correction 3's standalone screen, the captured text is
+genuinely used — visible on the same step where the student is actually
+decomposing the assignment, not filed away unread, which is what made
+Correction 4 hold the design in the first place. And unlike routing
+through the inline "Just add a step" mechanism instead, the wizard's real
+batch add/estimate/review capability survives, just gated more narrowly
+than before.
+
+**One thing still open, not resolved by this correction:** how long the
+captured/existing note stays visible — only during the "create" step
+(where it's actually useful for decomposing), or carried through Estimate
+and Review too? Recommend create-step-only as the simpler default, but
+not yet confirmed. The prompt-field mechanic and save trigger, both
+previously open, are resolved above.
+
+No reusable `CoachNote` component is introduced — one call site, YAGNI,
+consistent with this spec's existing position on that component.
 
 **Functional Requirements (3a):**
-- Condition and copy match the prototype verbatim: *"This one is fairly
-  big. Would it help to break it into smaller steps? What do you think
-  should happen first?"* with a single action, "Yes, help me start,"
-  calling `setBreakingDown(true)`.
+- Nudge card condition and copy unchanged: *"This one is fairly big.
+  Would it help to break it into smaller steps? What do you think should
+  happen first?"*, action "Yes, help me start."
+- "Break this down" button removed from the Steps section's empty state
+  entirely (see item 3b for the updated empty-state inventory).
+- `AssignmentDetailPage.tsx`'s `breakingDown`/`setBreakingDown` state has
+  exactly one trigger remaining ("Yes, help me start") — no dead code
+  risk from the removal, since nothing else in this file calls it (Plan's
+  own separate "Break down" entry point, `PlanPage.tsx:541`, is a
+  different call site into the same `WorkBreakdownPage` component and is
+  unaffected by anything in this item).
+- `WorkBreakdownPage` gains a new prop (e.g. `showUnderstandingPrompt:
+  boolean`) — `true` only when `AssignmentDetailPage` opens it via "Yes,
+  help me start"; omitted/`false` for Plan's own entry, which must not
+  show these prompts.
+- The create step, when the new prop is set, checks `assignment.notes`:
+  non-empty → show read-only, add-step UI usable immediately. Empty →
+  show two tappable labels ("Paste what the teacher said" / "Say it in my
+  own words"); tapping one reveals a single shared textarea (autofocus,
+  matching the prototype's own placeholder split — "What do you have to
+  do?" for "Say it in my own words," "Paste the directions here…" for the
+  other); **the add-step UI does not render at all until this textarea is
+  blurred with non-empty content** — not shown-but-disabled, genuinely
+  absent, so there's only ever one reason it's missing (prompt
+  unresolved) at a time.
+- On blur of a non-empty textarea: save its text to `assignment.notes`
+  (only if still empty at that point) via the same `updateAssignment`
+  pattern already used elsewhere in this spec (item 3b's effort
+  recompute), then reveal the add-step UI. On blur of an empty textarea:
+  no save, add-step UI stays hidden. Tapping the wizard's existing
+  top-level "← Cancel" before ever blurring the field discards whatever
+  was typed — no save.
 - Never shown once at least one Work Item exists, regardless of how it
-  was created.
+  was created (nudge card itself, unchanged).
 
 **Acceptance Criteria (3a):**
 - A newly-captured assignment with a 60-minute estimate and no Work Items
   shows the nudge; the same assignment after adding one Work Item does
   not, on the next render.
 - A newly-captured assignment with a 30-minute estimate never shows the
-  nudge regardless of Work Item count.
-- Tapping "Yes, help me start" opens the same `WorkBreakdownPage` flow
-  "Break this down" opens — verifiably the same code path, not a parallel
-  one. (Not the prototype's `/assignments/$id/breakdown` — see this
-  item's own Decision for why.) This only holds while `workItems.length
-  === 0`; see 3b for what replaces "Break this down"/"Edit breakdown"
-  once a Work Item exists.
+  nudge regardless of Work Item count, and its empty Steps state offers
+  only "Just add a step" — no "Break this down," no wizard access at all.
+- Tapping "Yes, help me start" opens `WorkBreakdownPage`'s create step.
+  If the assignment has no notes, two tappable labels show and the
+  add-step UI is not present at all; if it already has notes, they
+  display read-only and the add-step UI is immediately usable.
+- Tapping a label reveals one textarea with the correct placeholder for
+  that label; the other label is no longer shown.
+- Blurring that textarea while empty leaves the add-step UI hidden and
+  writes nothing to `assignment.notes`.
+- Blurring that textarea with content saves it to `assignment.notes` and
+  the add-step UI becomes usable.
+- Tapping "← Cancel" while the textarea has unsaved, unblurred content
+  discards it — `assignment.notes` is unchanged.
+- "Break this down" does not appear anywhere on Assignment Detail, for
+  any assignment, at any Work Item count.
+- Plan's own "Break down '<assignment>'" entry point (`PlanPage.tsx`)
+  is unaffected — no prompts shown there.
 
 ### 3b. "Just add a step," then inline-only management once a step exists
 
@@ -429,13 +599,15 @@ this decision is new UI this app is building, not a straight port.)
 **State machine for the Steps section, replacing today's single
 `workItems.length > 0 ? "Edit breakdown" : "Break this down"` toggle:**
 
-- **Zero Work Items:** unchanged from today plus one addition — "Break
-  this down" (→ `WorkBreakdownPage`, for someone who wants to plan several
-  steps at once, e.g. arriving via "Break down/Plan as one task instead"
-  from Plan's Day step) **and** a new "Just add a step" beside it (inline
-  form: title + effort preset, `WorkBreakdownPage` never opens). The
-  breakdown-nudge card (item 3a) still shows independently when its own
-  condition is met, still pointing at `WorkBreakdownPage`.
+- **Zero Work Items:** as originally written here, "Break this down"
+  stayed alongside "Just add a step" for this state. **Superseded by
+  Correction 5, item 3a:** "Break this down" is removed entirely, not
+  just once items exist — the empty state shows only "Just add a step"
+  (inline form: title + effort preset, `WorkBreakdownPage` never opens
+  from here). The breakdown-nudge card (item 3a) still shows
+  independently when its own condition is met, and its "Yes, help me
+  start" is now the *only* remaining path into `WorkBreakdownPage` from
+  this screen — see item 3a for the full design.
 - **One or more Work Items:** "Break this down"/"Edit breakdown" is
   **removed**. The nudge is already gone (its own condition requires zero
   items). The Steps list itself becomes the only surface: each row gains
@@ -446,14 +618,17 @@ this decision is new UI this app is building, not a straight port.)
   step" for empty / `:275-277` "+ Add another step" once items exist —
   same `setAdding`/form, different label only).
 
-**Flagged, not silently decided — delete:** removing "Edit breakdown"
-also removes the *only* place a Work Item can currently be deleted
-(`WorkBreakdownPage`'s per-row trash icon). The instruction above covers
-"adding/editing" only. Recommendation: add a small inline delete control
-to each Steps row too — without it, this change is a real regression (a
-mis-typed or no-longer-needed step becomes permanently stuck), not just a
-UI simplification. Flagging this as the one place this section extends
-past the literal instruction, rather than silently bundling it in.
+**Decided (2026-08-18): inline delete is included.** Confirmed per direct
+instruction — resolves the flag above in favor of the recommended
+default. Each Steps row gets a delete control using the existing
+`workItemService.deleteWorkItems`. An incomplete item deletes immediately
+(matching `WorkBreakdownPage`'s own no-confirmation draft delete); a
+*completed* item (`completedAt !== null`) asks for confirmation first,
+mirroring the exact reasoning `AssignmentDetailPage.tsx` already applies
+to whole-assignment deletion (`hasCompletedSteps` → "will erase that
+progress") — completing a step is real, evidenced work, so removing one
+shouldn't be a single accidental tap the way removing an unstarted one
+can be.
 
 **Flagged, not silently decided — reorder:** `WorkBreakdownPage` also
 supports reordering; the instruction doesn't mention it, and this section
@@ -500,26 +675,31 @@ one rather than rewriting it.
 - New: inline delete per Steps row (see "Flagged — delete" above) using
   the existing `workItemService.deleteWorkItems`, also recomputing
   `assignment.effortMinutes`.
-- "Break this down" continues to open `WorkBreakdownPage` **only** while
-  `workItems.length === 0`; "Edit breakdown" is removed from the
-  component entirely once that's no longer true.
+- "Break this down" does not exist anywhere on this screen (Correction
+  5, item 3a) — `WorkBreakdownPage` is reachable from Assignment Detail
+  only via the nudge card's "Yes, help me start"; "Edit breakdown" is
+  removed from the component entirely once `workItems.length > 0`.
 
 **Acceptance Criteria:**
-- An assignment with zero Work Items shows both "Break this down" and
-  "Just add a step."
+- An assignment with zero Work Items shows "Just add a step" — and, if it
+  also qualifies for the nudge (item 3a), the nudge card alongside it.
+  Never "Break this down."
 - Submitting "Just add a step" adds the item without ever navigating to
   `WorkBreakdownPage`, and the assignment's total estimated effort updates
   to include it.
-- Once at least one Work Item exists, "Break this down"/"Edit breakdown"
-  is not present anywhere on the screen — confirmed by its absence, not
-  just by the new controls' presence.
+- Once at least one Work Item exists, no path back into
+  `WorkBreakdownPage` exists anywhere on the screen — confirmed by its
+  absence, not just by the new controls' presence.
 - Editing a Work Item's title or effort inline updates it immediately, and
   the assignment's total estimated effort reflects the change, without
   navigating away from Assignment Detail.
-- Deleting a Work Item inline removes it and updates the total effort.
+- Deleting an incomplete Work Item removes it immediately and updates the
+  total effort, no confirmation.
+- Deleting a completed Work Item asks for confirmation first; cancelling
+  leaves it untouched.
 - The breakdown-nudge card (item 3a) never appears once a Work Item
-  exists, regardless of whether it was added via "Break this down" or
-  "Just add a step" — unchanged from item 3a's own criteria.
+  exists, regardless of how the assignment's breakdown was started —
+  unchanged from item 3a's own criteria.
 
 ## Architecture Review
 
@@ -549,27 +729,35 @@ one rather than rewriting it.
   `AssignmentDetailPage` render — no change to the global-overlay
   ownership model (`docs/decisions/20260817-assignment-detail-global-overlay.md`)
   itself.
-- **Item 3b's inline add/edit/delete** (new, per Correction 2): a new
-  `useWorkItems` action or a small new hook is needed for "add one item
-  and recompute the assignment's effort total" and "edit one item's
-  title/effort and recompute" — today's `useWorkItems.ts` only exposes
-  `markAllComplete`; it needs `addItem`/`editItem`/`deleteItem`
-  equivalents that each (a) call the relevant `workItemService` function,
-  (b) recompute `assignment.effortMinutes` as the sum of all confirmed
-  items (the same derivation `confirmWorkBreakdown` already does), which
-  means either exposing `useAssignment`'s `updateAssignment` to
-  `useWorkItems` or lifting this orchestration into
-  `AssignmentDetailPage.tsx` itself rather than either hook alone — worth
-  deciding which before implementation, since neither hook today knows
-  about the other's data. (c) records a `DecompositionAttempt` (see 3b's
-  Decision).
-- `workItemService.ts` gains one new function — a generic single-item
-  update (`updateWorkItem(id, { title, effortMinutes })` or similar) — the
-  only genuinely new service-layer capability this whole spec requires;
-  `createWorkItems` and `deleteWorkItems` are reused as-is for add/delete.
-- No new tables — inline add/edit/delete write to the existing
-  `work_items` table exactly as `WorkBreakdownPage`'s confirm flow already
-  does, just one row at a time instead of a bulk replace.
+- **Item 3b's inline add/edit/delete — implemented (2026-08-18).**
+  `useWorkItems(studentId, assignmentId)` gained `addItem`/`editItem`/
+  `deleteItem`, each persisting via the relevant `workItemService`
+  function and returning the resulting full array. The "which layer
+  recomputes the assignment's effort total and records the
+  `DecompositionAttempt`" question this bullet originally raised was
+  resolved in favor of `AssignmentDetailPage.tsx` orchestrating across
+  both hooks (`recomputeAssignmentEffort`/`recordStepDecompositionAttempt`),
+  not either hook alone — `workItemService.ts` gained one new function,
+  `updateWorkItem(id, { title, effortMinutes })`; `createWorkItems` and
+  `deleteWorkItems` are reused as-is for add/delete. No new tables.
+- **Item 3a's understanding prompts (Correction 5) — not yet
+  implemented.** `WorkBreakdownPage` needs a new prop
+  (`showUnderstandingPrompt` or similar) and, on its "create" step,
+  conditional UI: read-only notes display, or two tappable labels →
+  one shared textarea (resolved mechanic, see item 3a), ahead of the
+  existing add-step list — a new leading sub-state within the "create"
+  step rather than a new top-level `Step` value (the existing add-step UI
+  on that step doesn't otherwise change, it's just conditionally rendered
+  now). Saving prompt text on blur needs the same "call `updateAssignment`
+  if notes are empty" pattern item 3b's own effort-recompute already
+  established, which means `WorkBreakdownPage` needs either its own
+  access to `assignmentService.updateAssignment` or a callback prop back
+  into `AssignmentDetailPage` — worth deciding which before
+  implementation, same shape of question item 3b's own orchestration
+  already had to answer. `AssignmentDetailPage.tsx`'s `breakingDown` state
+  and its `WorkBreakdownPage` render branch stay in place (still needed
+  for "Yes, help me start"); only the "Break this down" button/trigger is
+  deleted.
 
 ## Domain Model Touchpoints
 
@@ -588,7 +776,8 @@ one rather than rewriting it.
   behaves exactly like Home's own untargeted routing today.
 - Any action button alongside the Risk Detection message (item 2) —
   message-only, matching the prototype; existing buttons elsewhere on this
-  screen already cover "Break it down"/"Plan work for today."
+  screen already cover the equivalent actions ("Just add a step"/"Yes,
+  help me start"/"Plan work for today").
 - A reusable `CoachNote` component — one call site doesn't justify the
   abstraction yet.
 - AssignmentType-aware or content-generated coaching copy of any kind —
@@ -597,16 +786,24 @@ one rather than rewriting it.
   not a coaching system.
 - Any change to Risk Detection's own rules, message text, or action
   labels (`src/domain/riskDetection.ts`) — reused exactly as built.
-- The full Assignment Understanding & Guided Breakdown screen
-  (`assignments.$id.breakdown.tsx`'s six-step flow) that the prototype's
-  "Yes, help me start" and "Break this down" actually link to — see item
-  3a. Out of scope for the same reason `manual-work-breakdown-reflection-v0.1.md`
-  already excludes it: it's later-phase Work Breakdown Coaching
-  functionality, not this increment's.
+- Five of `assignments.$id.breakdown.tsx`'s six steps — **only a
+  two-prompt subset of "understand" is adopted (item 3a, Correction 5);
+  everything past it stays out.** "confirm" (`buildBrief`/`parseDirections`
+  — archetype detection, deliverable/requirement extraction, "(my guess)"
+  tagging), "sitting," "single," "attempt" (the five-level scaffold
+  ladder), and "final" remain fully out of scope, for the same reason
+  `manual-work-breakdown-reflection-v0.1.md` already excludes them:
+  later-phase Work Breakdown Coaching functionality, not this increment's.
+  The adopted prompts save raw text to `assignment.notes` and stop —
+  no parsing, no Assignment Brief, no "confirm" checklist screen.
+- The prototype's third "understand" choice, "Help me figure out what
+  this is asking" — dropped, not adopted even partially, since the
+  prototype itself never gives it a distinct interaction from "paste."
 - Inline reordering of Work Items — see item 3b's "Flagged, not silently
   decided — reorder." Accepted as a capability lost from
   `WorkBreakdownPage`'s current reorder-via-arrows, not replaced inline.
-- `WorkBreakdownPage`'s multi-step estimate/review flow for the *first*
-  breakdown — "Break this down" still opens it for a zero-item assignment
-  (item 3b keeps this path); only the *editing an existing breakdown* use
-  of that page is removed.
+- `WorkBreakdownPage`'s multi-step estimate/review flow, for any
+  assignment that doesn't qualify for the breakdown nudge — see item 3a's
+  Decision. Reachable only via "Yes, help me start," which only shows for
+  a fresh, large (`effortMinutes > 45`) assignment; "Break this down" no
+  longer exists as an unconditional fallback into the wizard.
