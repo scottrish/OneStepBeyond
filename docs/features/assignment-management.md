@@ -29,9 +29,11 @@ Breakdown, not yet started.
 **Update (2026-08-17):** Assignment Detail is no longer reachable only
 from this feature's own Assignments list. It's now a global overlay owned
 by `App.tsx`, reachable from Home (Needs Attention, Coming Up, and
-straight after capturing a new assignment) and from Plan's Day step
-"Due:" list, with the same delete behavior regardless of entry point —
-see `docs/decisions/20260817-assignment-detail-global-overlay.md`. This
+straight after capturing a new assignment) and from Plan's Select step
+"Due:" list (part of its own header — was Day step's before
+`docs/decisions/20260818-plan-day-step-removed.md` folded it in), with
+the same delete behavior regardless of entry point — see
+`docs/decisions/20260817-assignment-detail-global-overlay.md`. This
 spec's own UX Flow and Acceptance Criteria are unaffected (Detail's own
 behavior didn't change), but "reached from the Assignments list" in the
 sections below should be read as "reached from anywhere an assignment is

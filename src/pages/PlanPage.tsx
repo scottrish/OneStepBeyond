@@ -38,7 +38,18 @@ import WorkBreakdownPage from "./WorkBreakdownPage";
 // Everything else in the wizard (chosen items, times, show-more, the
 // just-confirmed acknowledgment) stays local: FR-2's acceptance criteria
 // only require the day/step to survive, not in-progress selections.
-export type Step = "day" | "select" | "estimate" | "schedule" | "confirm";
+//
+// There used to be a standalone "day" step before "select" — a full
+// screen (day-picker context, due-that-day, Activities, Already planned,
+// capacity) gated behind its own "Continue" tap. Removed: the day-picker
+// itself was already hoisted above this union's steps and visible on
+// every one of them, so "day" wasn't where a day got chosen — it was
+// only ever a mandatory look-before-you-select screen for whichever date
+// was already selected (today, by default, for the dominant case). See
+// docs/decisions/20260818-plan-day-step-removed.md. Its content now
+// renders as Select's own header, unconditionally, with no gate in front
+// of it.
+export type Step = "select" | "estimate" | "schedule" | "confirm";
 // Which of Plan's two top-level tabs is showing — the wizard, or
 // week-lookahead.md's own "Look ahead" view. Controlled/lifted for the
 // same reason date/step are (see PlanPageProps.tab below).
@@ -54,17 +65,16 @@ type PlanPageProps = {
   // unmounting — not just on a tab switch (date/step's original reason)
   // but also across an Assignment Detail round trip, discovered live
   // while testing: opening Detail from Look Ahead and tapping Back landed
-  // back on the wizard's Day step instead of Look Ahead, since this used
-  // to be local state that reset on remount. Re-tapping the Plan tab
+  // back on the wizard's default step instead of Look Ahead, since this
+  // used to be local state that reset on remount. Re-tapping the Plan tab
   // still resets it to "wizard" (App.tsx's handleTabChange) — a
   // deliberate return-to-landing gesture, unlike returning from Detail.
   tab: PlanTab;
   onTabChange: (tab: PlanTab) => void;
-  // Today Execution is reached from here (Day step, and the Confirm
-  // step's success screen) and from Home's own Next card
-  // (home-dashboard.md) — lifted up to App.tsx rather than owned by
-  // either page, so both entry points share one instance instead of
-  // duplicating it. See docs/decisions/
+  // Today Execution is reached from here (the Confirm step's success
+  // screen) and from Home's own Next card (home-dashboard.md) — lifted up
+  // to App.tsx rather than owned by either page, so both entry points
+  // share one instance instead of duplicating it. See docs/decisions/
   // 20260816-today-execution-interim-entry-point.md.
   onStartExecution: () => void;
   // Select's true-empty state ("no open assignments at all," distinct
@@ -75,7 +85,8 @@ type PlanPageProps = {
   onGoToAssignments: () => void;
   // Assignment Detail is a global overlay owned by App.tsx — see
   // docs/decisions/20260817-assignment-detail-global-overlay.md. Wired
-  // here for the Day step's "Due:" list; the Select step's own candidate
+  // here for Select's own "Due:" list (part of its day-context header,
+  // see docs/decisions/20260818-plan-day-step-removed.md); its candidate
   // cards are deliberately not wired yet (multi-select checkboxes, a
   // different interaction-design question — see that decision record).
   onOpenAssignment: (assignmentId: string) => void;
@@ -92,11 +103,10 @@ type PlanPageProps = {
 type View = { name: "wizard" } | { name: "breakdown"; assignmentId: string };
 
 const STEP_LABEL: Record<Step, string> = {
-  day: "Step 1 of 5",
-  select: "Step 2 of 5",
-  estimate: "Step 3 of 5",
-  schedule: "Step 4 of 5",
-  confirm: "Step 5 of 5",
+  select: "Step 1 of 4",
+  estimate: "Step 2 of 4",
+  schedule: "Step 3 of 4",
+  confirm: "Step 4 of 4",
 };
 
 // Today + next 4 days (docs/features/daily-planning.md's day picker strip
@@ -148,9 +158,9 @@ function assignDefaultTimes(
 }
 
 // The pair of actions shown by FR-1's signal for each assignment that
-// hasn't been broken down yet, shared between the Day step's notice and
-// Select's own notice (both the all-candidates-need-it dead end and the
-// mixed case) so the markup isn't duplicated. Not every assignment
+// hasn't been broken down yet, shared between Select's all-candidates-
+// need-it dead end and its mixed-case notice (BreakdownNotice below) so
+// the markup isn't duplicated. Not every assignment
 // benefits from decomposition — a short, atomic task ("Read chapter 1 by
 // Tuesday") gains nothing from a forced multi-step breakdown, so
 // "Plan ... as one task" is offered as an equally direct alternative to
@@ -200,8 +210,9 @@ function BreakdownList({
 }
 
 // The inline "these assignments still need breaking down" notice, shown
-// on the Day step and — critically — also within Select whenever some
-// (not necessarily all) of the day's assignments need it. Iteration 2's
+// within Select whenever some (not necessarily all) of the day's
+// assignments need it — i.e. real, already-selectable candidates exist
+// too, so Select's own dead-end state (below) doesn't apply. Iteration 2's
 // assessment (FINDING-DP-001, docs/features/iterations/daily-planning/
 // daily-planning.i03.md) found the previous version of this signal only
 // fired when Select's candidate list was entirely empty, so a day with a
@@ -325,9 +336,9 @@ export default function PlanPage({
 
   // Open assignments with zero Work Items — i.e. never broken down —
   // are exactly what makes candidates empty and Select dead-end. Named
-  // here so both the Day step and Select's empty state can point at
-  // them directly. docs/features/iterations/daily-planning/
-  // daily-planning.i02.md FR-1.
+  // here so Select's empty state (and BreakdownNotice, in the mixed
+  // case) can point at them directly. docs/features/iterations/
+  // daily-planning/daily-planning.i02.md FR-1.
   const assignmentsNeedingBreakdown = useMemo(
     () =>
       assignments
@@ -391,16 +402,17 @@ export default function PlanPage({
   // if the tab unmounts, but the local selections they depend on
   // (chosen/times) intentionally are not lifted — FR-2 only requires
   // day/step to survive. If a remount restores a mid-flow step with no
-  // matching selections, fall back to the Day step rather than render
-  // an empty/broken Estimate, Schedule, or Confirm screen.
+  // matching selections, fall back to Select (now the wizard's landing
+  // step — see the Step type above) rather than render an empty/broken
+  // Estimate, Schedule, or Confirm screen.
   const safeStep: Step =
     (step === "estimate" || step === "schedule" || step === "confirm") && chosenIds.length === 0
-      ? "day"
+      ? "select"
       : step;
 
   function pickDay(nextDate: string) {
     onDateChange(nextDate);
-    onStepChange("day");
+    onStepChange("select");
     setChosen({});
     setTimes({});
     setShowAll(false);
@@ -663,18 +675,11 @@ export default function PlanPage({
                 {STEP_LABEL[safeStep]}
               </p>
 
-              {safeStep === "day" ? (
+              {safeStep === "select" ? (
             <section>
               <h2 className="mb-3 text-base font-medium text-foreground">
                 Let&rsquo;s plan {dayLabel(date, today)}.
               </h2>
-
-              <BreakdownNotice
-                assignments={assignmentsNeedingBreakdown}
-                onBreakdown={(assignmentId) => setView({ name: "breakdown", assignmentId })}
-                onPlanDirectly={planWithoutBreakdown}
-                planningAssignmentId={planningAssignmentId}
-              />
 
               {dueThatDay.length > 0 && (
                 <ul className="mb-3 flex flex-col gap-1">
@@ -859,122 +864,115 @@ export default function PlanPage({
                 <span className="font-medium text-foreground">{effortLabel(Math.max(0, capacity))}</span>{" "}
                 of study time.
               </p>
-              <Button size="lg" className="mt-3 w-full rounded-2xl" onClick={() => onStepChange("select")}>
-                Continue
-              </Button>
-            </section>
-          ) : candidates.length === 0 ? (
-            assignmentsNeedingBreakdown.length > 0 ? (
-              <section>
-                <h2 className="mb-3 text-base font-medium text-foreground">Nothing to plan yet.</h2>
-                <p className="mb-4 text-sm text-muted-foreground">
-                  {assignmentsNeedingBreakdown.length === 1 ? (
-                    <>
-                      Break &ldquo;{assignmentsNeedingBreakdown[0].title}&rdquo; into steps first,
-                      then come back.
-                    </>
-                  ) : (
-                    <>Break these assignments into steps first, then come back.</>
-                  )}
-                </p>
-                <BreakdownList
-                  assignments={assignmentsNeedingBreakdown}
-                  onBreakdown={(assignmentId) => setView({ name: "breakdown", assignmentId })}
-                  onPlanDirectly={planWithoutBreakdown}
-                  planningAssignmentId={planningAssignmentId}
-                />
-                <Button
-                  variant="ghost"
-                  className="mt-4 rounded-2xl"
-                  onClick={() => onStepChange("day")}
-                >
-                  Back
-                </Button>
-              </section>
-            ) : (
-              <EmptyState
-                title="Nothing to plan yet."
-                hint="Add an assignment, then come back."
-                action={<Button onClick={onGoToAssignments}>Add assignment</Button>}
-              />
-            )
-          ) : safeStep === "select" ? (
-            <section>
-              <h2 className="mb-3 text-base font-medium text-foreground">
-                What should you work on?
-              </h2>
-              <BreakdownNotice
-                assignments={assignmentsNeedingBreakdown}
-                onBreakdown={(assignmentId) => setView({ name: "breakdown", assignmentId })}
-                onPlanDirectly={planWithoutBreakdown}
-                planningAssignmentId={planningAssignmentId}
-              />
-              <ul className="flex flex-col gap-2">
-                {visibleCandidates.map(({ assignment, workItem }) => {
-                  const selected = workItem.id in chosen;
-                  const elsewhereDate = scheduledElsewhere.get(workItem.id);
-                  return (
-                    <li key={workItem.id}>
-                      <button
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => toggleCandidate(workItem.id, workItem.effortMinutes)}
-                        className={`flex min-h-11 w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors ${
-                          selected ? "border-primary bg-accent/60" : "border-border bg-card"
-                        }`}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${
-                            selected ? "border-primary bg-primary text-primary-foreground" : "border-border"
-                          }`}
-                        >
-                          {selected ? <Check className="size-3" /> : null}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm font-medium text-foreground">
-                            {workItem.title}
-                          </span>
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {assignment.title} · {courseName(assignment.courseId)} ·{" "}
-                            {dueRelativeLabel(assignment.dueDate, today)}
-                          </span>
-                          {elsewhereDate && (
-                            <span className="mt-1 inline-block truncate rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                              Also planned for {dayLabel(elsewhereDate, today)}
+
+              {candidates.length === 0 ? (
+                assignmentsNeedingBreakdown.length > 0 ? (
+                  <div className="mt-6">
+                    <h2 className="mb-3 text-base font-medium text-foreground">
+                      Nothing to plan yet.
+                    </h2>
+                    <p className="mb-4 text-sm text-muted-foreground">
+                      {assignmentsNeedingBreakdown.length === 1 ? (
+                        <>
+                          Break &ldquo;{assignmentsNeedingBreakdown[0].title}&rdquo; into steps
+                          first, then come back.
+                        </>
+                      ) : (
+                        <>Break these assignments into steps first, then come back.</>
+                      )}
+                    </p>
+                    <BreakdownList
+                      assignments={assignmentsNeedingBreakdown}
+                      onBreakdown={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                      onPlanDirectly={planWithoutBreakdown}
+                      planningAssignmentId={planningAssignmentId}
+                    />
+                  </div>
+                ) : (
+                  <div className="mt-6">
+                    <EmptyState
+                      title="Nothing to plan yet."
+                      hint="Add an assignment, then come back."
+                      action={<Button onClick={onGoToAssignments}>Add assignment</Button>}
+                    />
+                  </div>
+                )
+              ) : (
+                <div className="mt-6">
+                  <h2 className="mb-3 text-base font-medium text-foreground">
+                    What should you work on?
+                  </h2>
+                  <BreakdownNotice
+                    assignments={assignmentsNeedingBreakdown}
+                    onBreakdown={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+                    onPlanDirectly={planWithoutBreakdown}
+                    planningAssignmentId={planningAssignmentId}
+                  />
+                  <ul className="flex flex-col gap-2">
+                    {visibleCandidates.map(({ assignment, workItem }) => {
+                      const selected = workItem.id in chosen;
+                      const elsewhereDate = scheduledElsewhere.get(workItem.id);
+                      return (
+                        <li key={workItem.id}>
+                          <button
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => toggleCandidate(workItem.id, workItem.effortMinutes)}
+                            className={`flex min-h-11 w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors ${
+                              selected ? "border-primary bg-accent/60" : "border-border bg-card"
+                            }`}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${
+                                selected
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border"
+                              }`}
+                            >
+                              {selected ? <Check className="size-3" /> : null}
                             </span>
-                          )}
-                        </span>
-                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                          {effortLabel(workItem.effortMinutes)}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-              {!showAll && candidates.length > 3 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAll(true)}
-                  className="mt-3 text-sm text-primary underline underline-offset-4"
-                >
-                  Show more assignments
-                </button>
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium text-foreground">
+                                {workItem.title}
+                              </span>
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {assignment.title} · {courseName(assignment.courseId)} ·{" "}
+                                {dueRelativeLabel(assignment.dueDate, today)}
+                              </span>
+                              {elsewhereDate && (
+                                <span className="mt-1 inline-block truncate rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                  Also planned for {dayLabel(elsewhereDate, today)}
+                                </span>
+                              )}
+                            </span>
+                            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                              {effortLabel(workItem.effortMinutes)}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {!showAll && candidates.length > 3 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAll(true)}
+                      className="mt-3 text-sm text-primary underline underline-offset-4"
+                    >
+                      Show more assignments
+                    </button>
+                  )}
+                  <Button
+                    size="lg"
+                    className="mt-6 w-full rounded-2xl"
+                    disabled={chosenIds.length === 0}
+                    onClick={() => onStepChange("estimate")}
+                  >
+                    Next: estimate time
+                  </Button>
+                </div>
               )}
-              <div className="mt-6 flex gap-2">
-                <Button variant="ghost" className="rounded-2xl" onClick={() => onStepChange("day")}>
-                  Back
-                </Button>
-                <Button
-                  size="lg"
-                  className="flex-1 rounded-2xl"
-                  disabled={chosenIds.length === 0}
-                  onClick={() => onStepChange("estimate")}
-                >
-                  Next: estimate time
-                </Button>
-              </div>
             </section>
           ) : safeStep === "estimate" ? (
             <section>

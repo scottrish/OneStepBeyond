@@ -141,28 +141,37 @@ side, in one tap).
 
 Change Needs Attention's "break-it-down" action to call `onGoToPlan`
 (the same call "find-time" and "make-a-plan" already use), instead of
-`onOpenAssignment`. No new UI is built: `PlanPage.tsx`'s Day step already
-computes `assignmentsNeedingBreakdown` as *every* open assignment with
-zero Work Items, unconditionally — the flagged assignment is
-automatically part of that set and the notice already renders both
-choices without any special-casing for how the student arrived. This
-also means item 2 in this spec doesn't need item 4's "pass the target
-through" mechanism — `BreakdownNotice` shows every qualifying assignment
-at once (unlike Select's candidate list, which truncates), so nothing
-needs highlighting or pre-selecting to make the target visible.
+`onOpenAssignment`. No new UI is built: `PlanPage.tsx`'s Select step
+already computes `assignmentsNeedingBreakdown` as *every* open
+assignment with zero Work Items, unconditionally — the flagged
+assignment is automatically part of that set and the notice already
+renders both choices without any special-casing for how the student
+arrived. This also means item 2 in this spec doesn't need item 4's "pass
+the target through" mechanism — `BreakdownNotice` shows every qualifying
+assignment at once (unlike Select's candidate list, which truncates), so
+nothing needs highlighting or pre-selecting to make the target visible.
+
+**Update (2026-08-18):** Plan's Day step no longer exists — its content
+folded into Select, now the wizard's own landing step for every entry
+point (`docs/decisions/20260818-plan-day-step-removed.md`). This item's
+decision is unaffected in substance (`onGoToPlan()` with no target still
+lands wherever `assignmentsNeedingBreakdown`'s notice already shows), it
+just now lands one step earlier than described below, with no separate
+Day screen in front of it.
 
 ### Functional Requirements
 
 - `AttentionItem["action"] === "break-it-down"` now calls `onGoToPlan()`
   with no target argument.
-- Landing on Plan via this path lands on the Day step (Plan's own
-  default), where `BreakdownNotice` is already showing.
+- Landing on Plan via this path lands on Select (Plan's own default —
+  see 2026-08-18 update above), where `BreakdownNotice` is already
+  showing.
 
 ### Acceptance Criteria
 
 - Tapping "Break it down" from Needs Attention and tapping "Break down
-  ..." from Plan's own Day step produce the identical screen and choice
-  set — because they're now the same code path, not because two
+  ..." from Plan's own Select step produce the identical screen and
+  choice set — because they're now the same code path, not because two
   implementations were kept in sync by hand.
 - The "Plan ... as one task instead" alternative is available from the
   Needs Attention entry point for the first time.
@@ -209,8 +218,11 @@ rather than keep its own copy, so there is exactly one implementation.
 ### Functional Requirements
 
 - The extracted component takes the same props `BreakdownList` already
-  has today — no behavior change to Plan's own three existing usages
-  (Day step, Select step, the all-candidates-need-it dead end).
+  has today — no behavior change to Plan's own existing usages (Select's
+  mixed-case notice and its all-candidates-need-it dead end — previously
+  three usages across Day and Select, now two, since Day no longer
+  exists as a separate screen; see `docs/decisions/
+  20260818-plan-day-step-removed.md`).
 - `AssignmentDetailPage`'s "Break this down"/"Edit breakdown" button is
   replaced by the extracted panel when the assignment has zero Work
   Items; once any Work Item exists, "Edit breakdown" still goes straight
@@ -236,10 +248,18 @@ routing), `daily-planning.md` (Select step arrival).
 
 ### Problem
 
-"Find time" (`onGoToPlan()`, no arguments) lands on Plan's Day step with
-no memory of which assignment triggered it. The student has to tap
-Continue to reach Select, then re-locate the assignment among candidates
-— which may not even be in the first three shown before "Show more."
+"Find time" (`onGoToPlan()`, no arguments) lands on Plan with no memory
+of which assignment triggered it. The student has to re-locate the
+assignment among candidates — which may not even be in the first three
+shown before "Show more."
+
+**Update (2026-08-18):** originally written when `onGoToPlan()` landed on
+Plan's Day step, requiring a "Continue" tap before Select's candidates
+were even visible — that extra tap is gone now that Day no longer exists
+(`docs/decisions/20260818-plan-day-step-removed.md`; every `onGoToPlan`
+caller lands on Select by default). The remaining problem this item
+solves — re-locating the target assignment among candidates once there
+— is unchanged.
 
 ### Decision
 
@@ -249,7 +269,8 @@ supplied by "find-time," since `risk-detection.ts` guarantees
 action is chosen, so a schedulable candidate always exists). When
 supplied:
 
-- Plan lands directly on the **Select** step (skipping Day), for
+- Plan lands directly on the **Select** step (now the default for every
+  entry point regardless — see the 2026-08-18 update above), for
   `date = today`.
 - Every one of the target assignment's open Work Items is pre-selected
   (added to `chosen`, matching `toggleCandidate`'s existing default-

@@ -41,7 +41,7 @@ export default function App() {
   // holds effortful multi-step progress worth preserving even across a
   // re-tap.
   const [planDate, setPlanDate] = useState(() => todayISODate());
-  const [planStep, setPlanStep] = useState<Step>("day");
+  const [planStep, setPlanStep] = useState<Step>("select");
   // Which of Plan's two top-level tabs (the wizard, or week-lookahead.md's
   // "Look ahead" view) is showing — lifted for the same reason as
   // planDate/planStep above: discovered live while testing the Assignment
@@ -77,6 +77,24 @@ export default function App() {
     return <LoginPage signIn={signIn} signUp={signUp} />;
   }
 
+  // Assignment Detail's "Plan work for today" (docs/features/
+  // assignment-detail-cta-hierarchy.md item 1) always means *today*,
+  // specifically — unlike Home's own onGoToPlan callers (which land on
+  // whatever day/step Plan was last left on), this one snaps the date
+  // back to today and the step back to Select (PlanPage's own landing
+  // step — see docs/decisions/20260818-plan-day-step-removed.md), in
+  // case Plan was last left mid-wizard for some other assignment's
+  // selections or showing a different day. Does not pass the originating
+  // assignment through or pre-select its Work Items — that remains
+  // home-dashboard-followthrough.md item 4's separate, larger, still-
+  // deferred scope (chosen/showAll timing against useAssignmentsList's
+  // async load).
+  function handleGoToPlanToday() {
+    setPlanDate(todayISODate());
+    setPlanStep("select");
+    handleTabChange("plan");
+  }
+
   function handleTabChange(tab: Tab) {
     // Tapping a tab must always return to that tab's own landing view,
     // even when the tab bar was already showing it as active —
@@ -110,7 +128,7 @@ export default function App() {
           user={user}
           assignmentId={openAssignmentId}
           onBack={() => setOpenAssignmentId(null)}
-          onGoToPlan={() => handleTabChange("plan")}
+          onGoToPlan={handleGoToPlanToday}
         />
       ) : executingToday ? (
         <TodayExecutionPage user={user} onBack={() => setExecutingToday(false)} />

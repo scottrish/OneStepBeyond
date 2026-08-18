@@ -327,13 +327,46 @@ open design question to resolve from scratch:
   block becomes "now, what do you want to do about it" — consistent with
   this app's own established pattern of primary actions living at natural
   decision points, not interrupting information the student hasn't seen
-  yet (e.g. Home's Next card, Plan's Day step).
+  yet (e.g. Home's Next card, Plan's Select step — its own header of
+  due-that-day/Activities/Already-planned/capacity context comes before
+  its candidate list and action buttons; see docs/decisions/
+  20260818-plan-day-step-removed.md).
 - "Plan work for today" is a bare tab switch — `onGoToPlan={() =>
   handleTabChange("plan")}`, the exact same pattern `HomePage.tsx` already
   uses. It does **not** pass this assignment through to Plan or
   pre-select its Work Items — that's `home-dashboard-followthrough.md`
   item 4's already-deferred scope (target-assignment passthrough), not
   reopened here. See Explicitly Out of Scope.
+  **Update (2026-08-18):** no longer *exactly* the same pattern as
+  `HomePage.tsx`'s own `onGoToPlan` — reported directly: landing on
+  Plan's Day step and having to tap "Continue" before any task appears is
+  unnecessary friction specifically here, since "today" is fixed and
+  there's no day to pick (unlike Home's other `onGoToPlan` callers, which
+  can legitimately land on whatever day/step Plan was last on). `App.tsx`
+  gained a dedicated `handleGoToPlanToday`, wired only to this button,
+  that sets `planDate` to today and `planStep` to `"select"` before
+  switching tabs — skipping Day, landing straight on the candidate list.
+  This is deliberately the smaller of two possible fixes: it does not
+  pass the originating assignment through or pre-select its Work Items
+  (that remains item 4's separate, larger, still-deferred scope) — it
+  only removes the extra tap through a step that has nothing to add when
+  the day is already fixed. `HomePage.tsx`'s own `onGoToPlan` callers are
+  unaffected.
+  **Update (2026-08-18, later same day):** Day no longer exists as a
+  step at all — follow-on review found the day-picker strip itself was
+  already rendered above every step (visible on Select/Estimate/Schedule/
+  Confirm too), so Day was never actually "the place a day gets chosen";
+  it was only ever a mandatory look-before-you-select screen. Its content
+  (due-that-day, Activities, Already planned, capacity) now renders as
+  Select's own unconditional header, and the wizard is renumbered to 4
+  steps. See `docs/decisions/20260818-plan-day-step-removed.md`.
+  `handleGoToPlanToday` still exists and still matters (forcing the
+  *date* back to today, and the step back from a stale mid-flow
+  position for a different assignment) — `planStep`'s new default is
+  `"select"`, so `HomePage.tsx`'s own `onGoToPlan` callers now land on
+  Select too, closing the "extra tap" gap for every entry point, not
+  only this one. Assignment passthrough/pre-selection remains
+  `home-dashboard-followthrough.md` item 4's separate, deferred scope.
 - "Mark assignment complete" once the assignment is already complete:
   keep the built app's existing "Completed" text treatment (line 274) —
   the prototype simply omits the button entirely once done; this app's
@@ -343,16 +376,25 @@ open design question to resolve from scratch:
 **Functional Requirements:**
 - `handleMarkComplete` (existing) is unchanged — only the button's
   variant, position, and neighboring "Plan work for today" button change.
-- A new `onGoToPlan: () => void` prop on `AssignmentDetailPageProps`,
-  wired in `App.tsx` identically to `HomePage`'s own
-  `onGoToPlan={() => handleTabChange("plan")}`.
+- A new `onGoToPlan: () => void` prop on `AssignmentDetailPageProps`.
+  **Updated (2026-08-18):** wired in `App.tsx` to a dedicated
+  `handleGoToPlanToday` (sets `planDate` to today and `planStep` to
+  `"select"` before switching tabs) rather than the bare
+  `() => handleTabChange("plan")` `HomePage.tsx`'s own `onGoToPlan`
+  callers still use.
 
 **Acceptance Criteria:**
 - Opening a freshly-captured, never-worked-on assignment shows "Plan
   work for today" as the visually dominant action; "Mark assignment
   complete" is present but visually secondary.
-- Tapping "Plan work for today" switches to the Plan tab, exactly as
-  Home's own routes there today (same destination, same mechanism).
+- Tapping "Plan work for today" switches to the Plan tab, landing
+  directly on Select ("Step 1 of 4," the candidate-task list) for today.
+  **Updated (2026-08-18, later same day):** Day no longer exists as a
+  step to land on instead of — Select is now the wizard's only landing
+  step, for every entry point. Home's own `onGoToPlan` callers (e.g.
+  "Find time," "Plan today") now also land on Select by default, though
+  they still preserve whatever date was last chosen (unlike this button,
+  which always forces today's date specifically).
 - Tapping "Mark assignment complete" behaves exactly as it does today
   (marks the assignment and all open steps complete, same confirmation
   rules) — only its visual weight and position change.

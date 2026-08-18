@@ -109,6 +109,17 @@ tab — see [week-lookahead.md](week-lookahead.md)):
 Confirming navigates to Today execution if planning today, or back to Week
 look-ahead if planning a future day.
 
+**Update (2026-08-18):** Day is no longer a separate step — its content
+(due-that-day, Activities, Already planned, capacity sentence) now
+renders unconditionally as Select's own header, with no "Continue" gate
+in front of Select's candidate list. The wizard is 4 steps, not 5 ("Step
+N of 4"); Select is step 1, Estimate 2, Schedule 3, Confirm 4. The
+day-picker strip itself is unaffected — it was already rendered above
+every step, not owned by Day, which is exactly what made Day's remaining
+content (this list's old item 1) foldable into Select with nothing lost.
+See `docs/decisions/20260818-plan-day-step-removed.md` for the full
+reasoning and consequences.
+
 ## Functional Requirements
 
 - Capacity = the day's realistic study window (shorter on weekends'
@@ -130,12 +141,13 @@ look-ahead if planning a future day.
 
 - A student can complete a full planning session, start to confirm, in
   under five minutes.
-- Step 2 never shows more than three candidates without an explicit
+- Select never shows more than three candidates without an explicit
   "show more" action.
 - Every work item shown anywhere in this flow displays its parent
   assignment and course — never a bare item title.
-- No unexplained progress indicators — only the explicit "Step N of 5"
-  label.
+- No unexplained progress indicators — only the explicit "Step N of 4"
+  label (see 2026-08-18 update above — was "of 5" before Day merged into
+  Select).
 
 ## Domain Model Touchpoints
 

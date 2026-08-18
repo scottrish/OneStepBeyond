@@ -129,7 +129,8 @@ each.
 ## Acceptance Criteria
 
 - Changing the weekday finish time immediately changes "That leaves
-  about {X} of study time" on Daily Planning's Day step for a weekday
+  about {X} of study time" on Daily Planning's Select step (Day, before
+  `docs/decisions/20260818-plan-day-step-removed.md`) for a weekday
   being planned.
 - Changing weekend hours immediately changes the same figure for a
   Saturday/Sunday being planned, independently of any weekday change.

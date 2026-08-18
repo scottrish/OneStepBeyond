@@ -16,8 +16,9 @@ own 2026-08-17 update.
 
 **Note on capacity language (2026-08-17):** the "Capacity language rule"
 below assumes Planning already speaks in these qualitative phrases. It
-doesn't yet — `daily-planning.md`'s Day step currently states capacity as
-raw effort text ("about 1h 30m of study time"). This feature introduces
+doesn't yet — `daily-planning.md`'s Select step (Day, before
+`docs/decisions/20260818-plan-day-step-removed.md`) currently states
+capacity as raw effort text ("about 1h 30m of study time"). This feature introduces
 `capacityPhrase` as new (its own qualitative-phrase function, ported from
 the prototype), used here only. Retrofitting Daily Planning's own,
 already-shipped capacity copy to match is out of scope for this
@@ -48,8 +49,9 @@ packed" without having to plan every day just to see that.
 - A "Look ahead" tab alongside the day picker on the Planning screen (not
   a separate bottom-nav destination).
 - Lists the next seven days, each showing: the date (tap to jump straight
-  into that day's own Day step of the Planning wizard — not wherever the
-  wizard was last left, and not a separate "week view of the wizard"),
+  into that day's own Select step of the Planning wizard — not wherever
+  the wizard was last left, and not a separate "week view of the wizard";
+  Select was Day before `docs/decisions/20260818-plan-day-step-removed.md`),
   a qualitative capacity phrase, anything due that day (linked to its
   Assignment, opening Assignment Detail — see
   `docs/decisions/20260817-assignment-detail-global-overlay.md`), that

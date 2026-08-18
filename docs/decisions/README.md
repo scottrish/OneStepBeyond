@@ -28,3 +28,6 @@ directory.
 | 9 | [Today Execution: interim entry point before Home Dashboard exists](20260816-today-execution-interim-entry-point.md) | 2026-08-16 |
 | 10 | [Assignment Detail becomes a global overlay owned by App.tsx](20260817-assignment-detail-global-overlay.md) | 2026-08-17 |
 | 11 | [Remove the Undo-window soft-delete; confirm before every delete instead](20260817-remove-undo-delete.md) | 2026-08-17 |
+| 12 | [Coming Up shows Needs Attention's assignment(s) instead of hiding them](20260817-coming-up-shows-attention-items.md) | 2026-08-17 |
+| 13 | [Assignment Detail regains inline Work Item add/edit/delete, superseding the single-entry-point design](20260818-inline-work-item-management.md) | 2026-08-18 |
+| 14 | [Plan's Day step is removed; its content folds into Select](20260818-plan-day-step-removed.md) | 2026-08-18 |

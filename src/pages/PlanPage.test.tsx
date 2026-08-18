@@ -116,7 +116,7 @@ function ControlledPlanPage({
   onOpenAssignment?: (assignmentId: string) => void;
 }) {
   const [date, setDate] = useState(TODAY_ISO);
-  const [step, setStep] = useState<Step>("day");
+  const [step, setStep] = useState<Step>("select");
   const [tab, setTab] = useState<PlanTab>("wizard");
   return (
     <PlanPage
@@ -187,16 +187,16 @@ afterEach(() => {
 });
 
 describe("PlanPage", () => {
-  it("shows the Day step first, with the explicit Step 1 of 5 label and no other progress indicator", async () => {
+  it("shows Select first, with the explicit Step 1 of 4 label and no other progress indicator", async () => {
     render(<ControlledPlanPage user={user} />);
 
-    expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
+    expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /let.s plan today/i })).toBeInTheDocument();
     // Only the explicit step label — no progress bar/dots.
     expect(document.querySelectorAll("[role='progressbar']").length).toBe(0);
   });
 
-  it("states remaining capacity in plain language on the Day step", async () => {
+  it("states remaining capacity in plain language on Select's own header", async () => {
     render(<ControlledPlanPage user={user} />);
 
     // Monday window 15:15-21:00 (345 min) minus 90 protected = 4h 15m.
@@ -205,7 +205,7 @@ describe("PlanPage", () => {
   });
 
   // docs/features/student-preferences.md
-  it("a configured weekday finish time changes the Day step's capacity figure", async () => {
+  it("a configured weekday finish time changes Select's capacity figure", async () => {
     mockedPreferencesService.getPreferences.mockResolvedValue({
       weekdayFinishTime: "19:00",
       weekendHours: 10,
@@ -243,7 +243,7 @@ describe("PlanPage", () => {
     });
 
     render(<ControlledPlanPage user={user} />);
-    await screen.findByText(/step 1 of 5/i);
+    await screen.findByText(/step 1 of 4/i);
 
     const dayPicker = screen.getByRole("radiogroup", { name: /choose a day to plan/i });
     const saturday = within(dayPicker).getAllByRole("radio")[1];
@@ -255,20 +255,18 @@ describe("PlanPage", () => {
     expect(await screen.findByText(/that leaves about/i)).toBeInTheDocument();
     expect(screen.getByText("1.5h")).toBeInTheDocument();
 
-    await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
-    await screen.findByText(/step 2 of 5/i);
     await userEventInstance.click(screen.getByRole("button", { name: /draft outline/i }));
     await userEventInstance.click(screen.getByRole("button", { name: /next: estimate time/i }));
-    await screen.findByText(/step 3 of 5/i);
+    await screen.findByText(/step 2 of 4/i);
     await userEventInstance.click(screen.getByRole("button", { name: /next: when/i }));
 
-    expect(await screen.findByText(/step 4 of 5/i)).toBeInTheDocument();
+    expect(await screen.findByText(/step 3 of 4/i)).toBeInTheDocument();
     // Manual entry only — no suggested slot chips for a weekend date.
     expect(screen.getByLabelText(/time for draft outline/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /after school|later on|morning/i })).not.toBeInTheDocument();
   });
 
-  it("shows what's due that day and existing Activities on the Day step", async () => {
+  it("shows what's due that day and existing Activities in Select's own header", async () => {
     mockedAssignmentService.listAssignments.mockResolvedValue([
       assignment({ id: "a1", dueDate: "2026-03-16" }),
     ]);
@@ -325,9 +323,14 @@ describe("PlanPage", () => {
 
     render(<ControlledPlanPage user={user} />);
 
-    expect(await screen.findByText(/already planned/i)).toBeInTheDocument();
-    expect(screen.getByText("Draft outline")).toBeInTheDocument();
-    expect(screen.getByText(/essay · biology/i)).toBeInTheDocument();
+    // Scoped to the "Already planned" list specifically — the same work
+    // item is also a real, still-selectable candidate further down this
+    // same merged screen (docs/decisions/20260818-plan-day-step-removed.md),
+    // so its title/course legitimately appear twice on the page now.
+    const alreadyPlannedHeading = await screen.findByText(/already planned/i);
+    const alreadyPlannedList = alreadyPlannedHeading.nextElementSibling as HTMLElement;
+    expect(within(alreadyPlannedList).getByText("Draft outline")).toBeInTheDocument();
+    expect(within(alreadyPlannedList).getByText(/essay · biology/i)).toBeInTheDocument();
 
     await userEventInstance.click(
       screen.getByRole("button", { name: /remove draft outline/i }),
@@ -487,10 +490,8 @@ describe("PlanPage", () => {
     });
 
     render(<ControlledPlanPage user={user} />);
-    await screen.findByText(/step 1 of 5/i);
-    await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
 
-    expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+    expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
     expect(screen.getByText("Step 1")).toBeInTheDocument();
     expect(screen.getByText("Step 2")).toBeInTheDocument();
     expect(screen.getByText("Step 3")).toBeInTheDocument();
@@ -525,14 +526,11 @@ describe("PlanPage", () => {
     });
 
     render(<ControlledPlanPage user={user} />);
-    await screen.findByText(/step 1 of 5/i);
-    await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
-
-    await screen.findByText(/step 2 of 5/i);
+    await screen.findByText(/step 1 of 4/i);
     await userEventInstance.click(screen.getByRole("button", { name: /draft outline/i }));
     await userEventInstance.click(screen.getByRole("button", { name: /next: estimate time/i }));
 
-    await screen.findByText(/step 3 of 5/i);
+    await screen.findByText(/step 2 of 4/i);
     expect(screen.getByText(/selected:/i).closest("p")).toHaveTextContent("Selected: 20m");
     await userEventInstance.click(
       screen.getByRole("button", { name: /increase planned time for draft outline/i }),
@@ -540,11 +538,11 @@ describe("PlanPage", () => {
     expect(screen.getByText(/selected:/i).closest("p")).toHaveTextContent("Selected: 25m");
     await userEventInstance.click(screen.getByRole("button", { name: /next: when/i }));
 
-    await screen.findByText(/step 4 of 5/i);
+    await screen.findByText(/step 3 of 4/i);
     expect(screen.getByText(/these are suggestions/i)).toBeInTheDocument();
     await userEventInstance.click(screen.getByRole("button", { name: /next: review/i }));
 
-    await screen.findByText(/step 5 of 5/i);
+    await screen.findByText(/step 4 of 4/i);
     expect(screen.getByText("Draft outline")).toBeInTheDocument();
     expect(screen.getByText(/essay · biology/i)).toBeInTheDocument();
 
@@ -579,9 +577,7 @@ describe("PlanPage", () => {
     });
 
     render(<ControlledPlanPage user={user} />);
-    await screen.findByText(/step 1 of 5/i);
-    await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
-    await screen.findByText(/step 2 of 5/i);
+    await screen.findByText(/step 1 of 4/i);
     await userEventInstance.click(screen.getByRole("button", { name: /huge task/i }));
     await userEventInstance.click(screen.getByRole("button", { name: /next: estimate time/i }));
 
@@ -605,14 +601,12 @@ describe("PlanPage", () => {
         workItem({ id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 20 }),
       ]);
       render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 5/i);
-      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
-      await screen.findByText(/step 2 of 5/i);
+      await screen.findByText(/step 1 of 4/i);
       await userEventInstance.click(screen.getByRole("button", { name: /draft outline/i }));
       await userEventInstance.click(screen.getByRole("button", { name: /next: estimate time/i }));
-      await screen.findByText(/step 3 of 5/i);
+      await screen.findByText(/step 2 of 4/i);
       await userEventInstance.click(screen.getByRole("button", { name: /next: when/i }));
-      await screen.findByText(/step 4 of 5/i);
+      await screen.findByText(/step 3 of 4/i);
     }
 
     it("shows the item's current time pre-filled in a single directly-editable input", async () => {
@@ -681,9 +675,7 @@ describe("PlanPage", () => {
   it("invites adding an assignment (not breaking one down) on Select when there are no open assignments at all", async () => {
     const onGoToAssignments = vi.fn();
     render(<ControlledPlanPage user={user} onGoToAssignments={onGoToAssignments} />);
-    await screen.findByText(/step 1 of 5/i);
-
-    await userEvent.click(screen.getByRole("button", { name: /continue/i }));
+    await screen.findByText(/step 1 of 4/i);
 
     expect(await screen.findByText(/nothing to plan yet/i)).toBeInTheDocument();
     // Not "break an assignment into steps" — there's nothing to break
@@ -694,54 +686,35 @@ describe("PlanPage", () => {
     expect(onGoToAssignments).toHaveBeenCalledTimes(1);
   });
 
-  it("switching to a different day in the picker resets the flow to the Day step", async () => {
+  it("switching to a different day in the picker resets the flow back to Select", async () => {
+    mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
+    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
     const userEventInstance = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,
     });
     render(<ControlledPlanPage user={user} />);
-    await screen.findByText(/step 1 of 5/i);
-
-    await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
-    await screen.findByText(/step 2 of 5/i);
+    await screen.findByText(/step 1 of 4/i);
+    await userEventInstance.click(screen.getByRole("button", { name: /draft outline/i }));
+    await userEventInstance.click(screen.getByRole("button", { name: /next: estimate time/i }));
+    await screen.findByText(/step 2 of 4/i);
 
     const dayPicker = screen.getByRole("radiogroup", { name: /choose a day to plan/i });
     const tuesday = within(dayPicker).getAllByRole("radio")[1];
     await userEventInstance.click(tuesday);
 
-    expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
+    expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
   });
 
   // docs/features/iterations/daily-planning/daily-planning.i02.md FR-1
   describe("breakdown prerequisite signal and routing", () => {
-    it("names the assignment needing breakdown on the Day step, before Select would otherwise dead-end", async () => {
+    it("names the assignment needing breakdown on Select's dead end, since there's nothing else schedulable yet", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([
         assignment({ id: "a1", title: "Essay" }),
       ]);
 
       render(<ControlledPlanPage user={user} />);
 
-      expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
-      expect(
-        screen.getByText(/essay.*needs to be broken into steps before it can be scheduled/i),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /break down .essay./i }),
-      ).toBeInTheDocument();
-    });
-
-    it("replaces Select's dead end with the named assignment and a direct breakdown link", async () => {
-      mockedAssignmentService.listAssignments.mockResolvedValue([
-        assignment({ id: "a1", title: "Essay" }),
-      ]);
-      const userEventInstance = userEvent.setup({
-        advanceTimers: vi.advanceTimersByTime,
-      });
-
-      render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 5/i);
-      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
-
-      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
       expect(screen.getByText(/nothing to plan yet/i)).toBeInTheDocument();
       expect(
         screen.getByText(/break .essay. into steps first, then come back/i),
@@ -776,9 +749,7 @@ describe("PlanPage", () => {
       });
 
       render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 5/i);
-      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
-      await screen.findByText(/step 2 of 5/i);
+      await screen.findByText(/step 1 of 4/i);
 
       await userEventInstance.click(
         screen.getByRole("button", { name: /break down .essay./i }),
@@ -801,7 +772,7 @@ describe("PlanPage", () => {
 
       // Back on Plan, at the same step it left off at (Select), the
       // dead end is gone and the newly-broken-down item is available.
-      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
       expect(await screen.findByText("Draft outline")).toBeInTheDocument();
       expect(screen.queryByText(/nothing to plan yet/i)).not.toBeInTheDocument();
     });
@@ -815,7 +786,7 @@ describe("PlanPage", () => {
       });
 
       render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 5/i);
+      await screen.findByText(/step 1 of 4/i);
 
       await userEventInstance.click(
         screen.getByRole("button", { name: /break down .essay./i }),
@@ -824,9 +795,9 @@ describe("PlanPage", () => {
 
       await userEventInstance.click(screen.getByRole("button", { name: /cancel/i }));
 
-      expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
+      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
       expect(
-        screen.getByText(/essay.*needs to be broken into steps/i),
+        screen.getByText(/break .essay. into steps first, then come back/i),
       ).toBeInTheDocument();
     });
   });
@@ -861,9 +832,9 @@ describe("PlanPage", () => {
       });
 
       render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 5/i);
+      await screen.findByText(/step 1 of 4/i);
       expect(
-        screen.getByText(/read chapter 1.*needs to be broken into steps/i),
+        screen.getByText(/break .read chapter 1. into steps first, then come back/i),
       ).toBeInTheDocument();
 
       await userEventInstance.click(
@@ -891,17 +862,16 @@ describe("PlanPage", () => {
       );
 
       // The signal clears once the assignment has a Work Item, and the
-      // wizard never left the Day step's own screen (no breakdown wizard
-      // was ever rendered).
+      // wizard never left Select's own screen (no breakdown wizard was
+      // ever rendered).
       await waitFor(() =>
         expect(
-          screen.queryByText(/read chapter 1.*needs to be broken into steps/i),
+          screen.queryByText(/break .read chapter 1. into steps first, then come back/i),
         ).not.toBeInTheDocument(),
       );
       expect(screen.queryByText(/what are the main pieces/i)).not.toBeInTheDocument();
 
-      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
-      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
       expect(screen.getByText("Read chapter 1")).toBeInTheDocument();
       expect(screen.queryByText(/nothing to plan yet/i)).not.toBeInTheDocument();
     });
@@ -916,7 +886,7 @@ describe("PlanPage", () => {
       });
 
       render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 5/i);
+      await screen.findByText(/step 1 of 4/i);
 
       const planButton = screen.getByRole("button", {
         name: /plan .essay. as one task instead/i,
@@ -943,17 +913,12 @@ describe("PlanPage", () => {
       mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
         workItem({ id: "w1", assignmentId: "a1", title: "Draft outline" }),
       ]);
-      const userEventInstance = userEvent.setup({
-        advanceTimers: vi.advanceTimersByTime,
-      });
 
       render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 5/i);
-      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
 
       // Select shows the real candidate (Draft outline) AND still names
       // the assignment that's missing — not silently omitted.
-      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
       expect(screen.getByText("Draft outline")).toBeInTheDocument();
       expect(
         screen.getByText(/worksheet.*needs to be broken into steps before it can be scheduled/i),
@@ -981,15 +946,10 @@ describe("PlanPage", () => {
           status: "planned",
         },
       ]);
-      const userEventInstance = userEvent.setup({
-        advanceTimers: vi.advanceTimersByTime,
-      });
 
       render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 5/i);
-      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
 
-      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
       expect(await screen.findByText(/also planned for wednesday/i)).toBeInTheDocument();
     });
 
@@ -1006,15 +966,10 @@ describe("PlanPage", () => {
           status: "planned",
         },
       ]);
-      const userEventInstance = userEvent.setup({
-        advanceTimers: vi.advanceTimersByTime,
-      });
 
       render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 5/i);
-      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
 
-      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
       expect(screen.queryByText(/also planned for/i)).not.toBeInTheDocument();
     });
 
@@ -1053,20 +1008,17 @@ describe("PlanPage", () => {
       });
 
       render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 5/i);
-      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
-
-      await screen.findByText(/step 2 of 5/i);
+      await screen.findByText(/step 1 of 4/i);
       await userEventInstance.click(screen.getByRole("button", { name: /draft outline/i }));
       await userEventInstance.click(screen.getByRole("button", { name: /next: estimate time/i }));
 
-      await screen.findByText(/step 3 of 5/i);
+      await screen.findByText(/step 2 of 4/i);
       await userEventInstance.click(screen.getByRole("button", { name: /next: when/i }));
 
-      await screen.findByText(/step 4 of 5/i);
+      await screen.findByText(/step 3 of 4/i);
       await userEventInstance.click(screen.getByRole("button", { name: /next: review/i }));
 
-      await screen.findByText(/step 5 of 5/i);
+      await screen.findByText(/step 4 of 4/i);
       await userEventInstance.click(screen.getByRole("button", { name: /looks good/i }));
       await screen.findByText(/plan confirmed/i);
 
@@ -1074,10 +1026,7 @@ describe("PlanPage", () => {
       const tuesday = within(dayPicker).getAllByRole("radio")[1];
       await userEventInstance.click(tuesday);
 
-      await screen.findByText(/step 1 of 5/i);
-      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
-
-      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
+      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
       // Confirmed for 2026-03-16, which is TODAY per this file's fixed
       // system time — dayLabel renders that as "today", not the weekday
       // name, regardless of which day is currently being planned.
@@ -1087,7 +1036,7 @@ describe("PlanPage", () => {
 
   // docs/features/iterations/daily-planning/daily-planning.i02.md FR-2
   describe("wizard state survives tab navigation", () => {
-    it("resumes on the same day/step when remounted (simulating a switch away and back)", async () => {
+    it("resumes on the same date when remounted (simulating a switch away and back)", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([
         assignment({ id: "a1", title: "Essay 1", dueDate: "2026-03-17" }),
       ]);
@@ -1101,7 +1050,7 @@ describe("PlanPage", () => {
       function Harness() {
         const [mounted, setMounted] = useState(true);
         const [date, setDate] = useState(TODAY_ISO);
-        const [step, setStep] = useState<Step>("day");
+        const [step, setStep] = useState<Step>("select");
         const [tab, setTab] = useState<PlanTab>("wizard");
         return (
           <>
@@ -1127,22 +1076,29 @@ describe("PlanPage", () => {
       }
 
       render(<Harness />);
-      await screen.findByText(/step 1 of 5/i);
-      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
-      await screen.findByText(/step 2 of 5/i);
+      await screen.findByText(/step 1 of 4/i);
 
-      // Simulate App.tsx's conditional render unmounting PlanPage when
-      // another tab becomes active, then remounting it when Plan is
-      // tapped again — date/step are owned by this harness (App.tsx's
-      // stand-in), not PlanPage, so they must survive.
+      // chosen/times are local to PlanPage and intentionally not lifted
+      // (FR-2's scope), so a step past Select can't demonstrate survival
+      // on its own — a remount always loses them, which is exactly what
+      // the next test below exercises. date, by contrast, is lifted with
+      // no such dependency, so switching days is what proves this
+      // harness's date (App.tsx's stand-in) — not PlanPage's own local
+      // state — is what the rendered day-context reflects.
+      const dayPicker = screen.getByRole("radiogroup", { name: /choose a day to plan/i });
+      const tuesday = within(dayPicker).getAllByRole("radio")[1];
+      await userEventInstance.click(tuesday);
+      await screen.findByRole("heading", { name: /let.s plan tuesday/i });
+
       await userEventInstance.click(screen.getByRole("button", { name: /toggle tab/i }));
       await userEventInstance.click(screen.getByRole("button", { name: /toggle tab/i }));
 
-      expect(await screen.findByText(/step 2 of 5/i)).toBeInTheDocument();
-      expect(screen.queryByText(/step 1 of 5/i)).not.toBeInTheDocument();
+      expect(
+        await screen.findByRole("heading", { name: /let.s plan tuesday/i }),
+      ).toBeInTheDocument();
     });
 
-    it("falls back to the Day step, instead of rendering a broken screen, when remounted mid-flow with no surviving selections", async () => {
+    it("falls back to Select, instead of rendering a broken screen, when remounted mid-flow with no surviving selections", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([
         assignment({ id: "a1", title: "Essay 1", dueDate: "2026-03-17" }),
       ]);
@@ -1170,7 +1126,7 @@ describe("PlanPage", () => {
         />,
       );
 
-      expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
+      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: /let.s plan today/i })).toBeInTheDocument();
     });
   });
@@ -1211,16 +1167,14 @@ describe("PlanPage", () => {
       const onStartExecution = vi.fn();
 
       render(<ControlledPlanPage user={user} onStartExecution={onStartExecution} />);
-      await screen.findByText(/step 1 of 5/i);
-      await userEventInstance.click(screen.getByRole("button", { name: /continue/i }));
-      await screen.findByText(/step 2 of 5/i);
+      await screen.findByText(/step 1 of 4/i);
       await userEventInstance.click(screen.getByRole("button", { name: /draft outline/i }));
       await userEventInstance.click(screen.getByRole("button", { name: /next: estimate time/i }));
-      await screen.findByText(/step 3 of 5/i);
+      await screen.findByText(/step 2 of 4/i);
       await userEventInstance.click(screen.getByRole("button", { name: /next: when/i }));
-      await screen.findByText(/step 4 of 5/i);
+      await screen.findByText(/step 3 of 4/i);
       await userEventInstance.click(screen.getByRole("button", { name: /next: review/i }));
-      await screen.findByText(/step 5 of 5/i);
+      await screen.findByText(/step 4 of 4/i);
       await userEventInstance.click(screen.getByRole("button", { name: /looks good/i }));
       await screen.findByText(/plan confirmed/i);
 
@@ -1238,25 +1192,25 @@ describe("PlanPage", () => {
       });
 
       render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 5/i);
+      await screen.findByText(/step 1 of 4/i);
 
       await userEventInstance.click(screen.getByRole("tab", { name: /look ahead/i }));
 
       expect(await screen.findByRole("button", { name: "Today" })).toBeInTheDocument();
-      expect(screen.queryByText(/step 1 of 5/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/step 1 of 4/i)).not.toBeInTheDocument();
 
       await userEventInstance.click(screen.getByRole("tab", { name: /^plan$/i }));
 
-      expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
+      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
     });
 
-    it("tapping a date in Look ahead jumps to that day's own Day step of the wizard", async () => {
+    it("tapping a date in Look ahead jumps to that day's own Select step of the wizard", async () => {
       const userEventInstance = userEvent.setup({
         advanceTimers: vi.advanceTimersByTime,
       });
 
       render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 5/i);
+      await screen.findByText(/step 1 of 4/i);
       await userEventInstance.click(screen.getByRole("tab", { name: /look ahead/i }));
       await screen.findByRole("button", { name: "Today" });
 
@@ -1265,7 +1219,7 @@ describe("PlanPage", () => {
         screen.getByRole("button", { name: /wednesday, march 18/i }),
       );
 
-      expect(await screen.findByText(/step 1 of 5/i)).toBeInTheDocument();
+      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
       expect(
         screen.getByRole("heading", { name: /let.s plan wednesday/i }),
       ).toBeInTheDocument();
@@ -1281,7 +1235,7 @@ describe("PlanPage", () => {
       });
 
       render(<ControlledPlanPage user={user} onOpenAssignment={onOpenAssignment} />);
-      await screen.findByText(/step 1 of 5/i);
+      await screen.findByText(/step 1 of 4/i);
       await userEventInstance.click(screen.getByRole("tab", { name: /look ahead/i }));
 
       await userEventInstance.click(await screen.findByRole("button", { name: /due: essay/i }));
