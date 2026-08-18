@@ -765,6 +765,31 @@ describe("HomePage", () => {
       expect(comingUpSection).toHaveTextContent("Reading response");
     });
 
+    it("shows each item's class alongside its title, not the title alone", async () => {
+      // docs/features/observations.md — "Coming up" items were
+      // identifiable only by assignment title, with no indication of
+      // which class they belonged to.
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        {
+          id: "ordinary",
+          courseId: "course-1",
+          title: "Reading response",
+          dueDate: "2026-04-30",
+          effortMinutes: 20,
+          notes: null,
+          completedAt: null,
+        },
+      ]);
+      mockedCourseService.listCourses.mockResolvedValue([course]);
+
+      renderHomePage();
+
+      const comingUpHeading = await screen.findByRole("heading", { name: /coming up/i });
+      const comingUpSection = comingUpHeading.closest("div") as HTMLElement;
+      expect(comingUpSection).toHaveTextContent("Reading response");
+      expect(comingUpSection).toHaveTextContent("Biology");
+    });
+
     it("invites capturing a first assignment when there are none", async () => {
       renderHomePage();
 

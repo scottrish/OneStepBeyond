@@ -474,8 +474,11 @@ export default function HomePage({
                         className="h-3 w-3 shrink-0 rounded-full"
                         style={{ background: courseColorValue(courses.find((c) => c.id === assignment.courseId)?.colorIndex ?? 0) }}
                       />
-                      <span className="min-w-0 flex-1 truncate text-foreground">
-                        {assignment.title}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-foreground">{assignment.title}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {courseName(assignment.courseId)}
+                        </span>
                       </span>
                       <span className="shrink-0 text-xs text-muted-foreground">
                         {dueRelativeLabel(assignment.dueDate, today)}

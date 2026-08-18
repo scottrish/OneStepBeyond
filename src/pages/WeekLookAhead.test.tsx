@@ -148,7 +148,7 @@ describe("WeekLookAhead", () => {
     });
 
     await screen.findByText("Draft outline");
-    expect(screen.getByText("Write conclusion")).toHaveClass("line-through");
+    expect(screen.getByText("Write conclusion").parentElement).toHaveClass("line-through");
     // Only the not-done session gets a remove control.
     expect(
       screen.getByRole("button", { name: /remove draft outline/i }),
@@ -159,6 +159,43 @@ describe("WeekLookAhead", () => {
 
     await userEventInstance.click(screen.getByRole("button", { name: /remove draft outline/i }));
     expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("s1");
+  });
+
+  it("shows each scheduled task's assignment and class, not just the step title", async () => {
+    // docs/features/observations.md — scheduled tasks were identifiable
+    // only by their own (often generic) step title, e.g. "Draft outline",
+    // with no indication of which assignment or class it belonged to.
+    mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([
+      {
+        id: "s1",
+        workItemId: "w1",
+        date: TODAY_ISO,
+        plannedMinutes: 30,
+        startTime: "16:00",
+        status: "planned",
+      },
+    ]);
+
+    renderWeekLookAhead({
+      assignments: [
+        {
+          id: "a1",
+          courseId: "course-1",
+          title: "Essay",
+          dueDate: "2026-03-20",
+          effortMinutes: 30,
+          notes: null,
+          completedAt: null,
+        },
+      ],
+      workItems: [
+        { id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 30, completedAt: null, position: 0 },
+      ],
+      courseName: () => "Biology",
+    });
+
+    await screen.findByText("Draft outline");
+    expect(screen.getByText("Essay · Biology")).toBeInTheDocument();
   });
 
   it("shows 'Preparation still needs a plan' only when something is due within two days and nothing is scheduled for it", async () => {

@@ -157,6 +157,9 @@ export default function WeekLookAhead({
                   <ul className="mt-3 flex flex-col gap-1">
                     {daySessions.map((session) => {
                       const item = workItems.find((w) => w.id === session.workItemId);
+                      const assignment = item
+                        ? assignments.find((a) => a.id === item.assignmentId)
+                        : undefined;
                       const done = session.status === "done";
                       return (
                         <li key={session.id} className="flex items-center gap-2 text-sm">
@@ -168,10 +171,15 @@ export default function WeekLookAhead({
                               className="size-1.5 shrink-0 rounded-full bg-primary"
                             />
                           )}
-                          <span
-                            className={`min-w-0 flex-1 truncate text-foreground ${done ? "line-through opacity-60" : ""}`}
-                          >
-                            {item?.title ?? "Study session"}
+                          <span className={`min-w-0 flex-1 ${done ? "line-through opacity-60" : ""}`}>
+                            <span className="block truncate text-foreground">
+                              {item?.title ?? "Study session"}
+                            </span>
+                            {item && assignment && (
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {assignment.title} · {courseName(assignment.courseId)}
+                              </span>
+                            )}
                           </span>
                           <span className="shrink-0 text-xs text-muted-foreground">
                             {session.startTime ? `${timeLabel(session.startTime)} · ` : ""}
