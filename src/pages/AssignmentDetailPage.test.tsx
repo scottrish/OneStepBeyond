@@ -20,6 +20,7 @@ vi.mock("../services/assignmentService", () => ({
 vi.mock("../services/workItemService", () => ({
   listWorkItems: vi.fn(),
   createWorkItems: vi.fn(),
+  updateWorkItem: vi.fn(),
   deleteWorkItems: vi.fn(),
   completeAllForAssignment: vi.fn(),
 }));
@@ -48,6 +49,7 @@ vi.mock("../services/preferencesService", () => ({
 import * as courseService from "../services/courseService";
 import * as assignmentService from "../services/assignmentService";
 import * as workItemService from "../services/workItemService";
+import * as decompositionAttemptService from "../services/decompositionAttemptService";
 import * as activityService from "../services/activityService";
 import * as workSessionService from "../services/workSessionService";
 import * as preferencesService from "../services/preferencesService";
@@ -65,8 +67,12 @@ const mockedAssignmentService = assignmentService as unknown as {
 const mockedWorkItemService = workItemService as unknown as {
   listWorkItems: ReturnType<typeof vi.fn>;
   createWorkItems: ReturnType<typeof vi.fn>;
+  updateWorkItem: ReturnType<typeof vi.fn>;
   deleteWorkItems: ReturnType<typeof vi.fn>;
   completeAllForAssignment: ReturnType<typeof vi.fn>;
+};
+const mockedDecompositionAttemptService = decompositionAttemptService as unknown as {
+  recordDecompositionAttempt: ReturnType<typeof vi.fn>;
 };
 const mockedActivityService = activityService as unknown as {
   listActivities: ReturnType<typeof vi.fn>;
@@ -310,7 +316,7 @@ describe("AssignmentDetailPage", () => {
     expect(step2).toBeDisabled();
   });
 
-  it("offers 'Break this down' when there is no Work Breakdown yet, and 'Edit breakdown' once one exists", async () => {
+  it("offers 'Break this down' and 'Just add a step' when there is no Work Breakdown yet, and neither once one exists (docs/features/assignment-detail-cta-hierarchy.md item 3b)", async () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
     mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
 
@@ -319,6 +325,7 @@ describe("AssignmentDetailPage", () => {
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
     expect(screen.getByRole("button", { name: /break this down/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /just add a step/i })).toBeInTheDocument();
     unmount();
 
     mockedWorkItemService.listWorkItems.mockResolvedValue([
@@ -328,7 +335,9 @@ describe("AssignmentDetailPage", () => {
       <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
-    expect(screen.getByRole("button", { name: /edit breakdown/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /break this down/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /edit breakdown/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add another step/i })).toBeInTheDocument();
   });
 
   it("opens the Work Breakdown flow, and cancelling returns to Detail unchanged", async () => {
@@ -621,6 +630,205 @@ describe("AssignmentDetailPage", () => {
       await userEventInstance.click(screen.getByRole("button", { name: /yes, help me start/i }));
 
       expect(screen.getByText(/what are the main pieces/i)).toBeInTheDocument();
+    });
+  });
+
+  describe("Inline step management (docs/features/assignment-detail-cta-hierarchy.md item 3b)", () => {
+    it("adds a step via 'Just add a step' without ever opening WorkBreakdownPage, and updates the assignment's total effort", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue(assignment); // effortMinutes: 30
+      mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+      mockedWorkItemService.createWorkItems.mockResolvedValue([
+        { id: "w1", assignmentId: "assignment-1", title: "Draft outline", effortMinutes: 60, completedAt: null, position: 0 },
+      ]);
+      mockedDecompositionAttemptService.recordDecompositionAttempt.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      );
+      await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+
+      await userEventInstance.click(screen.getByRole("button", { name: /just add a step/i }));
+      await userEventInstance.type(
+        screen.getByRole("textbox", { name: /new step title/i }),
+        "Draft outline",
+      );
+      await userEventInstance.click(screen.getByRole("button", { name: "1h" }));
+      await userEventInstance.click(screen.getByRole("button", { name: /^add$/i }));
+
+      await waitFor(() =>
+        expect(mockedWorkItemService.createWorkItems).toHaveBeenCalledWith("student-1", [
+          { assignmentId: "assignment-1", title: "Draft outline", effortMinutes: 60, position: 0 },
+        ]),
+      );
+      // Never opened the multi-step wizard.
+      expect(screen.queryByText(/what are the main pieces/i)).not.toBeInTheDocument();
+      expect(await screen.findByText("Draft outline")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(mockedAssignmentService.updateAssignment).toHaveBeenCalledWith("assignment-1", {
+          title: "Chapter 7 problem set",
+          dueDate: "2026-03-15",
+          effortMinutes: 60,
+          notes: "Bring a calculator",
+        }),
+      );
+      expect(mockedDecompositionAttemptService.recordDecompositionAttempt).toHaveBeenCalledWith(
+        "student-1",
+        {
+          assignmentId: "assignment-1",
+          initialWorkItems: [],
+          resultingWorkItems: ["Draft outline"],
+          revisionCount: 1,
+          outcome: "confirmed",
+        },
+      );
+    });
+
+    it("edits an incomplete step inline, without navigating away", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+      mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+      mockedWorkItemService.listWorkItems.mockResolvedValue([
+        { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: null, position: 0 },
+      ]);
+      mockedWorkItemService.updateWorkItem.mockResolvedValue(undefined);
+      mockedDecompositionAttemptService.recordDecompositionAttempt.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      );
+      await screen.findByText("Step 1");
+
+      await userEventInstance.click(screen.getByRole("button", { name: /edit step 1/i }));
+      const titleInput = screen.getByRole("textbox", { name: /edit step 1/i });
+      await userEventInstance.clear(titleInput);
+      await userEventInstance.type(titleInput, "Step 1 revised");
+      await userEventInstance.click(screen.getByRole("button", { name: "45m" }));
+      await userEventInstance.click(screen.getByRole("button", { name: /^save$/i }));
+
+      await waitFor(() =>
+        expect(mockedWorkItemService.updateWorkItem).toHaveBeenCalledWith("w1", {
+          title: "Step 1 revised",
+          effortMinutes: 45,
+        }),
+      );
+      expect(await screen.findByText("Step 1 revised")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(mockedAssignmentService.updateAssignment).toHaveBeenCalledWith("assignment-1", {
+          title: "Chapter 7 problem set",
+          dueDate: "2026-03-15",
+          effortMinutes: 45,
+          notes: "Bring a calculator",
+        }),
+      );
+      expect(mockedDecompositionAttemptService.recordDecompositionAttempt).toHaveBeenCalledWith(
+        "student-1",
+        {
+          assignmentId: "assignment-1",
+          initialWorkItems: ["Step 1"],
+          resultingWorkItems: ["Step 1 revised"],
+          revisionCount: 1,
+          outcome: "confirmed",
+        },
+      );
+    });
+
+    it("never offers inline editing for a completed step", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+      mockedWorkItemService.listWorkItems.mockResolvedValue([
+        { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: "2026-03-01T00:00:00Z", position: 0 },
+      ]);
+
+      render(
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      );
+      await screen.findByText("Step 1");
+
+      expect(screen.queryByRole("button", { name: /edit step 1/i })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /delete step 1/i })).toBeInTheDocument();
+    });
+
+    it("deletes an incomplete step immediately, with no confirmation, and updates the total effort", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+      mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+      mockedWorkItemService.listWorkItems.mockResolvedValue([
+        { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: null, position: 0 },
+      ]);
+      mockedWorkItemService.deleteWorkItems.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      );
+      await screen.findByText("Step 1");
+
+      await userEventInstance.click(screen.getByRole("button", { name: /delete step 1/i }));
+
+      expect(screen.queryByText(/delete this assignment/i)).not.toBeInTheDocument();
+      await waitFor(() => expect(mockedWorkItemService.deleteWorkItems).toHaveBeenCalledWith(["w1"]));
+      expect(screen.queryByText("Step 1")).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(mockedAssignmentService.updateAssignment).toHaveBeenCalledWith("assignment-1", {
+          title: "Chapter 7 problem set",
+          dueDate: "2026-03-15",
+          effortMinutes: 0,
+          notes: "Bring a calculator",
+        }),
+      );
+      // Deleting doesn't record a DecompositionAttempt — only add/edit do.
+      expect(mockedDecompositionAttemptService.recordDecompositionAttempt).not.toHaveBeenCalled();
+    });
+
+    it("asks for confirmation before deleting a completed step, and cancelling leaves it untouched", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+      mockedWorkItemService.listWorkItems.mockResolvedValue([
+        { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: "2026-03-01T00:00:00Z", position: 0 },
+      ]);
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      );
+      await screen.findByText("Step 1");
+
+      await userEventInstance.click(screen.getByRole("button", { name: /delete step 1/i }));
+
+      expect(await screen.findByText(/already complete.*erase that progress/i)).toBeInTheDocument();
+      expect(mockedWorkItemService.deleteWorkItems).not.toHaveBeenCalled();
+
+      await userEventInstance.click(screen.getByRole("button", { name: /^cancel$/i }));
+
+      expect(screen.queryByText(/erase that progress/i)).not.toBeInTheDocument();
+      expect(screen.getByText("Step 1")).toBeInTheDocument();
+      expect(mockedWorkItemService.deleteWorkItems).not.toHaveBeenCalled();
+    });
+
+    it("deletes a completed step once confirmed", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+      mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+      mockedWorkItemService.listWorkItems.mockResolvedValue([
+        { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: "2026-03-01T00:00:00Z", position: 0 },
+      ]);
+      mockedWorkItemService.deleteWorkItems.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      );
+      await screen.findByText("Step 1");
+
+      await userEventInstance.click(screen.getByRole("button", { name: /delete step 1/i }));
+      await screen.findByText(/erase that progress/i);
+      await userEventInstance.click(screen.getByRole("button", { name: /^delete$/i }));
+
+      await waitFor(() => expect(mockedWorkItemService.deleteWorkItems).toHaveBeenCalledWith(["w1"]));
+      expect(screen.queryByText("Step 1")).not.toBeInTheDocument();
     });
   });
 });

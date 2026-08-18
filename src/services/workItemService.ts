@@ -103,6 +103,24 @@ export async function deleteWorkItems(ids: string[]): Promise<void> {
   if (error) throw error;
 }
 
+export type WorkItemEdit = {
+  title: string;
+  effortMinutes: number;
+};
+
+// Inline editing of a single, already-confirmed Work Item directly from
+// Assignment Detail (docs/features/assignment-detail-cta-hierarchy.md
+// item 3b) — never called for a completed item, which stays immutable
+// per docs/features/work-breakdown-revision-preserves-completed-items.md.
+export async function updateWorkItem(id: string, patch: WorkItemEdit): Promise<void> {
+  const { error } = await supabase
+    .from("work_items")
+    .update({ title: patch.title, effort_minutes: patch.effortMinutes })
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
 // "Mark assignment complete" completes the assignment and all its
 // remaining open steps in one action (docs/features/assignment-management.md).
 export async function completeAllForAssignment(
