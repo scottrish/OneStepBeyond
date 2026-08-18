@@ -11,6 +11,13 @@ export default defineConfig({
       '@': path.resolve(import.meta.dirname, './src'),
     },
   },
+  server: {
+    // Lets a cloudflared/ngrok tunnel's Host header through for mobile
+    // testing against the local dev server — Vite otherwise rejects any
+    // Host other than localhost/127.0.0.1. Dev-only; has no effect on
+    // `vite build`.
+    allowedHosts: true,
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
