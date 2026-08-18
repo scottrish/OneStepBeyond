@@ -316,7 +316,7 @@ describe("AssignmentDetailPage", () => {
     expect(step2).toBeDisabled();
   });
 
-  it("offers 'Break this down' and 'Just add a step' when there is no Work Breakdown yet, and neither once one exists (docs/features/assignment-detail-cta-hierarchy.md item 3b)", async () => {
+  it("never offers 'Break this down' — only 'Just add a step'/'Add another step' (docs/features/assignment-detail-cta-hierarchy.md item 3a, Correction 5)", async () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
     mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
 
@@ -324,7 +324,7 @@ describe("AssignmentDetailPage", () => {
       <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
-    expect(screen.getByRole("button", { name: /break this down/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /break this down/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /just add a step/i })).toBeInTheDocument();
     unmount();
 
@@ -340,17 +340,21 @@ describe("AssignmentDetailPage", () => {
     expect(screen.getByRole("button", { name: /add another step/i })).toBeInTheDocument();
   });
 
-  it("opens the Work Breakdown flow, and cancelling returns to Detail unchanged", async () => {
+  it("'Yes, help me start' is the only path into the Work Breakdown flow, and cancelling returns to Detail unchanged", async () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
-    mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+    mockedAssignmentService.getAssignment.mockResolvedValue({
+      ...assignment,
+      effortMinutes: 60, // large enough to qualify for the breakdown nudge
+    });
     const userEventInstance = userEvent.setup();
 
     render(
       <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+    expect(screen.queryByRole("button", { name: /break this down/i })).not.toBeInTheDocument();
 
-    await userEventInstance.click(screen.getByRole("button", { name: /break this down/i }));
+    await userEventInstance.click(screen.getByRole("button", { name: /yes, help me start/i }));
 
     expect(screen.getByText(/what are the main pieces/i)).toBeInTheDocument();
 
@@ -614,7 +618,7 @@ describe("AssignmentDetailPage", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("'Yes, help me start' opens the same Work Breakdown flow as the Steps section's own button", async () => {
+    it("'Yes, help me start' opens the Work Breakdown flow", async () => {
       mockedCourseService.listCourses.mockResolvedValue([]);
       mockedAssignmentService.getAssignment.mockResolvedValue({
         ...assignment,

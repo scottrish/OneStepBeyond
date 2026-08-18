@@ -16,11 +16,34 @@ appears for a large unbroken-down assignment, "Plan work for today"
 correctly switches to the Plan tab, and adding/editing/deleting steps
 inline works with no page navigation.
 
-**Item 3a not yet implemented — see Correction 5 below for the final
-design**, which replaces both the originally-shipped behavior and
-Corrections 3/4's back-and-forth. "Break this down" is removed; "Yes,
-help me start" becomes the sole path into `WorkBreakdownPage`, arriving
-with two understanding prompts instead of the plain create step.
+**Item 3a implemented (2026-08-18), merged to `main` — Correction 5's
+final design.** "Break this down" is removed from Assignment Detail
+entirely; "Yes, help me start" is the sole remaining path into
+`WorkBreakdownPage`, and always arrives with the understanding-prompt
+preamble on its create step. Two tappable labels ("Paste what the teacher
+said" / "Say it in my own words") show when `assignment.notes` is empty;
+tapping one reveals a single shared textarea (autofocus, correct
+placeholder per label) with a "Back" option; the add-step UI does not
+render at all until the textarea is blurred with content, at which point
+the typed text saves to `assignment.notes` (via a new `WorkBreakdownPage`
+prop, `onSaveNotes`, orchestrated by `AssignmentDetailPage`'s existing
+`updateAssignment`) and displays read-only above the add-step UI. When
+notes already exist, they show read-only immediately with no prompt.
+`WorkBreakdownPage` gained `showUnderstandingPrompt`/`onSaveNotes` props,
+both omitted by `PlanPage.tsx`'s own separate entry point, which is
+unaffected. Verified live end-to-end: "Break this down" is absent from a
+fresh, large assignment's Detail screen; "Yes, help me start" shows the
+two prompts; choosing "Say it in my own words" shows the correct
+placeholder; typing and blurring saves the text (confirmed via the
+assignment's own Notes field after cancelling back to Detail) and reveals
+the add-step UI; reopening "Yes, help me start" afterward skips straight
+to the add-step UI with the saved note shown read-only, no prompt shown
+again.
+
+Fixed incidentally: `App.test.tsx`'s Look-Ahead round-trip test used a
+hardcoded due date that had drifted into the past as real time passed,
+making it fail independent of anything this item changed — pinned to the
+file's existing fake-timer convention instead.
 
 **Item 3b implemented (2026-08-18), merged to `main`, including inline
 delete.** `WorkBreakdownPage`/"Edit breakdown" is no longer reachable

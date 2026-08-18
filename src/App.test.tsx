@@ -343,7 +343,13 @@ describe("App", () => {
     // the remount an Assignment Detail round trip causes reset it back to
     // "wizard" every time — discovered live while testing week-lookahead.md.
     // See the tab/onTabChange wiring in App.tsx and docs/decisions/
-    // 20260817-assignment-detail-global-overlay.md.
+    // 20260817-assignment-detail-global-overlay.md. Pinned to TODAY (this
+    // file's own fixed date) rather than a hardcoded due date — the
+    // original literal date drifted into the past as real time passed,
+    // dropping the assignment out of Look Ahead's 7-day window and
+    // making this test flake independent of anything it's meant to check.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(TODAY);
     vi.mocked(useAuth).mockReturnValue({
       user: { id: "student-1", email: "person@example.com" } as User,
       signIn: vi.fn(),
@@ -357,22 +363,23 @@ describe("App", () => {
       id: "a1",
       courseId: "course-1",
       title: "Essay",
-      dueDate: "2026-08-17",
+      dueDate: TODAY_ISO,
       effortMinutes: 60,
       notes: null,
       completedAt: null,
     };
     mockedAssignmentService.listAssignments.mockResolvedValue([assignment]);
     mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+    const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
     render(<App />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Plan" }));
-    await userEvent.click(await screen.findByRole("tab", { name: /look ahead/i }));
-    await userEvent.click(await screen.findByRole("button", { name: /due: essay/i }));
+    await userEventInstance.click(screen.getByRole("button", { name: "Plan" }));
+    await userEventInstance.click(await screen.findByRole("tab", { name: /look ahead/i }));
+    await userEventInstance.click(await screen.findByRole("button", { name: /due: essay/i }));
     expect(await screen.findByRole("heading", { name: "Essay" })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /back/i }));
+    await userEventInstance.click(screen.getByRole("button", { name: /back/i }));
 
     expect(await screen.findByRole("tab", { name: /look ahead/i, selected: true })).toBeInTheDocument();
     expect(screen.queryByText(/step 1 of 5/i)).not.toBeInTheDocument();

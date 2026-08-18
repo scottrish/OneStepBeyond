@@ -314,4 +314,191 @@ describe("WorkBreakdownPage", () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(mockedWorkItemService.createWorkItems).not.toHaveBeenCalled();
   });
+
+  describe("Understanding prompt (docs/features/assignment-detail-cta-hierarchy.md item 3a, Correction 5)", () => {
+    it("shows two tappable prompts and hides the add-step UI until one is resolved", () => {
+      render(
+        <WorkBreakdownPage
+          user={user}
+          assignment={assignment}
+          confirmedItems={[]}
+          onCancel={vi.fn()}
+          onConfirmed={vi.fn()}
+          showUnderstandingPrompt
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", { name: /paste what the teacher said/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /say it in my own words/i }),
+      ).toBeInTheDocument();
+      expect(screen.queryByPlaceholderText(/questions 1–10/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^next$/i })).not.toBeInTheDocument();
+    });
+
+    it("choosing a prompt reveals one textarea with the matching placeholder", async () => {
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <WorkBreakdownPage
+          user={user}
+          assignment={assignment}
+          confirmedItems={[]}
+          onCancel={vi.fn()}
+          onConfirmed={vi.fn()}
+          showUnderstandingPrompt
+        />,
+      );
+
+      await userEventInstance.click(
+        screen.getByRole("button", { name: /say it in my own words/i }),
+      );
+
+      expect(screen.getByPlaceholderText(/what do you have to do\?/i)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /paste what the teacher said/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the 'paste' placeholder for either 'Paste what the teacher said' or the (dropped) assisted framing", async () => {
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <WorkBreakdownPage
+          user={user}
+          assignment={assignment}
+          confirmedItems={[]}
+          onCancel={vi.fn()}
+          onConfirmed={vi.fn()}
+          showUnderstandingPrompt
+        />,
+      );
+
+      await userEventInstance.click(
+        screen.getByRole("button", { name: /paste what the teacher said/i }),
+      );
+
+      expect(screen.getByPlaceholderText(/paste the directions here/i)).toBeInTheDocument();
+    });
+
+    it("blurring an empty textarea leaves the add-step UI hidden and saves nothing", async () => {
+      const onSaveNotes = vi.fn();
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <WorkBreakdownPage
+          user={user}
+          assignment={assignment}
+          confirmedItems={[]}
+          onCancel={vi.fn()}
+          onConfirmed={vi.fn()}
+          showUnderstandingPrompt
+          onSaveNotes={onSaveNotes}
+        />,
+      );
+
+      await userEventInstance.click(
+        screen.getByRole("button", { name: /say it in my own words/i }),
+      );
+      await userEventInstance.click(document.body); // blur without typing anything
+
+      expect(onSaveNotes).not.toHaveBeenCalled();
+      expect(screen.queryByPlaceholderText(/questions 1–10/i)).not.toBeInTheDocument();
+    });
+
+    it("blurring a non-empty textarea saves it and reveals the add-step UI", async () => {
+      const onSaveNotes = vi.fn().mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <WorkBreakdownPage
+          user={user}
+          assignment={assignment}
+          confirmedItems={[]}
+          onCancel={vi.fn()}
+          onConfirmed={vi.fn()}
+          showUnderstandingPrompt
+          onSaveNotes={onSaveNotes}
+        />,
+      );
+
+      await userEventInstance.click(
+        screen.getByRole("button", { name: /say it in my own words/i }),
+      );
+      await userEventInstance.type(
+        screen.getByPlaceholderText(/what do you have to do\?/i),
+        "Write a 2-page book report",
+      );
+      await userEventInstance.click(document.body); // blur
+
+      expect(onSaveNotes).toHaveBeenCalledWith("Write a 2-page book report");
+      expect(screen.getByText("Write a 2-page book report")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/questions 1–10/i)).toBeInTheDocument();
+    });
+
+    it("shows existing notes read-only and the add-step UI immediately, without any prompt", () => {
+      render(
+        <WorkBreakdownPage
+          user={user}
+          assignment={{ ...assignment, notes: "Read chapters 3-5 and summarize" }}
+          confirmedItems={[]}
+          onCancel={vi.fn()}
+          onConfirmed={vi.fn()}
+          showUnderstandingPrompt
+        />,
+      );
+
+      expect(screen.getByText("Read chapters 3-5 and summarize")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /paste what the teacher said/i }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/questions 1–10/i)).toBeInTheDocument();
+    });
+
+    it("'Back' from the textarea returns to the two prompts", async () => {
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <WorkBreakdownPage
+          user={user}
+          assignment={assignment}
+          confirmedItems={[]}
+          onCancel={vi.fn()}
+          onConfirmed={vi.fn()}
+          showUnderstandingPrompt
+        />,
+      );
+
+      await userEventInstance.click(
+        screen.getByRole("button", { name: /paste what the teacher said/i }),
+      );
+      await userEventInstance.click(screen.getByRole("button", { name: /^back$/i }));
+
+      expect(
+        screen.getByRole("button", { name: /paste what the teacher said/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /say it in my own words/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("does not show any prompt when showUnderstandingPrompt is omitted, even with empty notes", () => {
+      render(
+        <WorkBreakdownPage
+          user={user}
+          assignment={assignment}
+          confirmedItems={[]}
+          onCancel={vi.fn()}
+          onConfirmed={vi.fn()}
+        />,
+      );
+
+      expect(
+        screen.queryByRole("button", { name: /paste what the teacher said/i }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/questions 1–10/i)).toBeInTheDocument();
+    });
+  });
 });

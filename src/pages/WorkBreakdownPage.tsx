@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { EFFORT_PRESETS, effortLabel } from "../domain/effortPresets";
 import { useWorkBreakdownDraft } from "../hooks/useWorkBreakdownDraft";
 import type { Assignment } from "../services/assignmentService";
@@ -16,9 +17,16 @@ type WorkBreakdownPageProps = {
   confirmedItems: WorkItem[];
   onCancel: () => void;
   onConfirmed: (newItems: WorkItem[]) => void;
+  // docs/features/assignment-detail-cta-hierarchy.md item 3a (Correction
+  // 5) — set only when reached via Assignment Detail's "Yes, help me
+  // start"; PlanPage.tsx's own separate entry point into this component
+  // omits both, so it's unaffected.
+  showUnderstandingPrompt?: boolean;
+  onSaveNotes?: (text: string) => Promise<void>;
 };
 
 type Step = "create" | "estimate" | "review";
+type UnderstandingPromptChoice = "paste" | "own-words";
 
 const errorBoxStyle =
   "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
@@ -32,6 +40,8 @@ export default function WorkBreakdownPage({
   confirmedItems,
   onCancel,
   onConfirmed,
+  showUnderstandingPrompt = false,
+  onSaveNotes,
 }: WorkBreakdownPageProps) {
   const [step, setStep] = useState<Step>("create");
   const [newItemTitle, setNewItemTitle] = useState("");
@@ -48,6 +58,18 @@ export default function WorkBreakdownPage({
     confirm,
   } = useWorkBreakdownDraft(user.id, assignment, confirmedItems);
 
+  // docs/features/assignment-detail-cta-hierarchy.md item 3a — resolved
+  // (no draft/confirm ambiguity, unlike Work Items above): notes are
+  // either already there, or captured here and saved on blur. Not tied
+  // into useWorkBreakdownDraft's own draft state at all.
+  const [understandingText, setUnderstandingText] = useState(assignment.notes ?? "");
+  const [promptResolved, setPromptResolved] = useState(
+    !showUnderstandingPrompt || Boolean(assignment.notes && assignment.notes.trim() !== ""),
+  );
+  const [understandingChoice, setUnderstandingChoice] =
+    useState<UnderstandingPromptChoice | null>(null);
+  const [draftUnderstandingText, setDraftUnderstandingText] = useState("");
+
   function handleAddItem(event: FormEvent) {
     event.preventDefault();
     if (newItemTitle.trim() === "") return;
@@ -60,6 +82,17 @@ export default function WorkBreakdownPage({
     const created = await confirm();
     setConfirming(false);
     if (created) onConfirmed(created);
+  }
+
+  // Only a non-empty blur resolves the prompt and saves — an empty blur
+  // (student tapped away without writing anything) leaves the add-step
+  // UI hidden and writes nothing, per this item's Acceptance Criteria.
+  async function handleUnderstandingBlur() {
+    const text = draftUnderstandingText.trim();
+    if (text === "") return;
+    setUnderstandingText(text);
+    setPromptResolved(true);
+    await onSaveNotes?.(text);
   }
 
   const totalMinutes = draftItems.reduce((sum, item) => sum + item.effortMinutes, 0);
@@ -75,100 +108,166 @@ export default function WorkBreakdownPage({
           <h1 className="mb-1 text-2xl">What are the main pieces</h1>
           <p className="mb-6 text-2xl">you&rsquo;ll need to get done?</p>
 
-          {completedItems.length > 0 && (
-            <ul className="mb-4 flex flex-col gap-2">
-              {completedItems.map((item) => (
-                <li
-                  key={item.id}
-                  className="flex items-center gap-3 rounded-lg border border-border bg-card p-2"
-                >
-                  <input
-                    type="checkbox"
-                    checked
-                    disabled
-                    aria-label={`${item.title} complete`}
-                    className="size-4"
-                  />
-                  <span className="flex-1 text-sm text-muted-foreground line-through">
-                    {item.title}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {effortLabel(item.effortMinutes)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {draftItems.length > 0 && (
-            <ul className="mb-4 flex flex-col gap-2">
-              {draftItems.map((item, index) => (
-                <li
-                  key={item.key}
-                  className="flex items-center gap-2 rounded-lg border border-border bg-card p-2"
-                >
-                  <Input
-                    aria-label={`Step ${index + 1}`}
-                    value={item.title}
-                    onChange={(event) => editItem(item.key, event.target.value)}
-                    className="flex-1"
-                  />
-                  <div className="flex shrink-0 flex-col">
-                    <Button
-                      aria-label={`Move ${item.title || `step ${index + 1}`} up`}
-                      variant="ghost"
-                      size="icon"
-                      disabled={index === 0}
-                      onClick={() => moveDraftItem(index, "up")}
-                    >
-                      <ChevronUp className="size-4" />
-                    </Button>
-                    <Button
-                      aria-label={`Move ${item.title || `step ${index + 1}`} down`}
-                      variant="ghost"
-                      size="icon"
-                      disabled={index === draftItems.length - 1}
-                      onClick={() => moveDraftItem(index, "down")}
-                    >
-                      <ChevronDown className="size-4" />
-                    </Button>
-                  </div>
+          {showUnderstandingPrompt && !promptResolved ? (
+            <div className="mb-6">
+              {understandingChoice === null ? (
+                <div className="flex flex-col gap-2">
                   <Button
-                    aria-label={`Delete ${item.title || `step ${index + 1}`}`}
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => deleteItem(item.key)}
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => setUnderstandingChoice("paste")}
                   >
-                    <Trash2 className="size-4 text-muted-foreground" />
+                    Paste what the teacher said
                   </Button>
-                </li>
-              ))}
-            </ul>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => setUnderstandingChoice("own-words")}
+                  >
+                    Say it in my own words
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Label htmlFor="understanding-text" className="sr-only">
+                    {understandingChoice === "own-words"
+                      ? "What do you have to do?"
+                      : "Paste the directions here"}
+                  </Label>
+                  <Textarea
+                    id="understanding-text"
+                    autoFocus
+                    rows={5}
+                    value={draftUnderstandingText}
+                    onChange={(event) => setDraftUnderstandingText(event.target.value)}
+                    onBlur={handleUnderstandingBlur}
+                    placeholder={
+                      understandingChoice === "own-words"
+                        ? "What do you have to do?"
+                        : "Paste the directions here…"
+                    }
+                    className="mb-2"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setUnderstandingChoice(null);
+                      setDraftUnderstandingText("");
+                    }}
+                  >
+                    Back
+                  </Button>
+                </>
+              )}
+            </div>
+          ) : (
+            <>
+              {showUnderstandingPrompt && understandingText && (
+                <div className="mb-4 rounded-lg border border-border bg-card p-3">
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">
+                    What this needs
+                  </p>
+                  <p className="text-sm whitespace-pre-wrap">{understandingText}</p>
+                </div>
+              )}
+
+              {completedItems.length > 0 && (
+                <ul className="mb-4 flex flex-col gap-2">
+                  {completedItems.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex items-center gap-3 rounded-lg border border-border bg-card p-2"
+                    >
+                      <input
+                        type="checkbox"
+                        checked
+                        disabled
+                        aria-label={`${item.title} complete`}
+                        className="size-4"
+                      />
+                      <span className="flex-1 text-sm text-muted-foreground line-through">
+                        {item.title}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {effortLabel(item.effortMinutes)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {draftItems.length > 0 && (
+                <ul className="mb-4 flex flex-col gap-2">
+                  {draftItems.map((item, index) => (
+                    <li
+                      key={item.key}
+                      className="flex items-center gap-2 rounded-lg border border-border bg-card p-2"
+                    >
+                      <Input
+                        aria-label={`Step ${index + 1}`}
+                        value={item.title}
+                        onChange={(event) => editItem(item.key, event.target.value)}
+                        className="flex-1"
+                      />
+                      <div className="flex shrink-0 flex-col">
+                        <Button
+                          aria-label={`Move ${item.title || `step ${index + 1}`} up`}
+                          variant="ghost"
+                          size="icon"
+                          disabled={index === 0}
+                          onClick={() => moveDraftItem(index, "up")}
+                        >
+                          <ChevronUp className="size-4" />
+                        </Button>
+                        <Button
+                          aria-label={`Move ${item.title || `step ${index + 1}`} down`}
+                          variant="ghost"
+                          size="icon"
+                          disabled={index === draftItems.length - 1}
+                          onClick={() => moveDraftItem(index, "down")}
+                        >
+                          <ChevronDown className="size-4" />
+                        </Button>
+                      </div>
+                      <Button
+                        aria-label={`Delete ${item.title || `step ${index + 1}`}`}
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteItem(item.key)}
+                      >
+                        <Trash2 className="size-4 text-muted-foreground" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <form onSubmit={handleAddItem} className="mb-6 flex gap-2">
+                <Label htmlFor="new-item-title" className="sr-only">
+                  Add a piece
+                </Label>
+                <Input
+                  id="new-item-title"
+                  value={newItemTitle}
+                  onChange={(event) => setNewItemTitle(event.target.value)}
+                  placeholder="Questions 1–10"
+                  className="flex-1"
+                />
+                <Button type="submit" disabled={newItemTitle.trim() === ""}>
+                  Add
+                </Button>
+              </form>
+
+              <Button
+                className="w-full"
+                disabled={draftItems.length === 0}
+                onClick={() => setStep("estimate")}
+              >
+                Next
+              </Button>
+            </>
           )}
-
-          <form onSubmit={handleAddItem} className="mb-6 flex gap-2">
-            <Label htmlFor="new-item-title" className="sr-only">
-              Add a piece
-            </Label>
-            <Input
-              id="new-item-title"
-              value={newItemTitle}
-              onChange={(event) => setNewItemTitle(event.target.value)}
-              placeholder="Questions 1–10"
-              className="flex-1"
-            />
-            <Button type="submit" disabled={newItemTitle.trim() === ""}>
-              Add
-            </Button>
-          </form>
-
-          <Button
-            className="w-full"
-            disabled={draftItems.length === 0}
-            onClick={() => setStep("estimate")}
-          >
-            Next
-          </Button>
         </>
       )}
 

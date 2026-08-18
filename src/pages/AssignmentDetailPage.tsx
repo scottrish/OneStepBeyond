@@ -91,8 +91,10 @@ export default function AssignmentDetailPage({
 
   // docs/features/assignment-detail-cta-hierarchy.md item 3b — inline
   // add/edit/delete replaces WorkBreakdownPage/"Edit breakdown" once at
-  // least one Work Item exists; WorkBreakdownPage stays reachable only
-  // for building the very first breakdown from zero.
+  // least one Work Item exists. Per item 3a (Correction 5), "Break this
+  // down" no longer exists either — WorkBreakdownPage is reachable from
+  // this screen only via the breakdown-nudge card's "Yes, help me start"
+  // below, for a fresh, large assignment.
   const [addingStep, setAddingStep] = useState(false);
   const [newStepTitle, setNewStepTitle] = useState("");
   const [newStepEffort, setNewStepEffort] = useState(DEFAULT_EFFORT_MINUTES);
@@ -243,6 +245,21 @@ export default function AssignmentDetailPage({
     }
   }
 
+  // docs/features/assignment-detail-cta-hierarchy.md item 3a (Correction
+  // 5) — the understanding prompt on WorkBreakdownPage's create step
+  // saves on blur; guarded here too (not just by the prompt not showing
+  // in the first place) so a stale/concurrent call can never overwrite
+  // notes a student already had.
+  async function handleSaveUnderstandingNotes(text: string) {
+    if (!assignment || (assignment.notes && assignment.notes.trim() !== "")) return;
+    await updateAssignment({
+      title: assignment.title,
+      dueDate: assignment.dueDate,
+      effortMinutes: assignment.effortMinutes,
+      notes: text,
+    });
+  }
+
   if (breakingDown && assignment) {
     return (
       <WorkBreakdownPage
@@ -255,6 +272,8 @@ export default function AssignmentDetailPage({
           refetchAssignment();
           refetchWorkItems();
         }}
+        showUnderstandingPrompt
+        onSaveNotes={handleSaveUnderstandingNotes}
       />
     );
   }
@@ -612,11 +631,6 @@ export default function AssignmentDetailPage({
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {workItems.length === 0 && (
-                  <Button variant="outline" onClick={() => setBreakingDown(true)}>
-                    Break this down
-                  </Button>
-                )}
                 <Button variant="outline" onClick={() => setAddingStep(true)}>
                   {workItems.length > 0 ? "+ Add another step" : "Just add a step"}
                 </Button>
