@@ -31,3 +31,4 @@ directory.
 | 12 | [Coming Up shows Needs Attention's assignment(s) instead of hiding them](20260817-coming-up-shows-attention-items.md) | 2026-08-17 |
 | 13 | [Assignment Detail regains inline Work Item add/edit/delete, superseding the single-entry-point design](20260818-inline-work-item-management.md) | 2026-08-18 |
 | 14 | [Plan's Day step is removed; its content folds into Select](20260818-plan-day-step-removed.md) | 2026-08-18 |
+| 15 | [Dashboard mode toggle replaced by real, RLS-enforced access](20260819-dashboard-mode-toggle-replaced-by-real-access.md) | 2026-08-19 |

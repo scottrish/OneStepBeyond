@@ -22,27 +22,38 @@ const NAV: {
   { screen: "diagnostics", label: "Diagnostics", icon: TerminalSquare, modes: ["diagnostic"] },
 ];
 
-const MODES: { id: DashboardMode; label: string }[] = [
-  { id: "coach", label: "Coach" },
-  { id: "parent", label: "Parent" },
-  { id: "diagnostic", label: "Diagnostic" },
-];
+// docs/features/supporter-role-based-access-feature-spec-v0.1.md — mode
+// is now derived from a real Active Support Relationship's role, or from
+// superuser status for Diagnostic Mode (§7.2/§7.3), never chosen by the
+// viewer. This is a read-only label, not a control — there is
+// deliberately no equivalent of the old MODES toggle here anymore.
+const MODE_LABEL: Record<DashboardMode, string> = {
+  coach: "Coach",
+  parent: "Parent",
+  diagnostic: "Diagnostic",
+};
 
 type DashboardShellProps = {
-  studentEmail: string | undefined;
+  studentLabel: string;
   signOut: () => Promise<void>;
   mode: DashboardMode;
-  onModeChange: (mode: DashboardMode) => void;
+  // Present only when the viewer has more than one Student they could be
+  // looking at (multiple Active relationships, or superuser with more
+  // than one known student) — omitted entirely otherwise, matching
+  // supporter-invitation-feature-spec-v0.1.md §28's "no need to optimize
+  // this in the first implementation, but do not prevent it
+  // architecturally."
+  onSwitchStudent?: () => void;
   screen: DashboardScreen;
   onScreenChange: (screen: DashboardScreen) => void;
   children: ReactNode;
 };
 
 export default function DashboardShell({
-  studentEmail,
+  studentLabel,
   signOut,
   mode,
-  onModeChange,
+  onSwitchStudent,
   screen,
   onScreenChange,
   children,
@@ -58,26 +69,19 @@ export default function DashboardShell({
             <span className="text-xs text-muted-foreground">Coach / Parent Dashboard</span>
           </div>
           <div className="flex items-center gap-4">
-            {studentEmail ? (
-              <p className="hidden text-sm text-muted-foreground sm:block">{studentEmail}</p>
-            ) : null}
-            <div className="flex rounded-lg border border-border p-0.5">
-              {MODES.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => onModeChange(m.id)}
-                  aria-pressed={mode === m.id}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                    mode === m.id
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
+            <p className="hidden text-sm text-muted-foreground sm:block">{studentLabel}</p>
+            <span className="rounded-md bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground">
+              {MODE_LABEL[mode]}
+            </span>
+            {onSwitchStudent && (
+              <button
+                type="button"
+                onClick={onSwitchStudent}
+                className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Switch student
+              </button>
+            )}
             <button
               type="button"
               onClick={() => signOut()}

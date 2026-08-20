@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 import { useAuth } from "../hooks/useAuth";
@@ -12,30 +12,32 @@ vi.mock("../services/assignmentService", () => ({ listAssignments: vi.fn().mockR
 vi.mock("../services/workItemService", () => ({ listWorkItemsForStudent: vi.fn().mockResolvedValue([]) }));
 vi.mock("../services/decompositionAttemptService", () => ({ listForStudent: vi.fn().mockResolvedValue([]) }));
 vi.mock("../services/reflectionService", () => ({ listForStudent: vi.fn().mockResolvedValue([]) }));
+vi.mock("../services/superuserService", () => ({
+  isSuperuser: vi.fn().mockResolvedValue(false),
+  listKnownStudentIds: vi.fn().mockResolvedValue([]),
+}));
+vi.mock("../services/supportRelationshipService", () => ({
+  listActiveRelationshipsForSupporter: vi.fn().mockResolvedValue([]),
+}));
 
-// This test environment's jsdom `window.localStorage` doesn't implement
-// the Storage interface (unrelated Node/jsdom flag collision — verified
-// setItem/getItem/clear are all missing here even though real browsers
-// and the deployed app have a working one). Stub a minimal in-memory
-// replacement so DashboardApp's mode-persistence code has something real
-// to read/write.
-function createMemoryStorage(): Storage {
-  const store = new Map<string, string>();
-  return {
-    getItem: (key) => store.get(key) ?? null,
-    setItem: (key, value) => void store.set(key, value),
-    removeItem: (key) => void store.delete(key),
-    clear: () => store.clear(),
-    key: (index) => Array.from(store.keys())[index] ?? null,
-    get length() {
-      return store.size;
-    },
-  };
-}
+import * as superuserService from "../services/superuserService";
+import * as supportRelationshipService from "../services/supportRelationshipService";
+
+const mockedSuperuserService = superuserService as unknown as {
+  isSuperuser: ReturnType<typeof vi.fn>;
+  listKnownStudentIds: ReturnType<typeof vi.fn>;
+};
+const mockedSupportRelationshipService = supportRelationshipService as unknown as {
+  listActiveRelationshipsForSupporter: ReturnType<typeof vi.fn>;
+};
+
+const supporterUser = { id: "supporter-1", email: "supporter@example.com" } as User;
 
 beforeEach(() => {
   vi.mocked(useAuth).mockReset();
-  vi.stubGlobal("localStorage", createMemoryStorage());
+  mockedSuperuserService.isSuperuser.mockReset().mockResolvedValue(false);
+  mockedSuperuserService.listKnownStudentIds.mockReset().mockResolvedValue([]);
+  mockedSupportRelationshipService.listActiveRelationshipsForSupporter.mockReset().mockResolvedValue([]);
 });
 
 describe("DashboardApp", () => {
@@ -52,9 +54,14 @@ describe("DashboardApp", () => {
     expect(screen.getByRole("heading", { name: /login/i })).toBeInTheDocument();
   });
 
-  it("reuses the student's own session and defaults to Coach Mode Overview", async () => {
+  // docs/features/supporter-role-based-access-feature-spec-v0.1.md §7.2 —
+  // this is the whole point of the spec: signing in is no longer enough
+  // to reach anything. A session with no Active relationship and no
+  // superuser status is denied outright, not shown an empty dashboard
+  // shell (which the old mode-toggle version effectively was).
+  it("denies access to a signed-in user with no Active Support Relationship and no superuser status", async () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { id: "student-1", email: "student@example.com" } as User,
+      user: supporterUser,
       signIn: vi.fn(),
       signUp: vi.fn(),
       signOut: vi.fn(),
@@ -62,18 +69,109 @@ describe("DashboardApp", () => {
 
     render(<DashboardApp />);
 
-    expect(await screen.findByRole("heading", { name: /^overview$/i })).toBeInTheDocument();
-    expect(screen.getByText("student@example.com")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Coach" })).toHaveAttribute("aria-pressed", "true");
+    expect(
+      await screen.findByText(/you don.t currently support any students/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /^overview$/i })).not.toBeInTheDocument();
   });
 
-  it("switches screens via the sidebar nav", async () => {
+  it("auto-opens the dashboard at the correct mode for a supporter with exactly one Active relationship", async () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { id: "student-1", email: "student@example.com" } as User,
+      user: supporterUser,
       signIn: vi.fn(),
       signUp: vi.fn(),
       signOut: vi.fn(),
     });
+    mockedSupportRelationshipService.listActiveRelationshipsForSupporter.mockResolvedValue([
+      { id: "r1", studentId: "student-1", role: "coach" },
+    ]);
+
+    render(<DashboardApp />);
+
+    expect(await screen.findByRole("heading", { name: /^overview$/i })).toBeInTheDocument();
+    expect(screen.getByText("Coach")).toBeInTheDocument();
+    // No control to change it — mode is derived, not chosen.
+    expect(screen.queryByRole("button", { name: "Parent" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Diagnostic" })).not.toBeInTheDocument();
+  });
+
+  it("shows a Parent-labeled dashboard for a parent_guardian relationship", async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: supporterUser,
+      signIn: vi.fn(),
+      signUp: vi.fn(),
+      signOut: vi.fn(),
+    });
+    mockedSupportRelationshipService.listActiveRelationshipsForSupporter.mockResolvedValue([
+      { id: "r1", studentId: "student-1", role: "parent_guardian" },
+    ]);
+
+    render(<DashboardApp />);
+
+    expect(await screen.findByRole("heading", { name: /how things are going/i })).toBeInTheDocument();
+    expect(screen.getByText("Parent")).toBeInTheDocument();
+    const nav = screen.getByRole("navigation", { name: "Dashboard" });
+    expect(within(nav).queryByRole("button", { name: "Evidence Timeline" })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole("button", { name: "Diagnostics" })).not.toBeInTheDocument();
+  });
+
+  it("shows a student picker for a supporter with more than one Active relationship, then opens the chosen one", async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: supporterUser,
+      signIn: vi.fn(),
+      signUp: vi.fn(),
+      signOut: vi.fn(),
+    });
+    mockedSupportRelationshipService.listActiveRelationshipsForSupporter.mockResolvedValue([
+      { id: "r1", studentId: "student-1", role: "coach" },
+      { id: "r2", studentId: "student-2", role: "parent_guardian" },
+    ]);
+    const userEventInstance = userEvent.setup();
+
+    render(<DashboardApp />);
+
+    expect(await screen.findByRole("heading", { name: /who do you want to support/i })).toBeInTheDocument();
+    expect(screen.getByText("Coach")).toBeInTheDocument();
+    expect(screen.getByText("Parent / Guardian")).toBeInTheDocument();
+
+    await userEventInstance.click(screen.getByText("Coach"));
+
+    expect(await screen.findByRole("heading", { name: /^overview$/i })).toBeInTheDocument();
+    // Two relationships — a way back to the picker is offered.
+    expect(screen.getByRole("button", { name: /switch student/i })).toBeInTheDocument();
+  });
+
+  // docs/features/supporter-role-based-access-feature-spec-v0.1.md §7.3 —
+  // the whole reason Diagnostic Mode moved off a free client toggle: an
+  // Active relationship, no matter how many, must never be a path to it.
+  it("never offers Diagnostics to a supporter, even with multiple Active relationships", async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: supporterUser,
+      signIn: vi.fn(),
+      signUp: vi.fn(),
+      signOut: vi.fn(),
+    });
+    mockedSupportRelationshipService.listActiveRelationshipsForSupporter.mockResolvedValue([
+      { id: "r1", studentId: "student-1", role: "coach" },
+    ]);
+
+    render(<DashboardApp />);
+
+    expect(await screen.findByRole("heading", { name: /^overview$/i })).toBeInTheDocument();
+    const nav = screen.getByRole("navigation", { name: "Dashboard" });
+    expect(within(nav).queryByRole("button", { name: "Diagnostics" })).not.toBeInTheDocument();
+  });
+
+  it("switches screens via the sidebar nav", async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: supporterUser,
+      signIn: vi.fn(),
+      signUp: vi.fn(),
+      signOut: vi.fn(),
+    });
+    mockedSupportRelationshipService.listActiveRelationshipsForSupporter.mockResolvedValue([
+      { id: "r1", studentId: "student-1", role: "coach" },
+    ]);
     const userEventInstance = userEvent.setup();
 
     render(<DashboardApp />);
@@ -85,76 +183,51 @@ describe("DashboardApp", () => {
     expect(await screen.findByRole("heading", { name: /^reflections$/i })).toBeInTheDocument();
   });
 
-  it("switching to Parent Mode hides Diagnostics and Timeline nav, and resets to Overview", async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      user: { id: "student-1", email: "student@example.com" } as User,
-      signIn: vi.fn(),
-      signUp: vi.fn(),
-      signOut: vi.fn(),
+  describe("superuser (Diagnostic Mode)", () => {
+    it("shows a student picker sourced from known students, never from Support Relationships", async () => {
+      vi.mocked(useAuth).mockReturnValue({
+        user: supporterUser,
+        signIn: vi.fn(),
+        signUp: vi.fn(),
+        signOut: vi.fn(),
+      });
+      mockedSuperuserService.isSuperuser.mockResolvedValue(true);
+      // 8-char ids so studentLabel's slice(0, 8) truncation (meaningful
+      // for a real UUID) doesn't collide the two fixtures into the same
+      // rendered text.
+      mockedSuperuserService.listKnownStudentIds.mockResolvedValue(["aaaaaaaa", "bbbbbbbb"]);
+      // Even if the same account also happens to hold a real relationship,
+      // the superuser path takes priority and isn't blended with it.
+      mockedSupportRelationshipService.listActiveRelationshipsForSupporter.mockResolvedValue([
+        { id: "r1", studentId: "aaaaaaaa", role: "coach" },
+      ]);
+      const userEventInstance = userEvent.setup();
+
+      render(<DashboardApp />);
+
+      expect(await screen.findByRole("heading", { name: /diagnostic mode/i })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: /who do you want to support/i })).not.toBeInTheDocument();
+
+      await userEventInstance.click(screen.getByText(/aaaaaaaa/i));
+
+      expect(await screen.findByRole("heading", { name: /^overview$/i })).toBeInTheDocument();
+      expect(screen.getByText("Diagnostic")).toBeInTheDocument();
+      const nav = screen.getByRole("navigation", { name: "Dashboard" });
+      expect(within(nav).getByRole("button", { name: "Diagnostics" })).toBeInTheDocument();
     });
-    const userEventInstance = userEvent.setup();
-
-    render(<DashboardApp />);
-    await screen.findByRole("heading", { name: /^overview$/i });
-    const nav = screen.getByRole("navigation", { name: "Dashboard" });
-    await userEventInstance.click(within(nav).getByRole("button", { name: "Evidence Timeline" }));
-    await screen.findByRole("heading", { name: /evidence timeline/i });
-
-    await userEventInstance.click(screen.getByRole("button", { name: "Parent" }));
-
-    expect(await screen.findByRole("heading", { name: /how things are going/i })).toBeInTheDocument();
-    expect(within(nav).queryByRole("button", { name: "Evidence Timeline" })).not.toBeInTheDocument();
-    expect(within(nav).queryByRole("button", { name: "Diagnostics" })).not.toBeInTheDocument();
-  });
-
-  it("shows Diagnostics nav only in Diagnostic Mode", async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      user: { id: "student-1", email: "student@example.com" } as User,
-      signIn: vi.fn(),
-      signUp: vi.fn(),
-      signOut: vi.fn(),
-    });
-    const userEventInstance = userEvent.setup();
-
-    render(<DashboardApp />);
-    await screen.findByRole("heading", { name: /^overview$/i });
-    const nav = screen.getByRole("navigation", { name: "Dashboard" });
-
-    expect(within(nav).queryByRole("button", { name: "Diagnostics" })).not.toBeInTheDocument();
-
-    await userEventInstance.click(screen.getByRole("button", { name: "Diagnostic" }));
-
-    expect(await within(nav).findByRole("button", { name: "Diagnostics" })).toBeInTheDocument();
-  });
-
-  it("persists the selected mode to localStorage and restores it on remount", async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      user: { id: "student-1", email: "student@example.com" } as User,
-      signIn: vi.fn(),
-      signUp: vi.fn(),
-      signOut: vi.fn(),
-    });
-    const userEventInstance = userEvent.setup();
-
-    const { unmount } = render(<DashboardApp />);
-    await screen.findByRole("heading", { name: /^overview$/i });
-    await userEventInstance.click(screen.getByRole("button", { name: "Diagnostic" }));
-    await waitFor(() => expect(window.localStorage.getItem("osb-dashboard-mode")).toBe("diagnostic"));
-    unmount();
-
-    render(<DashboardApp />);
-    await screen.findByRole("heading", { name: /^overview$/i });
-    expect(screen.getByRole("button", { name: "Diagnostic" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("signs out via the header button", async () => {
     const signOut = vi.fn();
     vi.mocked(useAuth).mockReturnValue({
-      user: { id: "student-1", email: "student@example.com" } as User,
+      user: supporterUser,
       signIn: vi.fn(),
       signUp: vi.fn(),
       signOut,
     });
+    mockedSupportRelationshipService.listActiveRelationshipsForSupporter.mockResolvedValue([
+      { id: "r1", studentId: "student-1", role: "coach" },
+    ]);
     const userEventInstance = userEvent.setup();
 
     render(<DashboardApp />);

@@ -19,9 +19,32 @@ simplification this increment ships with, and §23's "Known gap" note for
 the one Acceptance Criterion (draft-vs-confirmed distinction, §28 #4)
 that can't be satisfied under the current manual-work-breakdown design.
 
+**Update (2026-08-19):** access is no longer a client-side mode toggle —
+see `docs/features/supporter-role-based-access-feature-spec-v0.1.md` and
+`docs/decisions/20260819-dashboard-mode-toggle-replaced-by-real-access.md`.
+The Implementation Note and §26 immediately below describe the
+now-superseded, temporary access model; the screens, content, and phased
+roadmap (§23) they describe are unaffected.
+
 ---
 
 # Implementation Note (this increment)
+
+**Superseded (2026-08-19) — kept for historical context.** This note
+described a deliberate temporary simplification. Real access is now
+implemented: see `docs/features/supporter-role-based-access-feature-spec-v0.1.md`
+and `docs/decisions/20260819-dashboard-mode-toggle-replaced-by-real-access.md`.
+Access to a Student's data is now determined by an Active
+`support_relationships` row, enforced by Postgres RLS, and Diagnostic
+Mode requires superuser access rather than being reachable by any
+signed-in session. `supporter-invitation-feature-spec-v0.1.md`'s own
+invite/accept/decline UI is still not built — relationship rows are
+seeded directly for testing until it is — so the dashboard is not yet
+usable by a real third-party parent or coach for that reason, not because
+access itself is unenforced.
+
+The rest of this note describes the superseded model, for historical
+reference:
 
 Building a real Coach/Parent role, a Support Relationship data model, and
 per-role authentication is explicitly deferred — see
@@ -1097,11 +1120,18 @@ Principles:
 - internal inference is not parent-visible fact
 - adult access must not undermine student ownership
 
-**This increment does not implement these as enforced guarantees.** They
-describe the target state once real Coach/Parent identities and Support
+**Update (2026-08-19): these are now enforced guarantees, not just target
+state.** See `docs/features/supporter-role-based-access-feature-spec-v0.1.md`.
+"Clear role separation" and "minimum necessary adult access" are enforced
+by Postgres RLS against Active `support_relationships` rows, not by trust
+in a single shared account. The paragraph below describes the prior,
+now-superseded state, kept for historical context:
+
+~~This increment does not implement these as enforced guarantees.~~ They
+~~describe the target state once real Coach/Parent identities and Support
 Relationships exist. Today, "clear role separation" and "minimum
 necessary adult access" hold only in the trivial sense that there is
-exactly one account with access to everything — see the Implementation
+exactly one account with access to everything~~ — see the Implementation
 Note at the top of this document and
 `docs/decisions/20260816-dashboard-reuses-student-auth.md`.
 
