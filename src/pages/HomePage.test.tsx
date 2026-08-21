@@ -39,6 +39,11 @@ vi.mock("../services/preferencesService", () => ({
   DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", weekendHours: 10 },
 }));
 
+vi.mock("../services/supportRelationshipService", () => ({
+  listRelationshipsForStudent: vi.fn().mockResolvedValue([]),
+  createInvitation: vi.fn(),
+}));
+
 import * as courseService from "../services/courseService";
 import * as assignmentService from "../services/assignmentService";
 import * as workItemService from "../services/workItemService";
@@ -148,6 +153,15 @@ describe("HomePage", () => {
     expect(
       await screen.findByRole("heading", { name: /activities/i }),
     ).toBeInTheDocument();
+  });
+
+  it("navigates to Support from Settings", async () => {
+    renderHomePage();
+
+    await userEvent.click(screen.getByRole("button", { name: /settings/i }));
+    await userEvent.click(screen.getByRole("button", { name: /support/i }));
+
+    expect(await screen.findByRole("heading", { name: /^support$/i })).toBeInTheDocument();
   });
 
   it("calls signOut from Settings", async () => {

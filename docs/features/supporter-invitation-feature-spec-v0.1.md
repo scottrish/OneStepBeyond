@@ -4,6 +4,27 @@
 
 Version 0.1
 
+**Status:** Partially implemented (2026-08-20), by direct product-owner
+instruction. Built: §6/§7's Primary Flow (Student invites Parent /
+Guardian, Coach, or Teacher — §3's 2026-08-19 update), §8's link-display
+delivery (no real email — see the Implementation Note immediately below),
+§9/§10's Existing/New Account accept flow, §11's read-only Pending/Active
+list, and §16's security requirements exactly as specified (real
+expiring, email-locked, one-time-use tokens). Verified live end-to-end:
+invite created as Teacher → link displayed → signed up as the exact
+invited email → invitation found and correctly gated by that email →
+accepted → relationship Active in the database → dashboard auto-resolved
+to the correct Student at Coach visibility via
+`supporter-role-based-access-feature-spec-v0.1.md`'s already-built access
+layer.
+
+**Not built:** resend and cancel (§4's Scope lists both; deferred as a
+smaller follow-up rather than blocking this increment — a Pending
+invitation sent to the wrong address currently has no in-app undo), §12's
+Remove Supporter and §13's Supporter Leaves Relationship, and all of §20
+onward (the Secondary/adult-initiated flow, P2 by the spec's own
+priority marking).
+
 ---
 
 # 1. Purpose
@@ -25,6 +46,56 @@ The feature supports two flows:
    - initiating adult becomes a Supporter
 
 No granular permissions are required initially.
+
+---
+
+# Implementation Note (this increment)
+
+**Update (2026-08-19) — direct product-owner instruction:** *"As this is
+just for testing, there is no need to actually send an email. So when
+the [Student] invites a [Supporter], simply display an appropriate
+invitation link. The link should be constructed in the same way that it
+will eventually be constructed — expiring, locked to the invited user (it
+can't be used by anyone with a different email), one time use (once
+used, it can't be reused)."*
+
+This changes §8's delivery mechanism only — the invitation itself is
+still real, still governed by §16's Security Requirements exactly as
+written. Nothing about the token's construction is a placeholder;
+"testing" refers only to skipping the transport (email), not to loosening
+what the token guarantees:
+
+- **Expiring:** an `expires_at` column, checked on every read/accept —
+  identical in effect to §15.
+- **Locked to the invited user:** the invitation names an `invited_email`
+  (not yet an `auth.users` row — the invited person may not have an
+  account at invite time, per §10's New Account Flow). Enforcement is at
+  the RLS layer: a signed-in session can only see or act on a pending
+  invitation whose `invited_email` matches that session's own
+  authenticated email — not by trusting whatever the client claims.
+- **One time use:** governed by `status` — once an invitation leaves
+  `Pending` (Active, Declined, Expired, Cancelled), the same link stops
+  granting anything. No separate "used" flag is needed; §3's existing
+  status lifecycle already is that flag.
+
+**Architectural consequence worth flagging explicitly:** a real link
+needs something to open it. This app has no URL-based routing at all
+today (`CLAUDE.md`: add React Router "only when a feature actually needs
+it" — nothing has, yet). This is that moment, but narrowly: not a reason
+to adopt a router library, since one screen doesn't need one. The
+existing precedent is `Root.tsx`'s own hand-rolled
+`window.location.pathname.startsWith('/dashboard')` check — the same
+pattern extends to a third branch, `/invite`, for the accept screen. See
+`docs/decisions/` for whichever record captures this when it's built.
+
+`SupportInvitation` (§27's original suggested shape) is not a separate
+table for this increment — its fields (`tokenHash`, `expiresAt`,
+`invited_email`) are added directly to `support_relationships` (already
+built by `supporter-role-based-access-feature-spec-v0.1.md`), which also
+means that table's `supporter_id` becomes nullable (unknown until
+acceptance) rather than required at row-creation time. §18's note that
+"invitation and relationship lifecycle" can be simplified together is
+being taken up, not deferred.
 
 ---
 
@@ -287,6 +358,15 @@ Show:
 
 # 8. Invitation Delivery
 
+**This increment (see Implementation Note above): no email is sent.**
+Step 4 of §7, immediately after creating the Pending invitation, displays
+the constructed link directly to the inviting Student — in a copyable
+text field, not a "check your email" message — with a short explanation
+that they should send it to the person themselves however they'd like
+(text, in person, etc.). This is a transport substitution only; the
+content and intent below is unchanged from what a real email would say,
+because it's what the Student reads on this same screen instead:
+
 Invitation should contain:
 
 - product name
@@ -301,6 +381,11 @@ Example intent:
 > Alex invited you to support them as a Coach.
 
 Avoid wording that suggests the adult is taking ownership of the account.
+
+When real email delivery is eventually built, this screen's copyable
+link becomes the email's own call-to-action link — same token, same
+route, same accept flow. Nothing about the token or the `/invite` route
+described below is specific to the no-email version.
 
 ---
 
@@ -474,6 +559,18 @@ Invitation tokens should:
 - become unusable after Accept / Decline / Cancel / Expiration
 
 The authenticated email must match the intended invitee, or the user must explicitly switch accounts.
+
+**Concrete mechanism for this increment** (Implementation Note above):
+the raw token is generated client-side (`crypto.randomUUID()` or
+equivalent — Web Crypto is already available, no new dependency), and
+only its hash (`token_hash`, e.g. SHA-256 via `crypto.subtle.digest`) is
+stored — the raw token exists only in the constructed link, never
+persisted. "Not expose Student IDs directly" and "authenticated email
+must match" are both satisfied the same way: RLS on
+`support_relationships` only reveals a Pending row to a session whose own
+authenticated email equals that row's `invited_email` — a mismatched or
+signed-out visitor gets nothing back, not a 403 that would confirm the
+invitation's existence.
 
 ---
 
@@ -680,7 +777,38 @@ Use Support Relationships.
 
 # 27. Recommended Data Model
 
-Conceptual model:
+**Superseded by what's actually built.** The `User`/`StudentProfile`/
+`SupporterProfile` split below was this spec's original conceptual
+sketch; it doesn't match this codebase's established convention (every
+table references `auth.users(id)` directly — see e.g.
+`20260815003757_create_courses_table.sql`'s own comment on why), and
+`supporter-role-based-access-feature-spec-v0.1.md` already built
+`support_relationships` on that flat convention instead. `SupportInvitation`
+is likewise not a separate table (this section's original sketch) — its
+fields fold directly into `support_relationships`, per the Implementation
+Note at the top of this document:
+
+```text
+support_relationships                  -- already exists; this increment
+- id                                    -- alters it, doesn't create it
+- student_id          (references auth.users, not null)
+- supporter_id         (references auth.users, NULLABLE — unknown until
+                         the invited person actually accepts)
+- invited_email        (new — who the invitation names; the RLS anchor
+                         for "locked to the invited user")
+- token_hash            (new — sha-256 of the raw token; raw token never
+                         persisted)
+- expires_at            (new)
+- role
+- status
+- invited_by
+- invited_at
+- accepted_at
+- ended_at
+```
+
+Original conceptual sketch, kept for historical context (superseded
+above):
 
 ```text
 User
@@ -694,17 +822,6 @@ StudentProfile
 SupporterProfile
 - userId
 
-SupportRelationship
-- id
-- studentUserId
-- supporterUserId
-- role
-- status
-- invitedBy
-- invitedAt
-- acceptedAt
-- endedAt
-
 SupportInvitation
 - id
 - relationshipId or student/supporter reference
@@ -715,8 +832,6 @@ SupportInvitation
 - acceptedAt
 - cancelledAt
 ```
-
-Exact persistence is implementation-specific.
 
 Avoid making Student and Supporter account types permanently mutually exclusive.
 

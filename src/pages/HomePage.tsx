@@ -22,6 +22,7 @@ import AssignmentCapturePage from "./AssignmentCapturePage";
 import CoursesPage from "./CoursesPage";
 import PreferencesPage from "./PreferencesPage";
 import SettingsPage from "./SettingsPage";
+import SupportPage from "./SupportPage";
 
 type HomePageProps = {
   user: User;
@@ -39,6 +40,7 @@ type HomePageProps = {
 type View =
   | { name: "home" }
   | { name: "settings" }
+  | { name: "support" }
   | { name: "activities" }
   | { name: "courses" }
   | { name: "preferences" }
@@ -225,9 +227,14 @@ export default function HomePage({
         onGoToActivities={() => setView({ name: "activities" })}
         onGoToCourses={() => setView({ name: "courses" })}
         onGoToPreferences={() => setView({ name: "preferences" })}
+        onGoToSupport={() => setView({ name: "support" })}
         signOut={signOut}
       />
     );
+  }
+
+  if (view.name === "support") {
+    return <SupportPage user={user} onBack={() => setView({ name: "settings" })} />;
   }
 
   if (view.name === "activities") {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 import { useAuth } from "./hooks/useAuth";
@@ -320,8 +320,16 @@ describe("App", () => {
     // into Assignment Detail from the one Assignments-tab exercises
     // above, previously a separate local view inside HomePage with no
     // refetch-on-back (see docs/decisions/
-    // 20260817-assignment-detail-global-overlay.md).
-    await userEvent.click(await screen.findByRole("button", { name: /reading response/i }));
+    // 20260817-assignment-detail-global-overlay.md). Scoped to Coming Up
+    // specifically: as real time approaches this fixture's due date, the
+    // same assignment also surfaces in Needs Attention with a button
+    // sharing the same text, making a page-wide query ambiguous — see
+    // the identical fix and comment on the "deleting an assignment from
+    // Detail" describe block below.
+    const comingUpHeading = await screen.findByRole("heading", { name: "Coming up" });
+    await userEvent.click(
+      within(comingUpHeading.closest("div")!).getByRole("button", { name: /reading response/i }),
+    );
     expect(
       await screen.findByRole("heading", { name: "Reading response" }),
     ).toBeInTheDocument();
@@ -498,13 +506,21 @@ describe("App", () => {
       id: "a1",
       courseId: "course-1",
       title: "Chapter 7 problem set",
-      dueDate: "2026-08-22",
+      // Pinned to TODAY (this file's own fixed date) rather than the
+      // hardcoded literal this used to be — that date drifted far enough
+      // into the past as real time passed that Home's Coming Up section
+      // stopped showing it at all, making the "reached via Home" test
+      // below flake independent of anything it's meant to check (same
+      // root cause as the Look Ahead regression test above).
+      dueDate: TODAY_ISO,
       effortMinutes: 30,
       notes: null,
       completedAt: null,
     };
 
     function setUp() {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.setSystemTime(TODAY);
       vi.mocked(useAuth).mockReturnValue({
         user: { id: "student-1", email: "person@example.com" } as User,
         signIn: vi.fn(),
@@ -521,7 +537,7 @@ describe("App", () => {
 
     it("requires confirmation, then deletes and returns to Assignments", async () => {
       setUp();
-      const userEventInstance = userEvent.setup();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
       render(<App />);
       await userEventInstance.click(screen.getByRole("button", { name: "Assignments" }));
@@ -543,14 +559,21 @@ describe("App", () => {
 
     it("requires confirmation when reached via Home too, and returns to Home once confirmed", async () => {
       setUp();
-      const userEventInstance = userEvent.setup();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
       render(<App />);
       // Reach Detail via Home's own Coming Up list this time, not
       // Assignments — the confirmation must behave identically regardless
-      // of entry point.
+      // of entry point. Scoped to the Coming Up section specifically: an
+      // assignment due TODAY (per this describe block's own fake-timer
+      // pin) also surfaces in Needs Attention, whose own button shares
+      // the same "Chapter 7 problem set" text — a bare page-wide query
+      // matches both and is ambiguous.
+      const comingUpHeading = await screen.findByRole("heading", { name: "Coming up" });
       await userEventInstance.click(
-        await screen.findByRole("button", { name: /chapter 7 problem set/i }),
+        within(comingUpHeading.closest("div")!).getByRole("button", {
+          name: /chapter 7 problem set/i,
+        }),
       );
       await screen.findByRole("heading", { name: "Chapter 7 problem set" });
       await userEventInstance.click(
@@ -574,7 +597,7 @@ describe("App", () => {
 
     it("cancelling the confirmation leaves the assignment untouched and Detail open", async () => {
       setUp();
-      const userEventInstance = userEvent.setup();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
       render(<App />);
       await userEventInstance.click(screen.getByRole("button", { name: "Assignments" }));

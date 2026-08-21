@@ -10,6 +10,7 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
       onGoToActivities={vi.fn()}
       onGoToCourses={vi.fn()}
       onGoToPreferences={vi.fn()}
+      onGoToSupport={vi.fn()}
       signOut={vi.fn()}
       {...overrides}
     />,
@@ -61,6 +62,16 @@ describe("SettingsPage", () => {
       screen.getByRole("button", { name: /study hours/i }),
     );
     expect(onGoToPreferences).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onGoToSupport when Support is clicked", async () => {
+    const onGoToSupport = vi.fn();
+    const userEventInstance = userEvent.setup();
+
+    renderSettingsPage({ onGoToSupport });
+
+    await userEventInstance.click(screen.getByRole("button", { name: /support/i }));
+    expect(onGoToSupport).toHaveBeenCalledTimes(1);
   });
 
   it("calls signOut when Sign out is clicked", async () => {
