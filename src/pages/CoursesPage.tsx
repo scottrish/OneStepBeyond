@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ErrorBanner from "../components/ErrorBanner";
 import { courseColorValue } from "../domain/courseColor";
 import { useCourses } from "../hooks/useCourses";
 
@@ -65,15 +66,7 @@ export default function CoursesPage({ user, onBack }: CoursesPageProps) {
 
       <h1 className="mb-4 text-3xl">Courses</h1>
 
-      {loadError && (
-        <div
-          role="alert"
-          className="mb-4 rounded-lg border border-destructive bg-card p-3 text-card-foreground"
-        >
-          <p className="mb-2 text-sm">Couldn&rsquo;t load your courses.</p>
-          <Button onClick={retry}>Try again</Button>
-        </div>
-      )}
+      {loadError && <ErrorBanner message="Couldn’t load your courses." onRetry={retry} />}
 
       {!loading && !loadError && courses.length === 0 && (
         <p className="mb-4 text-muted-foreground">
@@ -130,14 +123,7 @@ export default function CoursesPage({ user, onBack }: CoursesPageProps) {
           />
         </div>
 
-        {actionError && (
-          <p
-            role="alert"
-            className="mb-2 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground"
-          >
-            {actionError}
-          </p>
-        )}
+        {actionError && <ErrorBanner message={actionError} />}
 
         <Button type="submit" disabled={newCourseName.trim() === ""}>
           Add course

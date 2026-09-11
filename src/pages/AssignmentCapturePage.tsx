@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import ErrorBanner from "../components/ErrorBanner";
 import { DEFAULT_EFFORT_MINUTES, EFFORT_PRESETS } from "../domain/effortPresets";
 import { tomorrowDateString } from "../domain/dueDate";
 import { useCourses } from "../hooks/useCourses";
@@ -16,9 +17,6 @@ type AssignmentCapturePageProps = {
   onGoToCourses: () => void;
   onSaved: (assignmentId: string) => void;
 };
-
-const errorBoxStyle =
-  "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
 
 export default function AssignmentCapturePage({
   user,
@@ -62,12 +60,7 @@ export default function AssignmentCapturePage({
 
       <h1 className="mb-4 text-3xl">New Assignment</h1>
 
-      {loadError && (
-        <div role="alert" className={errorBoxStyle}>
-          <p className="mb-2">Couldn&rsquo;t load your courses.</p>
-          <Button onClick={retry}>Try again</Button>
-        </div>
-      )}
+      {loadError && <ErrorBanner message="Couldn’t load your courses." onRetry={retry} />}
 
       {!loading && !loadError && courses.length === 0 && (
         <div className="mb-4">
@@ -162,11 +155,7 @@ export default function AssignmentCapturePage({
             />
           </div>
 
-          {actionError && (
-            <p role="alert" className={errorBoxStyle}>
-              {actionError}
-            </p>
-          )}
+          {actionError && <ErrorBanner message={actionError} />}
 
           <Button type="submit" disabled={!canSave || saving}>
             {saving ? "Saving…" : "Save"}

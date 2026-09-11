@@ -1,38 +1,42 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { errorMessage } from "../lib/errorMessage";
+import { useAsyncData } from "./useAsyncData";
 import * as assignmentService from "../services/assignmentService";
 import * as workItemService from "../services/workItemService";
 import type { Assignment, AssignmentEdit } from "../services/assignmentService";
 import type { WorkItem } from "../services/workItemService";
 
+// Two collections, one fetch (Promise.all) — useAsyncData manages one
+// piece of state, so they're combined into one object here and
+// destructured back into two below; each `set*` stays its own function
+// so editAssignment/removeAssignment don't need to know about the other
+// collection.
+type ListData = { assignments: Assignment[]; workItems: WorkItem[] };
+const EMPTY_LIST_DATA: ListData = { assignments: [], workItems: [] };
+
 export function useAssignmentsList(studentId: string) {
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [workItems, setWorkItems] = useState<WorkItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const fetchAll = useCallback(() => {
-    return Promise.all([
-      assignmentService.listAssignments(studentId),
-      workItemService.listWorkItemsForStudent(studentId),
-    ])
-      .then(([nextAssignments, nextWorkItems]) => {
-        setAssignments(nextAssignments);
-        setWorkItems(nextWorkItems);
-      })
-      .catch((error) => setLoadError(errorMessage(error)))
-      .finally(() => setLoading(false));
-  }, [studentId]);
+  const fetchAll = useCallback(
+    () =>
+      Promise.all([
+        assignmentService.listAssignments(studentId),
+        workItemService.listWorkItemsForStudent(studentId),
+      ]).then(([assignments, workItems]) => ({ assignments, workItems })),
+    [studentId],
+  );
+  const { data, setData, loading, loadError, retry } = useAsyncData<ListData>(
+    fetchAll,
+    EMPTY_LIST_DATA,
+  );
+  const { assignments, workItems } = data;
 
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+  function setAssignments(updater: (prev: Assignment[]) => Assignment[]) {
+    setData((prev) => ({ ...prev, assignments: updater(prev.assignments) }));
+  }
 
-  function retry() {
-    setLoading(true);
-    setLoadError(null);
-    fetchAll();
+  function setWorkItems(updater: (prev: WorkItem[]) => WorkItem[]) {
+    setData((prev) => ({ ...prev, workItems: updater(prev.workItems) }));
   }
 
   async function editAssignment(

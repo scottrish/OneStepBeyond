@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import ErrorBanner from "../components/ErrorBanner";
 import { useAuth } from "../hooks/useAuth";
 import { errorMessage } from "../lib/errorMessage";
 import * as supportRelationshipService from "../services/supportRelationshipService";
@@ -146,11 +147,7 @@ export default function InviteAcceptPage() {
         see their {ROLE_LABEL[invitation.role]} dashboard — they can remove you at any time.
       </p>
 
-      {actionError && (
-        <p role="alert" className="mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground">
-          {actionError}
-        </p>
-      )}
+      {actionError && <ErrorBanner message={actionError} />}
 
       <div className="flex gap-2">
         <Button variant="ghost" onClick={handleDecline} disabled={submitting}>

@@ -6,6 +6,7 @@ import {
   dueRelativeLabel,
   longPlanDate,
   shortDayLabel,
+  timeLabel,
   todayISODate,
 } from "./planningDate";
 
@@ -67,6 +68,27 @@ describe("longPlanDate", () => {
 
   it("does not shift the day near a UTC midnight boundary", () => {
     expect(longPlanDate("2026-01-01")).toBe("Thursday, January 1");
+  });
+});
+
+// docs/decisions/20260911-architecture-refactor-proposal.md increment 1
+// — previously duplicated verbatim in HomePage.tsx, ActivitiesPage.tsx,
+// WeekLookAhead.tsx, and PlanPage.tsx.
+describe("timeLabel", () => {
+  it("formats a morning time", () => {
+    expect(timeLabel("09:05")).toBe("9:05 AM");
+  });
+
+  it("formats an afternoon time", () => {
+    expect(timeLabel("15:30")).toBe("3:30 PM");
+  });
+
+  it("formats noon as 12 PM", () => {
+    expect(timeLabel("12:00")).toBe("12:00 PM");
+  });
+
+  it("formats midnight as 12 AM", () => {
+    expect(timeLabel("00:00")).toBe("12:00 AM");
   });
 });
 

@@ -1,7 +1,8 @@
 import { Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ErrorBanner from "../components/ErrorBanner";
 import { effortLabel } from "../domain/effortPresets";
-import { addDaysISODate, daysBetween, longPlanDate } from "../domain/planningDate";
+import { addDaysISODate, daysBetween, longPlanDate, timeLabel } from "../domain/planningDate";
 import { activitiesOn, availableMinutes, capacityPhrase } from "../domain/studyCapacity";
 import type { Activity } from "../services/activityService";
 import type { Assignment } from "../services/assignmentService";
@@ -19,20 +20,6 @@ const WEEK_LENGTH = 7;
 // Only call out a missing plan when it's actually consequential — see
 // week-lookahead.md's Signal-to-noise rule.
 const DUE_SOON_DAYS = 2;
-
-const errorBoxStyle =
-  "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
-
-// Same local 12-hour formatter PlanPage.tsx/ActivitiesPage.tsx/
-// HomePage.tsx already each keep their own copy of — presentation-only,
-// not worth sharing as a domain module for the same reason those files
-// don't.
-function timeLabel(value: string): string {
-  const [hours, minutes] = value.split(":").map(Number);
-  const period = hours >= 12 ? "PM" : "AM";
-  const twelveHour = hours % 12 === 0 ? 12 : hours % 12;
-  return `${twelveHour}:${String(minutes).padStart(2, "0")} ${period}`;
-}
 
 type WeekLookAheadProps = {
   studentId: string;
@@ -70,18 +57,9 @@ export default function WeekLookAhead({
 
   return (
     <section>
-      {loadError && (
-        <div role="alert" className={errorBoxStyle}>
-          <p className="mb-2">Couldn&rsquo;t load the week ahead.</p>
-          <Button onClick={retry}>Try again</Button>
-        </div>
-      )}
+      {loadError && <ErrorBanner message="Couldn’t load the week ahead." onRetry={retry} />}
 
-      {actionError && (
-        <p role="alert" className={errorBoxStyle}>
-          {actionError}
-        </p>
-      )}
+      {actionError && <ErrorBanner message={actionError} />}
 
       {!loading && !loadError && (
         <ul className="flex flex-col gap-4">

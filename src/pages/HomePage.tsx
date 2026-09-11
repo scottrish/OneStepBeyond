@@ -3,9 +3,10 @@ import type { User } from "@supabase/supabase-js";
 import { Plus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/EmptyState";
+import ErrorBanner from "../components/ErrorBanner";
 import { courseColorValue } from "../domain/courseColor";
 import { effortLabel } from "../domain/effortPresets";
-import { dueRelativeLabel, longPlanDate, todayISODate } from "../domain/planningDate";
+import { dueRelativeLabel, longPlanDate, timeLabel, todayISODate } from "../domain/planningDate";
 import { assignmentsNeedingAttention } from "../domain/riskDetection";
 import type { AttentionItem } from "../domain/riskDetection";
 import { sortByStartTime } from "../domain/sessionOrder";
@@ -45,19 +46,6 @@ type View =
   | { name: "courses" }
   | { name: "preferences" }
   | { name: "capture-assignment" };
-
-const errorBoxStyle =
-  "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
-
-// Same local 12-hour formatter PlanPage.tsx/ActivitiesPage.tsx already
-// use for Activity/session times — presentation-only, kept local for the
-// same reason those files keep their own copy rather than sharing one.
-function timeLabel(value: string): string {
-  const [hours, minutes] = value.split(":").map(Number);
-  const period = hours >= 12 ? "PM" : "AM";
-  const twelveHour = hours % 12 === 0 ? 12 : hours % 12;
-  return `${twelveHour}:${String(minutes).padStart(2, "0")} ${period}`;
-}
 
 // No name field exists anywhere in this app's signup/profile data (only
 // email) — Domain-Model.md's Student "Profile" is explicitly future work
@@ -293,12 +281,7 @@ export default function HomePage({
         </div>
       </header>
 
-      {loadError && (
-        <div role="alert" className={`${errorBoxStyle} mt-4`}>
-          <p className="mb-2">Couldn&rsquo;t load your day.</p>
-          <Button onClick={retry}>Try again</Button>
-        </div>
-      )}
+      {loadError && <ErrorBanner message="Couldn’t load your day." onRetry={retry} className="mt-4" />}
 
       {!loading && !loadError && (
         <>

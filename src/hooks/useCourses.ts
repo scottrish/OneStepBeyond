@@ -1,32 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { assignCourseColor } from "../domain/courseColor";
 import { errorMessage } from "../lib/errorMessage";
+import { useAsyncData } from "./useAsyncData";
 import * as courseService from "../services/courseService";
 import type { Course } from "../services/courseService";
 
 export function useCourses(studentId: string) {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const fetchCourses = useCallback(() => {
-    return courseService
-      .listCourses(studentId)
-      .then((data) => setCourses(data))
-      .catch((error) => setLoadError(errorMessage(error)))
-      .finally(() => setLoading(false));
-  }, [studentId]);
-
-  useEffect(() => {
-    fetchCourses();
-  }, [fetchCourses]);
-
-  function retry() {
-    setLoading(true);
-    setLoadError(null);
-    fetchCourses();
-  }
+  const fetchCourses = useCallback(() => courseService.listCourses(studentId), [studentId]);
+  const { data: courses, setData: setCourses, loading, loadError, retry } = useAsyncData<Course[]>(
+    fetchCourses,
+    [],
+  );
 
   async function addCourse(name: string): Promise<boolean> {
     const trimmed = name.trim();

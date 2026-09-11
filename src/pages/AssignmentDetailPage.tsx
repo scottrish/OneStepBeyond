@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import ErrorBanner from "../components/ErrorBanner";
 import { courseColorValue } from "../domain/courseColor";
-import { DEFAULT_EFFORT_MINUTES, EFFORT_PRESETS, effortLabel } from "../domain/effortPresets";
+import { EFFORT_PRESETS, effortLabel } from "../domain/effortPresets";
 import { formatDueDate } from "../domain/dueDate";
 import { todayISODate } from "../domain/planningDate";
 import { remainingMinutes } from "../domain/remainingMinutes";
@@ -17,9 +18,9 @@ import { useAllWorkSessions } from "../hooks/useAllWorkSessions";
 import { useAssignment } from "../hooks/useAssignment";
 import { useCourses } from "../hooks/useCourses";
 import { usePreferences } from "../hooks/usePreferences";
+import { useWorkItemOrchestration } from "../hooks/useWorkItemOrchestration";
 import { useWorkItems } from "../hooks/useWorkItems";
-import * as decompositionAttemptService from "../services/decompositionAttemptService";
-import type { WorkItem } from "../services/workItemService";
+import AssignmentDetailSteps from "./AssignmentDetailSteps";
 import ReflectionPrompt from "./ReflectionPrompt";
 import WorkBreakdownPage from "./WorkBreakdownPage";
 
@@ -34,8 +35,6 @@ type AssignmentDetailPageProps = {
   onGoToPlan: () => void;
 };
 
-const errorBoxStyle =
-  "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
 
 export default function AssignmentDetailPage({
   user,
@@ -94,14 +93,19 @@ export default function AssignmentDetailPage({
   // least one Work Item exists. Per item 3a (Correction 5), "Break this
   // down" no longer exists either — WorkBreakdownPage is reachable from
   // this screen only via the breakdown-nudge card's "Yes, help me start"
-  // below, for a fresh, large assignment.
-  const [addingStep, setAddingStep] = useState(false);
-  const [newStepTitle, setNewStepTitle] = useState("");
-  const [newStepEffort, setNewStepEffort] = useState(DEFAULT_EFFORT_MINUTES);
-  const [editingStepId, setEditingStepId] = useState<string | null>(null);
-  const [editStepTitle, setEditStepTitle] = useState("");
-  const [editStepEffort, setEditStepEffort] = useState(DEFAULT_EFFORT_MINUTES);
-  const [confirmingDeleteStepId, setConfirmingDeleteStepId] = useState<string | null>(null);
+  // below, for a fresh, large assignment. The section's own add/edit/
+  // delete UI and local state live in AssignmentDetailSteps; the effort-
+  // rollup/DecompositionAttempt side effects on top of plain CRUD live in
+  // useWorkItemOrchestration below.
+  const { addStep, editStep, deleteStep } = useWorkItemOrchestration({
+    userId: user.id,
+    assignmentId,
+    assignment,
+    updateAssignment,
+    addItem,
+    editItem,
+    deleteItem,
+  });
 
   const course = courses.find((c) => c.id === assignment?.courseId);
   const hasCompletedSteps = workItems.some((item) => item.completedAt !== null);
@@ -160,91 +164,6 @@ export default function AssignmentDetailPage({
     if (hadWorkItems) setReflecting(true);
   }
 
-  // docs/features/assignment-detail-cta-hierarchy.md item 3b's §5-style
-  // effort derivation ("Assignment estimated effort = sum(confirmed Work
-  // Item estimated durations)"), reused here the same way
-  // confirmWorkBreakdown already applies it for the bulk-replace case.
-  async function recomputeAssignmentEffort(updatedItems: WorkItem[]) {
-    if (!assignment) return;
-    const totalEffortMinutes = updatedItems.reduce((sum, item) => sum + item.effortMinutes, 0);
-    await updateAssignment({
-      title: assignment.title,
-      dueDate: assignment.dueDate,
-      effortMinutes: totalEffortMinutes,
-      notes: assignment.notes ?? "",
-    });
-  }
-
-  // Preserves the evidentiary trail docs/decisions/
-  // 20260815-manual-work-breakdown-draft-state.md's single-entry-point
-  // design existed to guarantee, even though that design's mechanism
-  // (WorkBreakdownPage as the only entry point) no longer holds for
-  // add/edit. Not called for delete — see item 3b's Functional
-  // Requirements for why.
-  async function recordStepDecompositionAttempt(
-    initialItems: WorkItem[],
-    updatedItems: WorkItem[],
-  ) {
-    await decompositionAttemptService.recordDecompositionAttempt(user.id, {
-      assignmentId,
-      initialWorkItems: initialItems.map((item) => item.title),
-      resultingWorkItems: updatedItems.map((item) => item.title),
-      revisionCount: 1,
-      outcome: "confirmed",
-    });
-  }
-
-  async function handleAddStep() {
-    const initialItems = workItems;
-    const updated = await addItem(newStepTitle.trim(), newStepEffort);
-    if (updated) {
-      setNewStepTitle("");
-      setNewStepEffort(DEFAULT_EFFORT_MINUTES);
-      setAddingStep(false);
-      await recomputeAssignmentEffort(updated);
-      await recordStepDecompositionAttempt(initialItems, updated);
-    }
-  }
-
-  function startEditingStep(item: WorkItem) {
-    setEditingStepId(item.id);
-    setEditStepTitle(item.title);
-    setEditStepEffort(item.effortMinutes);
-  }
-
-  async function handleSaveStepEdit(id: string) {
-    const initialItems = workItems;
-    const updated = await editItem(id, {
-      title: editStepTitle.trim(),
-      effortMinutes: editStepEffort,
-    });
-    if (updated) {
-      setEditingStepId(null);
-      await recomputeAssignmentEffort(updated);
-      await recordStepDecompositionAttempt(initialItems, updated);
-    }
-  }
-
-  // Deleting an incomplete step is immediate, matching WorkBreakdownPage's
-  // own no-confirmation draft delete. A completed step asks first — see
-  // handleDeleteStepClick — mirroring the exact reasoning this screen
-  // already applies to whole-assignment deletion (hasCompletedSteps).
-  async function handleDeleteStep(id: string) {
-    const updated = await deleteItem(id);
-    if (updated) {
-      setConfirmingDeleteStepId(null);
-      await recomputeAssignmentEffort(updated);
-    }
-  }
-
-  function handleDeleteStepClick(item: WorkItem) {
-    if (item.completedAt !== null) {
-      setConfirmingDeleteStepId(item.id);
-    } else {
-      handleDeleteStep(item.id);
-    }
-  }
-
   // docs/features/assignment-detail-cta-hierarchy.md item 3a (Correction
   // 5) — the understanding prompt on WorkBreakdownPage's create step
   // saves on blur; guarded here too (not just by the prompt not showing
@@ -296,11 +215,7 @@ export default function AssignmentDetailPage({
 
       {loading && <p className="text-muted-foreground">Loading…</p>}
 
-      {loadError && (
-        <p role="alert" className={errorBoxStyle}>
-          Couldn&rsquo;t load this assignment.
-        </p>
-      )}
+      {loadError && <ErrorBanner message="Couldn’t load this assignment." />}
 
       {assignment && confirmingDelete && (
         <div className="rounded-lg border border-destructive bg-card p-4">
@@ -364,11 +279,7 @@ export default function AssignmentDetailPage({
             <Label htmlFor="edit-notes">Notes (optional)</Label>
             <Textarea id="edit-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
-          {assignmentActionError && (
-            <p role="alert" className={errorBoxStyle}>
-              {assignmentActionError}
-            </p>
-          )}
+          {assignmentActionError && <ErrorBanner message={assignmentActionError} />}
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={() => setEditing(false)}>
               Cancel
@@ -463,180 +374,12 @@ export default function AssignmentDetailPage({
             </div>
           )}
 
-          <section>
-            <h2 className="mb-3 text-sm font-semibold">Steps</h2>
-
-            {workItems.length > 0 && (
-              <ul className="mb-3 flex flex-col gap-2">
-                {workItems.map((item) =>
-                  editingStepId === item.id ? (
-                    <li
-                      key={item.id}
-                      className="rounded-lg border border-border bg-card p-3"
-                    >
-                      <Input
-                        autoFocus
-                        aria-label={`Edit ${item.title}`}
-                        value={editStepTitle}
-                        onChange={(e) => setEditStepTitle(e.target.value)}
-                        className="mb-2"
-                      />
-                      <div className="mb-3 flex flex-wrap gap-2">
-                        {EFFORT_PRESETS.map((preset) => (
-                          <Button
-                            key={preset.minutes}
-                            type="button"
-                            size="sm"
-                            variant={editStepEffort === preset.minutes ? "default" : "outline"}
-                            onClick={() => setEditStepEffort(preset.minutes)}
-                          >
-                            {preset.label}
-                          </Button>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditingStepId(null)}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="flex-1"
-                          disabled={editStepTitle.trim() === ""}
-                          onClick={() => handleSaveStepEdit(item.id)}
-                        >
-                          Save
-                        </Button>
-                      </div>
-                    </li>
-                  ) : confirmingDeleteStepId === item.id ? (
-                    <li
-                      key={item.id}
-                      className="rounded-lg border border-destructive bg-card p-3"
-                    >
-                      <p className="mb-2 text-sm">
-                        Delete &ldquo;{item.title}&rdquo;? This step is already
-                        complete — deleting it will erase that progress.
-                      </p>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => setConfirmingDeleteStepId(null)}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => handleDeleteStep(item.id)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </li>
-                  ) : (
-                    <li
-                      key={item.id}
-                      className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={item.completedAt !== null}
-                        disabled
-                        aria-label={`${item.title} ${item.completedAt ? "complete" : "not yet complete"}`}
-                        className="size-4"
-                      />
-                      <span
-                        className={`flex-1 text-sm ${item.completedAt ? "text-muted-foreground line-through" : ""}`}
-                      >
-                        {item.title}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {effortLabel(item.effortMinutes)}
-                      </span>
-                      {item.completedAt === null && (
-                        <Button
-                          aria-label={`Edit ${item.title}`}
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => startEditingStep(item)}
-                        >
-                          <Pencil className="size-4 text-muted-foreground" />
-                        </Button>
-                      )}
-                      <Button
-                        aria-label={`Delete ${item.title}`}
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteStepClick(item)}
-                      >
-                        <Trash2 className="size-4 text-muted-foreground" />
-                      </Button>
-                    </li>
-                  ),
-                )}
-              </ul>
-            )}
-
-            {addingStep ? (
-              <div className="rounded-lg border border-border bg-card p-3">
-                <Input
-                  autoFocus
-                  aria-label="New step title"
-                  value={newStepTitle}
-                  onChange={(e) => setNewStepTitle(e.target.value)}
-                  placeholder="What's the next piece?"
-                  className="mb-2"
-                />
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {EFFORT_PRESETS.map((preset) => (
-                    <Button
-                      key={preset.minutes}
-                      type="button"
-                      size="sm"
-                      variant={newStepEffort === preset.minutes ? "default" : "outline"}
-                      onClick={() => setNewStepEffort(preset.minutes)}
-                    >
-                      {preset.label}
-                    </Button>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setAddingStep(false);
-                      setNewStepTitle("");
-                      setNewStepEffort(DEFAULT_EFFORT_MINUTES);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    disabled={newStepTitle.trim() === ""}
-                    onClick={handleAddStep}
-                  >
-                    Add
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => setAddingStep(true)}>
-                  {workItems.length > 0 ? "+ Add another step" : "Just add a step"}
-                </Button>
-              </div>
-            )}
-          </section>
+          <AssignmentDetailSteps
+            workItems={workItems}
+            onAdd={(title, effortMinutes) => addStep(title, effortMinutes, workItems)}
+            onEdit={(id, patch) => editStep(id, patch, workItems)}
+            onDelete={(id) => deleteStep(id)}
+          />
 
           <div className="mt-8 flex flex-col gap-3">
             <Button size="lg" className="w-full" onClick={onGoToPlan}>

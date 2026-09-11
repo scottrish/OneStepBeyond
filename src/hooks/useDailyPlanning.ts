@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { errorMessage } from "../lib/errorMessage";
+import { useAsyncData } from "./useAsyncData";
 import * as planningSessionService from "../services/planningSessionService";
 import * as workSessionService from "../services/workSessionService";
 import type { WorkSession } from "../services/workSessionService";
@@ -17,9 +18,6 @@ export type PlanItem = {
 // new set, rather than mirroring workBreakdownService's insert-then-
 // delete ordering.
 export function useDailyPlanning(studentId: string, date: string) {
-  const [workSessions, setWorkSessions] = useState<WorkSession[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   // `date` (not just studentId) is a dependency here, since the day
@@ -28,23 +26,18 @@ export function useDailyPlanning(studentId: string, date: string) {
   // for assignmentId, kept consistent rather than introducing a
   // synchronous setState-in-effect (which react-hooks/set-state-in-effect
   // flags) to fix it for this hook alone.
-  const fetchSessions = useCallback(() => {
-    return workSessionService
-      .listWorkSessionsForDate(studentId, date)
-      .then((data) => setWorkSessions(data))
-      .catch((error) => setLoadError(errorMessage(error)))
-      .finally(() => setLoading(false));
-  }, [studentId, date]);
-
-  useEffect(() => {
-    fetchSessions();
-  }, [fetchSessions]);
-
-  function retry() {
-    setLoading(true);
-    setLoadError(null);
-    fetchSessions();
-  }
+  const fetchSessions = useCallback(
+    () => workSessionService.listWorkSessionsForDate(studentId, date),
+    [studentId, date],
+  );
+  const {
+    data: workSessions,
+    setData: setWorkSessions,
+    loading,
+    loadError,
+    refetch: refetchSessions,
+    retry,
+  } = useAsyncData<WorkSession[]>(fetchSessions, []);
 
   // Confirming a plan: remove the date's previous not-yet-started
   // sessions, insert the newly confirmed set, then record one Planning
@@ -82,7 +75,7 @@ export function useDailyPlanning(studentId: string, date: string) {
       setActionError(errorMessage(error));
       // State may now disagree with the server (e.g. delete succeeded
       // but insert failed) — reload rather than trust local state.
-      fetchSessions();
+      refetchSessions();
       return false;
     }
   }

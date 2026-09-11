@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import ErrorBanner from "../components/ErrorBanner";
 import { EFFORT_PRESETS, effortLabel } from "../domain/effortPresets";
 import { useWorkBreakdownDraft } from "../hooks/useWorkBreakdownDraft";
 import type { Assignment } from "../services/assignmentService";
@@ -27,9 +28,6 @@ type WorkBreakdownPageProps = {
 
 type Step = "create" | "estimate" | "review";
 type UnderstandingPromptChoice = "paste" | "own-words";
-
-const errorBoxStyle =
-  "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
 
 // docs/features/manual-work-breakdown-reflection-v0.1.md §4 — the
 // unassisted 3-step "Break this down" flow: create → estimate → confirm.
@@ -340,11 +338,7 @@ export default function WorkBreakdownPage({
             {completedItems.length > 0 && " — completed steps aren't shown here"}
           </p>
 
-          {actionError && (
-            <p role="alert" className={errorBoxStyle}>
-              {actionError}
-            </p>
-          )}
+          {actionError && <ErrorBanner message={actionError} />}
 
           <div className="flex gap-2">
             <Button variant="ghost" onClick={() => setStep("create")}>

@@ -1,14 +1,9 @@
 import { useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { ArrowRightLeft, Check, Minus, Plus, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import EmptyState from "@/components/EmptyState";
+import ErrorBanner from "../components/ErrorBanner";
 import { errorMessage } from "../lib/errorMessage";
-import { effortLabel } from "../domain/effortPresets";
 import {
   addDaysISODate,
-  dayLabel,
-  dueRelativeLabel,
   longPlanDate,
   shortDayLabel,
   todayISODate,
@@ -27,6 +22,10 @@ import * as workBreakdownService from "../services/workBreakdownService";
 import * as workSessionService from "../services/workSessionService";
 import type { Assignment } from "../services/assignmentService";
 import type { WorkSession } from "../services/workSessionService";
+import ConfirmStep from "./plan/ConfirmStep";
+import EstimateStep from "./plan/EstimateStep";
+import ScheduleStep from "./plan/ScheduleStep";
+import SelectStep from "./plan/SelectStep";
 import WeekLookAhead from "./WeekLookAhead";
 import WorkBreakdownPage from "./WorkBreakdownPage";
 
@@ -114,18 +113,6 @@ const STEP_LABEL: Record<Step, string> = {
 // mentions, week-lookahead.md's own separate 7-day view).
 const DAY_STRIP_LENGTH = 5;
 
-const errorBoxStyle =
-  "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
-
-// Same local 12-hour formatter ActivitiesPage.tsx already uses for
-// Activity times — presentation-only, not shared as a domain module for
-// the same reason that file keeps its own copy.
-function timeLabel(value: string): string {
-  const [hours, minutes] = value.split(":").map(Number);
-  const period = hours >= 12 ? "PM" : "AM";
-  const twelveHour = hours % 12 === 0 ? 12 : hours % 12;
-  return `${twelveHour}:${String(minutes).padStart(2, "0")} ${period}`;
-}
 
 /** Default each chosen item into the first open slot with room, in order. */
 function assignDefaultTimes(
@@ -155,106 +142,6 @@ function assignDefaultTimes(
   }
 
   return next;
-}
-
-// The pair of actions shown by FR-1's signal for each assignment that
-// hasn't been broken down yet, shared between Select's all-candidates-
-// need-it dead end and its mixed-case notice (BreakdownNotice below) so
-// the markup isn't duplicated. Not every assignment
-// benefits from decomposition — a short, atomic task ("Read chapter 1 by
-// Tuesday") gains nothing from a forced multi-step breakdown, so
-// "Plan ... as one task" is offered as an equally direct alternative to
-// "Break down ...", not buried behind it. It creates a single Work Item
-// matching the assignment's own title/estimate via the same
-// workBreakdownService.confirmWorkBreakdown the full breakdown flow uses
-// (see planWithoutBreakdown below) — reusing the existing abstraction
-// rather than a parallel "unbroken-down schedulable assignment" concept.
-function BreakdownList({
-  assignments,
-  onBreakdown,
-  onPlanDirectly,
-  planningAssignmentId,
-}: {
-  assignments: Assignment[];
-  onBreakdown: (assignmentId: string) => void;
-  onPlanDirectly: (assignment: Assignment) => void;
-  planningAssignmentId: string | null;
-}) {
-  return (
-    <ul className="flex flex-col gap-2">
-      {assignments.map((assignment) => (
-        <li key={assignment.id} className="flex flex-col gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11 w-full justify-start rounded-2xl text-left"
-            onClick={() => onBreakdown(assignment.id)}
-          >
-            Break down &ldquo;{assignment.title}&rdquo;
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={planningAssignmentId === assignment.id}
-            className="min-h-11 w-full justify-start rounded-2xl text-left text-muted-foreground"
-            onClick={() => onPlanDirectly(assignment)}
-          >
-            {planningAssignmentId === assignment.id
-              ? "Planning…"
-              : `Plan “${assignment.title}” as one task instead`}
-          </Button>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-// The inline "these assignments still need breaking down" notice, shown
-// within Select whenever some (not necessarily all) of the day's
-// assignments need it — i.e. real, already-selectable candidates exist
-// too, so Select's own dead-end state (below) doesn't apply. Iteration 2's
-// assessment (FINDING-DP-001, docs/features/iterations/daily-planning/
-// daily-planning.i03.md) found the previous version of this signal only
-// fired when Select's candidate list was entirely empty, so a day with a
-// mix of already-broken-down and not-yet-broken-down assignments silently
-// omitted the latter with no explanation at all. This component is now
-// rendered whenever assignmentsNeedingBreakdown is non-empty, regardless
-// of whether other, already-selectable candidates also exist.
-function BreakdownNotice({
-  assignments,
-  onBreakdown,
-  onPlanDirectly,
-  planningAssignmentId,
-}: {
-  assignments: Assignment[];
-  onBreakdown: (assignmentId: string) => void;
-  onPlanDirectly: (assignment: Assignment) => void;
-  planningAssignmentId: string | null;
-}) {
-  if (assignments.length === 0) return null;
-  return (
-    <div className="mb-4 rounded-2xl border border-border bg-card p-4">
-      <p className="mb-3 text-sm text-foreground">
-        {assignments.length === 1 ? (
-          <>
-            &ldquo;{assignments[0].title}&rdquo; needs to be broken into steps before it can be
-            scheduled &mdash; or, if it&rsquo;s not worth breaking down, plan it as one task.
-          </>
-        ) : (
-          <>
-            {assignments.length} assignments need to be broken into steps before they can be
-            scheduled &mdash; or plan any of them as one task instead.
-          </>
-        )}
-      </p>
-      <BreakdownList
-        assignments={assignments}
-        onBreakdown={onBreakdown}
-        onPlanDirectly={onPlanDirectly}
-        planningAssignmentId={planningAssignmentId}
-      />
-    </div>
-  );
 }
 
 export default function PlanPage({
@@ -599,12 +486,7 @@ export default function PlanPage({
 
       {tab === "lookahead" ? (
         <>
-          {loadError && (
-            <div role="alert" className={errorBoxStyle}>
-              <p className="mb-2">Couldn&rsquo;t load your plan.</p>
-              <Button onClick={retry}>Try again</Button>
-            </div>
-          )}
+          {loadError && <ErrorBanner message="Couldn’t load your plan." onRetry={retry} />}
           {!loading && !loadError && (
             <WeekLookAhead
               studentId={studentId}
@@ -650,24 +532,11 @@ export default function PlanPage({
             })}
           </div>
 
-          {loadError && (
-            <div role="alert" className={errorBoxStyle}>
-              <p className="mb-2">Couldn&rsquo;t load your plan.</p>
-              <Button onClick={retry}>Try again</Button>
-            </div>
-          )}
+          {loadError && <ErrorBanner message="Couldn’t load your plan." onRetry={retry} />}
 
-          {actionError && (
-            <p role="alert" className={errorBoxStyle}>
-              {actionError}
-            </p>
-          )}
+          {actionError && <ErrorBanner message={actionError} />}
 
-          {planDirectlyError && (
-            <p role="alert" className={errorBoxStyle}>
-              {planDirectlyError}
-            </p>
-          )}
+          {planDirectlyError && <ErrorBanner message={planDirectlyError} />}
 
           {!loading && !loadError && (
             <>
@@ -676,521 +545,86 @@ export default function PlanPage({
               </p>
 
               {safeStep === "select" ? (
-            <section>
-              <h2 className="mb-3 text-base font-medium text-foreground">
-                Let&rsquo;s plan {dayLabel(date, today)}.
-              </h2>
-
-              {dueThatDay.length > 0 && (
-                <ul className="mb-3 flex flex-col gap-1">
-                  {dueThatDay.map((assignment) => (
-                    <li key={assignment.id}>
-                      <button
-                        type="button"
-                        onClick={() => onOpenAssignment(assignment.id)}
-                        className="text-left text-sm text-foreground underline-offset-4 hover:underline"
-                      >
-                        Due: {assignment.title}{" "}
-                        <span className="text-xs text-muted-foreground">
-                          {courseName(assignment.courseId)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {commitments.length > 0 ? (
-                <ul className="flex flex-col gap-2">
-                  {commitments.map((activity) => (
-                    <li
-                      key={activity.id}
-                      className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm"
-                    >
-                      <span className="text-foreground">{activity.name}</span>
-                      <span className="ml-auto text-muted-foreground">
-                        {timeLabel(activity.startTime)}–{timeLabel(activity.finishTime)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">Nothing else on that day.</p>
-              )}
-
-              {workSessions.length > 0 && (
-                <>
-                  <h3 className="mt-5 mb-2 text-sm font-semibold text-foreground">
-                    Already planned
-                  </h3>
-                  <ul className="flex flex-col gap-1">
-                    {workSessions.map((session) => {
-                      const item = workItems.find((w) => w.id === session.workItemId);
-                      const assignment = item
-                        ? assignments.find((a) => a.id === item.assignmentId)
-                        : undefined;
-                      const done = session.status === "done";
-                      const itemLabel = item?.title ?? "this session";
-                      const moving = movingSessionId === session.id;
-                      return (
-                        <li key={session.id} className="flex flex-col gap-2">
-                          <div className="flex items-center gap-2 text-sm text-foreground">
-                            {done ? (
-                              <Check className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
-                            ) : (
-                              <span
-                                aria-hidden="true"
-                                className="size-1.5 shrink-0 rounded-full bg-primary"
-                              />
-                            )}
-                            <span className={`min-w-0 flex-1 ${done ? "line-through opacity-60" : ""}`}>
-                              <span className="block truncate">{item?.title ?? "Study session"}</span>
-                              {item && assignment && (
-                                <span className="block truncate text-xs text-muted-foreground">
-                                  {assignment.title} · {courseName(assignment.courseId)}
-                                </span>
-                              )}
-                            </span>
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              {session.startTime ? `${timeLabel(session.startTime)} · ` : ""}
-                              {effortLabel(session.plannedMinutes)}
-                            </span>
-                            {!done && (
-                              <>
-                                <Button
-                                  aria-label={`Move ${itemLabel} to another day`}
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 shrink-0"
-                                  onClick={() => (moving ? cancelMove() : startMove(session.id))}
-                                >
-                                  <ArrowRightLeft className="size-3.5 text-muted-foreground" />
-                                </Button>
-                                <Button
-                                  aria-label={`Remove ${itemLabel} from ${dayLabel(date, today)}'s plan`}
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 shrink-0"
-                                  onClick={() => removeSession(session.id)}
-                                >
-                                  <X className="size-3.5 text-muted-foreground" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
-
-                          {moving && (
-                            <div className="rounded-2xl border border-border bg-card p-3">
-                              <p className="mb-2 text-xs font-medium text-foreground">
-                                Move &ldquo;{itemLabel}&rdquo; to:
-                              </p>
-                              <div
-                                role="radiogroup"
-                                aria-label={`Choose a day to move ${itemLabel} to`}
-                                className="mb-2 flex flex-wrap gap-2"
-                              >
-                                {Array.from({ length: DAY_STRIP_LENGTH }, (_, i) =>
-                                  addDaysISODate(today, i),
-                                )
-                                  .filter((d) => d !== date)
-                                  .map((d) => {
-                                    const active = d === moveTargetDate;
-                                    return (
-                                      <button
-                                        key={d}
-                                        type="button"
-                                        role="radio"
-                                        aria-checked={active}
-                                        onClick={() => setMoveTargetDate(d)}
-                                        className={`min-h-11 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                                          active
-                                            ? "border-primary bg-accent/60 text-foreground"
-                                            : "border-border bg-card text-muted-foreground"
-                                        }`}
-                                      >
-                                        {shortDayLabel(d, today)}
-                                      </button>
-                                    );
-                                  })}
-                              </div>
-
-                              {moveOverCapacity && moveTargetDate && (
-                                <p className="mb-2 rounded-2xl bg-attention px-3 py-2 text-xs text-attention-foreground">
-                                  This is{" "}
-                                  {effortLabel(
-                                    session.plannedMinutes - (moveTargetCapacity ?? 0),
-                                  )}{" "}
-                                  more than {dayLabel(moveTargetDate, today)} has. That is worth
-                                  knowing now rather than at 10pm.
-                                </p>
-                              )}
-
-                              {moveError && (
-                                <p role="alert" className="mb-2 text-xs text-destructive">
-                                  {moveError}
-                                </p>
-                              )}
-
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="rounded-2xl"
-                                  disabled={moveSubmitting}
-                                  onClick={cancelMove}
-                                >
-                                  Cancel
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  className="flex-1 rounded-2xl"
-                                  disabled={!moveTargetDate || moveSubmitting}
-                                  onClick={() => confirmMove(session)}
-                                >
-                                  Move here
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </>
-              )}
-
-              <p className="mt-4 text-sm text-muted-foreground">
-                That leaves about{" "}
-                <span className="font-medium text-foreground">{effortLabel(Math.max(0, capacity))}</span>{" "}
-                of study time.
-              </p>
-
-              {candidates.length === 0 ? (
-                assignmentsNeedingBreakdown.length > 0 ? (
-                  <div className="mt-6">
-                    <h2 className="mb-3 text-base font-medium text-foreground">
-                      Nothing to plan yet.
-                    </h2>
-                    <p className="mb-4 text-sm text-muted-foreground">
-                      {assignmentsNeedingBreakdown.length === 1 ? (
-                        <>
-                          Break &ldquo;{assignmentsNeedingBreakdown[0].title}&rdquo; into steps
-                          first, then come back.
-                        </>
-                      ) : (
-                        <>Break these assignments into steps first, then come back.</>
-                      )}
-                    </p>
-                    <BreakdownList
-                      assignments={assignmentsNeedingBreakdown}
-                      onBreakdown={(assignmentId) => setView({ name: "breakdown", assignmentId })}
-                      onPlanDirectly={planWithoutBreakdown}
-                      planningAssignmentId={planningAssignmentId}
-                    />
-                  </div>
-                ) : (
-                  <div className="mt-6">
-                    <EmptyState
-                      title="Nothing to plan yet."
-                      hint="Add an assignment, then come back."
-                      action={<Button onClick={onGoToAssignments}>Add assignment</Button>}
-                    />
-                  </div>
-                )
-              ) : (
-                <div className="mt-6">
-                  <h2 className="mb-3 text-base font-medium text-foreground">
-                    What should you work on?
-                  </h2>
-                  <BreakdownNotice
-                    assignments={assignmentsNeedingBreakdown}
-                    onBreakdown={(assignmentId) => setView({ name: "breakdown", assignmentId })}
-                    onPlanDirectly={planWithoutBreakdown}
-                    planningAssignmentId={planningAssignmentId}
-                  />
-                  <ul className="flex flex-col gap-2">
-                    {visibleCandidates.map(({ assignment, workItem }) => {
-                      const selected = workItem.id in chosen;
-                      const elsewhereDate = scheduledElsewhere.get(workItem.id);
-                      return (
-                        <li key={workItem.id}>
-                          <button
-                            type="button"
-                            aria-pressed={selected}
-                            onClick={() => toggleCandidate(workItem.id, workItem.effortMinutes)}
-                            className={`flex min-h-11 w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors ${
-                              selected ? "border-primary bg-accent/60" : "border-border bg-card"
-                            }`}
-                          >
-                            <span
-                              aria-hidden="true"
-                              className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${
-                                selected
-                                  ? "border-primary bg-primary text-primary-foreground"
-                                  : "border-border"
-                              }`}
-                            >
-                              {selected ? <Check className="size-3" /> : null}
-                            </span>
-                            <span className="min-w-0">
-                              <span className="block truncate text-sm font-medium text-foreground">
-                                {workItem.title}
-                              </span>
-                              <span className="block truncate text-xs text-muted-foreground">
-                                {assignment.title} · {courseName(assignment.courseId)} ·{" "}
-                                {dueRelativeLabel(assignment.dueDate, today)}
-                              </span>
-                              {elsewhereDate && (
-                                <span className="mt-1 inline-block truncate rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                                  Also planned for {dayLabel(elsewhereDate, today)}
-                                </span>
-                              )}
-                            </span>
-                            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                              {effortLabel(workItem.effortMinutes)}
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  {!showAll && candidates.length > 3 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAll(true)}
-                      className="mt-3 text-sm text-primary underline underline-offset-4"
-                    >
-                      Show more assignments
-                    </button>
-                  )}
-                  <Button
-                    size="lg"
-                    className="mt-6 w-full rounded-2xl"
-                    disabled={chosenIds.length === 0}
-                    onClick={() => onStepChange("estimate")}
-                  >
-                    Next: estimate time
-                  </Button>
-                </div>
-              )}
-            </section>
+            <SelectStep
+              date={date}
+              today={today}
+              dueThatDay={dueThatDay}
+              onOpenAssignment={onOpenAssignment}
+              courseName={courseName}
+              commitments={commitments}
+              workSessions={workSessions}
+              workItems={workItems}
+              assignments={assignments}
+              movingSessionId={movingSessionId}
+              moveTargetDate={moveTargetDate}
+              moveSubmitting={moveSubmitting}
+              moveError={moveError}
+              moveOverCapacity={moveOverCapacity}
+              moveTargetCapacity={moveTargetCapacity}
+              onStartMove={startMove}
+              onCancelMove={cancelMove}
+              onSetMoveTargetDate={setMoveTargetDate}
+              onConfirmMove={confirmMove}
+              onRemoveSession={removeSession}
+              capacity={capacity}
+              candidates={candidates}
+              visibleCandidates={visibleCandidates}
+              assignmentsNeedingBreakdown={assignmentsNeedingBreakdown}
+              onBreakdown={(assignmentId) => setView({ name: "breakdown", assignmentId })}
+              onPlanDirectly={planWithoutBreakdown}
+              planningAssignmentId={planningAssignmentId}
+              onGoToAssignments={onGoToAssignments}
+              chosen={chosen}
+              chosenIds={chosenIds}
+              onToggleCandidate={toggleCandidate}
+              scheduledElsewhere={scheduledElsewhere}
+              showAll={showAll}
+              onShowAll={() => setShowAll(true)}
+              onNext={() => onStepChange("estimate")}
+            />
           ) : safeStep === "estimate" ? (
-            <section>
-              <h2 className="mb-3 text-base font-medium text-foreground">
-                How long do you think these will take?
-              </h2>
-              <ul className="flex flex-col gap-2">
-                {chosenIds.map((id) => {
-                  const entry = candidates.find((c) => c.workItem.id === id);
-                  if (!entry) return null;
-                  return (
-                    <li
-                      key={id}
-                      className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3"
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-foreground">
-                          {entry.workItem.title}
-                        </span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {entry.assignment.title} · {courseName(entry.assignment.courseId)}
-                        </span>
-                      </span>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          aria-label={`Decrease planned time for ${entry.workItem.title}`}
-                          onClick={() => adjust(id, -5)}
-                        >
-                          <Minus className="size-3.5" />
-                        </Button>
-                        <span className="w-14 text-center text-sm font-medium text-foreground">
-                          {effortLabel(chosen[id] ?? 0)}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          aria-label={`Increase planned time for ${entry.workItem.title}`}
-                          onClick={() => adjust(id, 5)}
-                        >
-                          <Plus className="size-3.5" />
-                        </Button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-
-              <p className="mt-4 text-sm text-muted-foreground">
-                Selected: <span className="font-medium text-foreground">{effortLabel(planned)}</span>
-                {over ? null : ` · about ${effortLabel(Math.max(0, capacity - planned))} still available`}
-              </p>
-
-              {drift !== null && drift > 1.15 && (
-                <div className="mt-4 rounded-3xl bg-accent/70 px-5 py-4">
-                  <p className="text-sm leading-relaxed text-accent-foreground">
-                    Work like this has been taking you about {Math.round((drift - 1) * 100)}% longer
-                    than planned. Does that change any of these numbers?
-                  </p>
-                </div>
-              )}
-
-              {over && (
-                <div className="mt-4 rounded-3xl bg-attention px-5 py-4 text-sm text-attention-foreground">
-                  This is {effortLabel(planned - capacity)} more than you have that day. That is worth
-                  knowing now rather than at 10pm.
-                </div>
-              )}
-
-              <div className="mt-6 flex gap-2">
-                <Button variant="ghost" className="rounded-2xl" onClick={() => onStepChange("select")}>
-                  Back
-                </Button>
-                <Button size="lg" className="flex-1 rounded-2xl" onClick={enterSchedule}>
-                  Next: when
-                </Button>
-              </div>
-            </section>
+            <EstimateStep
+              chosenIds={chosenIds}
+              candidates={candidates}
+              chosen={chosen}
+              onAdjust={adjust}
+              planned={planned}
+              capacity={capacity}
+              over={over}
+              drift={drift}
+              courseName={courseName}
+              onBack={() => onStepChange("select")}
+              onNext={enterSchedule}
+            />
           ) : safeStep === "schedule" ? (
-            <section>
-              <h2 className="mb-3 text-base font-medium text-foreground">When will you do them?</h2>
-              <p className="mb-4 text-sm text-muted-foreground">
-                These are suggestions. Move anything that does not fit your day.
-              </p>
-              <ul className="flex flex-col gap-3">
-                {chosenIds.map((id) => {
-                  const entry = candidates.find((c) => c.workItem.id === id);
-                  if (!entry) return null;
-                  return (
-                    <li key={id} className="rounded-2xl border border-border bg-card px-4 py-3">
-                      <div className="flex items-baseline gap-3">
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium text-foreground">
-                            {entry.workItem.title}
-                          </span>
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {entry.assignment.title} · {courseName(entry.assignment.courseId)}
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {effortLabel(chosen[id] ?? 0)}
-                        </span>
-                      </div>
-                      <div className="mt-3 flex flex-col gap-2">
-                        <input
-                          type="time"
-                          aria-label={`Time for ${entry.workItem.title}`}
-                          value={times[id] ?? ""}
-                          onChange={(e) =>
-                            setTimes((prev) => ({ ...prev, [id]: e.target.value }))
-                          }
-                          className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm text-foreground"
-                        />
-                        {slots.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {slots.map((slot) => (
-                              <button
-                                key={slot.start}
-                                type="button"
-                                onClick={() =>
-                                  setTimes((prev) => ({ ...prev, [id]: slot.start }))
-                                }
-                                className="min-h-11 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/40"
-                              >
-                                {slot.label} · {timeLabel(slot.start)}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-              <div className="mt-6 flex gap-2">
-                <Button variant="ghost" className="rounded-2xl" onClick={() => onStepChange("estimate")}>
-                  Back
-                </Button>
-                <Button size="lg" className="flex-1 rounded-2xl" onClick={() => onStepChange("confirm")}>
-                  Next: review
-                </Button>
-              </div>
-            </section>
-          ) : justConfirmed ? (
-            <section>
-              <h2 className="mb-3 text-base font-medium text-foreground">Plan confirmed.</h2>
-              <p className="text-sm text-muted-foreground">
-                {effortLabel(planned)} planned for {dayLabel(date, today)}. You can come back
-                anytime to adjust it.
-              </p>
-              {date === today && (
-                <Button
-                  size="lg"
-                  className="mt-6 w-full rounded-2xl"
-                  onClick={onStartExecution}
-                >
-                  Start today&rsquo;s plan
-                </Button>
-              )}
-              <Button
-                variant={date === today ? "outline" : "default"}
-                size="lg"
-                className="mt-3 w-full rounded-2xl"
-                onClick={() => pickDay(date)}
-              >
-                Plan another day
-              </Button>
-            </section>
+            <ScheduleStep
+              chosenIds={chosenIds}
+              candidates={candidates}
+              chosen={chosen}
+              times={times}
+              onTimeChange={(id, value) => setTimes((prev) => ({ ...prev, [id]: value }))}
+              slots={slots}
+              courseName={courseName}
+              onBack={() => onStepChange("estimate")}
+              onNext={() => onStepChange("confirm")}
+            />
           ) : (
-            <section>
-              <h2 className="mb-3 text-base font-medium text-foreground">
-                {date === today ? "Today's plan" : `Your plan for ${longPlanDate(date)}`}
-              </h2>
-              <ol className="flex flex-col gap-2">
-                {[...chosenIds]
-                  .sort((a, b) => (times[a] ?? "").localeCompare(times[b] ?? ""))
-                  .map((id, i) => {
-                    const entry = candidates.find((c) => c.workItem.id === id);
-                    if (!entry) return null;
-                    return (
-                      <li
-                        key={id}
-                        className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3"
-                      >
-                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
-                          {i + 1}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm text-foreground">
-                            {entry.workItem.title}
-                          </span>
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {entry.assignment.title} · {courseName(entry.assignment.courseId)}
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {times[id] ? `${timeLabel(times[id])} · ` : ""}
-                          {effortLabel(chosen[id] ?? 0)}
-                        </span>
-                      </li>
-                    );
-                  })}
-              </ol>
-              <p className="mt-4 text-sm text-muted-foreground">
-                {effortLabel(planned)} planned of {effortLabel(Math.max(0, capacity))} available.
-              </p>
-              <div className="mt-6 flex gap-2">
-                <Button variant="ghost" className="rounded-2xl" onClick={() => onStepChange("select")}>
-                  Adjust
-                </Button>
-                <Button size="lg" className="flex-1 rounded-2xl" onClick={finish}>
-                  Looks good
-                </Button>
-              </div>
-            </section>
+            <ConfirmStep
+              justConfirmed={justConfirmed}
+              date={date}
+              today={today}
+              planned={planned}
+              capacity={capacity}
+              chosenIds={chosenIds}
+              times={times}
+              chosen={chosen}
+              candidates={candidates}
+              courseName={courseName}
+              onStartExecution={onStartExecution}
+              onPlanAnotherDay={() => pickDay(date)}
+              onAdjust={() => onStepChange("select")}
+              onFinish={finish}
+            />
               )}
             </>
           )}

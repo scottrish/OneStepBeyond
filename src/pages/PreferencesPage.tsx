@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ErrorBanner from "../components/ErrorBanner";
 import { usePreferences } from "../hooks/usePreferences";
 import type { Preferences, PreferencesInput } from "../services/preferencesService";
 
@@ -11,9 +12,6 @@ type PreferencesPageProps = {
   user: User;
   onBack: () => void;
 };
-
-const errorBoxStyle =
-  "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
 
 type PreferencesFormProps = {
   initial: Preferences;
@@ -75,11 +73,7 @@ function PreferencesForm({ initial, actionError, onSave }: PreferencesFormProps)
         />
       </div>
 
-      {actionError && (
-        <p role="alert" className={errorBoxStyle}>
-          {actionError}
-        </p>
-      )}
+      {actionError && <ErrorBanner message={actionError} />}
 
       <Button type="submit" disabled={!canSave}>
         {saved ? "Saved" : "Save"}
@@ -109,12 +103,7 @@ export default function PreferencesPage({ user, onBack }: PreferencesPageProps) 
         This is what &ldquo;how much time do I have&rdquo; is based on.
       </p>
 
-      {loadError && (
-        <div role="alert" className={errorBoxStyle}>
-          <p className="mb-2">Couldn&rsquo;t load your study hours.</p>
-          <Button onClick={retry}>Try again</Button>
-        </div>
-      )}
+      {loadError && <ErrorBanner message="Couldn’t load your study hours." onRetry={retry} />}
 
       {!loading && !loadError && (
         <PreferencesForm initial={preferences} actionError={actionError} onSave={savePreferences} />

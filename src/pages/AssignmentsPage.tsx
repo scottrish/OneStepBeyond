@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import EmptyState from "@/components/EmptyState";
+import ErrorBanner from "../components/ErrorBanner";
 import { courseColorValue } from "../domain/courseColor";
 import { EFFORT_PRESETS, effortLabel } from "../domain/effortPresets";
 import { formatDueDate } from "../domain/dueDate";
@@ -25,9 +26,6 @@ type AssignmentsPageProps = {
   // local view here — tapping a card just requests it open.
   onOpenAssignment: (assignmentId: string) => void;
 };
-
-const errorBoxStyle =
-  "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
 
 type AssignmentCardProps = {
   assignment: Assignment;
@@ -249,18 +247,9 @@ export default function AssignmentsPage({
     <main className="p-8">
       <h1 className="mb-4 text-3xl">Assignments</h1>
 
-      {loadError && (
-        <div role="alert" className={errorBoxStyle}>
-          <p className="mb-2">Couldn&rsquo;t load your assignments.</p>
-          <Button onClick={retry}>Try again</Button>
-        </div>
-      )}
+      {loadError && <ErrorBanner message="Couldn’t load your assignments." onRetry={retry} />}
 
-      {actionError && (
-        <p role="alert" className={errorBoxStyle}>
-          {actionError}
-        </p>
-      )}
+      {actionError && <ErrorBanner message={actionError} />}
 
       {!loading && !loadError && open.length === 0 && done.length === 0 && (
         <EmptyState

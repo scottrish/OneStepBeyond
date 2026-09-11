@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ErrorBanner from "../components/ErrorBanner";
+import { useAsyncData } from "../hooks/useAsyncData";
 import { errorMessage } from "../lib/errorMessage";
 import * as supportRelationshipService from "../services/supportRelationshipService";
 import type {
@@ -47,9 +49,6 @@ const STATUS_LABEL: Record<StudentRelationship["status"], string> = {
 
 export default function SupportPage({ user, onBack }: SupportPageProps) {
   const [step, setStep] = useState<Step>("list");
-  const [relationships, setRelationships] = useState<StudentRelationship[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [chosenLabel, setChosenLabel] = useState<string | null>(null);
   const [chosenRole, setChosenRole] = useState<SupporterRole | null>(null);
@@ -58,31 +57,17 @@ export default function SupportPage({ user, onBack }: SupportPageProps) {
   const [sendError, setSendError] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
 
-  // No synchronous setState here — react-hooks/set-state-in-effect flags
-  // calling setLoading/setLoadError directly from the body of an effect.
-  // The effect below only ever calls this fetch itself; retry() is the
-  // one that resets loading/error state, and it's only ever invoked from
-  // a user action (button click), never from an effect.
-  const fetchRelationships = useCallback(() => {
-    return supportRelationshipService
-      .listRelationshipsForStudent(user.id)
-      .then((data) => {
-        setRelationships(data);
-        setLoadError(null);
-      })
-      .catch((error: unknown) => setLoadError(errorMessage(error)))
-      .finally(() => setLoading(false));
-  }, [user.id]);
-
-  useEffect(() => {
-    fetchRelationships();
-  }, [fetchRelationships]);
-
-  function retry() {
-    setLoading(true);
-    setLoadError(null);
-    fetchRelationships();
-  }
+  const fetchRelationships = useCallback(
+    () => supportRelationshipService.listRelationshipsForStudent(user.id),
+    [user.id],
+  );
+  const {
+    data: relationships,
+    loading,
+    loadError,
+    refetch: refetchRelationships,
+    retry,
+  } = useAsyncData<StudentRelationship[]>(fetchRelationships, []);
 
   function startInvite() {
     setChosenLabel(null);
@@ -117,7 +102,7 @@ export default function SupportPage({ user, onBack }: SupportPageProps) {
       });
       setInviteLink(`${window.location.origin}/invite?token=${rawToken}`);
       setStep("link");
-      fetchRelationships();
+      refetchRelationships();
     } catch (error) {
       setSendError(errorMessage(error));
     } finally {
@@ -188,11 +173,7 @@ export default function SupportPage({ user, onBack }: SupportPageProps) {
         </p>
         <p className="mb-6 text-muted-foreground">You can remove them later.</p>
 
-        {sendError && (
-          <p role="alert" className="mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground">
-            {sendError}
-          </p>
-        )}
+        {sendError && <ErrorBanner message={sendError} />}
 
         <Button onClick={handleSend} disabled={sending}>
           Send invite
@@ -237,12 +218,7 @@ export default function SupportPage({ user, onBack }: SupportPageProps) {
       </Button>
       <h1 className="mb-4 text-3xl">Support</h1>
 
-      {loadError && (
-        <div role="alert" className="mb-4 rounded-lg border border-destructive bg-card p-3 text-card-foreground">
-          <p className="mb-2 text-sm">Couldn&rsquo;t load your supporters.</p>
-          <Button onClick={retry}>Try again</Button>
-        </div>
-      )}
+      {loadError && <ErrorBanner message="Couldn’t load your supporters." onRetry={retry} />}
 
       {!loading && !loadError && (
         <>

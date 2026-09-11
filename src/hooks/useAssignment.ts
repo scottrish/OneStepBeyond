@@ -1,25 +1,20 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { errorMessage } from "../lib/errorMessage";
+import { useAsyncData } from "./useAsyncData";
 import * as assignmentService from "../services/assignmentService";
 import type { Assignment, AssignmentEdit } from "../services/assignmentService";
 
 export function useAssignment(id: string) {
-  const [assignment, setAssignment] = useState<Assignment | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const fetchAssignment = useCallback(() => {
-    return assignmentService
-      .getAssignment(id)
-      .then((data) => setAssignment(data))
-      .catch((error) => setLoadError(errorMessage(error)))
-      .finally(() => setLoading(false));
-  }, [id]);
-
-  useEffect(() => {
-    fetchAssignment();
-  }, [fetchAssignment]);
+  const fetchAssignment = useCallback(() => assignmentService.getAssignment(id), [id]);
+  const {
+    data: assignment,
+    setData: setAssignment,
+    loading,
+    loadError,
+    refetch: fetchAssignmentAgain,
+  } = useAsyncData<Assignment | null>(fetchAssignment, null);
 
   async function updateAssignment(patch: AssignmentEdit): Promise<boolean> {
     setActionError(null);
@@ -73,7 +68,7 @@ export function useAssignment(id: string) {
     loading,
     loadError,
     actionError,
-    refetch: fetchAssignment,
+    refetch: fetchAssignmentAgain,
     updateAssignment,
     deleteAssignment,
     completeAssignment,

@@ -5,16 +5,15 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ErrorBanner from "../components/ErrorBanner";
 import { DAY_LABELS, isValidActivity } from "../domain/activityDays";
+import { timeLabel } from "../domain/planningDate";
 import { useActivities } from "../hooks/useActivities";
 
 type ActivitiesPageProps = {
   user: User;
   onBack: () => void;
 };
-
-const errorBoxStyle =
-  "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
 
 function DayToggle({
   days,
@@ -44,13 +43,6 @@ function DayToggle({
       })}
     </div>
   );
-}
-
-function timeLabel(value: string): string {
-  const [hours, minutes] = value.split(":").map(Number);
-  const period = hours >= 12 ? "PM" : "AM";
-  const twelveHour = hours % 12 === 0 ? 12 : hours % 12;
-  return `${twelveHour}:${String(minutes).padStart(2, "0")} ${period}`;
 }
 
 export default function ActivitiesPage({ user, onBack }: ActivitiesPageProps) {
@@ -106,12 +98,7 @@ export default function ActivitiesPage({ user, onBack }: ActivitiesPageProps) {
 
       <h1 className="mb-4 text-3xl">Activities</h1>
 
-      {loadError && (
-        <div role="alert" className={errorBoxStyle}>
-          <p className="mb-2">Couldn&rsquo;t load your activities.</p>
-          <Button onClick={retry}>Try again</Button>
-        </div>
-      )}
+      {loadError && <ErrorBanner message="Couldn’t load your activities." onRetry={retry} />}
 
       {!loading && !loadError && activities.length === 0 && (
         <p className="mb-4 text-muted-foreground">
@@ -234,11 +221,7 @@ export default function ActivitiesPage({ user, onBack }: ActivitiesPageProps) {
           </div>
         </div>
 
-        {actionError && (
-          <p role="alert" className={errorBoxStyle}>
-            {actionError}
-          </p>
-        )}
+        {actionError && <ErrorBanner message={actionError} />}
 
         <Button type="submit" disabled={!canSave}>
           Add activity

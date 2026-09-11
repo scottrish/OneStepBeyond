@@ -1,31 +1,23 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { errorMessage } from "../lib/errorMessage";
+import { useAsyncData } from "./useAsyncData";
 import * as activityService from "../services/activityService";
 import type { Activity, NewActivity } from "../services/activityService";
 
 export function useActivities(studentId: string) {
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const fetchActivities = useCallback(() => {
-    return activityService
-      .listActivities(studentId)
-      .then((data) => setActivities(data))
-      .catch((error) => setLoadError(errorMessage(error)))
-      .finally(() => setLoading(false));
-  }, [studentId]);
-
-  useEffect(() => {
-    fetchActivities();
-  }, [fetchActivities]);
-
-  function retry() {
-    setLoading(true);
-    setLoadError(null);
-    fetchActivities();
-  }
+  const fetchActivities = useCallback(
+    () => activityService.listActivities(studentId),
+    [studentId],
+  );
+  const {
+    data: activities,
+    setData: setActivities,
+    loading,
+    loadError,
+    retry,
+  } = useAsyncData<Activity[]>(fetchActivities, []);
 
   async function addActivity(input: NewActivity): Promise<boolean> {
     setActionError(null);

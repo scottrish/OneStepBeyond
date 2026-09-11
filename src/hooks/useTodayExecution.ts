@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { errorMessage } from "../lib/errorMessage";
+import { useAsyncData } from "./useAsyncData";
 import * as workItemService from "../services/workItemService";
 import * as workSessionService from "../services/workSessionService";
 import type { WorkSession } from "../services/workSessionService";
@@ -17,28 +18,19 @@ export const NEED_MORE_TIME_MINUTES = 10;
 // sessions "drop out of today's list entirely... not cancelled, just
 // moved").
 export function useTodayExecution(studentId: string, date: string) {
-  const [sessions, setSessions] = useState<WorkSession[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const fetchSessions = useCallback(() => {
-    return workSessionService
-      .listWorkSessionsForDate(studentId, date)
-      .then((data) => setSessions(data))
-      .catch((error) => setLoadError(errorMessage(error)))
-      .finally(() => setLoading(false));
-  }, [studentId, date]);
-
-  useEffect(() => {
-    fetchSessions();
-  }, [fetchSessions]);
-
-  function retry() {
-    setLoading(true);
-    setLoadError(null);
-    fetchSessions();
-  }
+  const fetchSessions = useCallback(
+    () => workSessionService.listWorkSessionsForDate(studentId, date),
+    [studentId, date],
+  );
+  const {
+    data: sessions,
+    setData: setSessions,
+    loading,
+    loadError,
+    retry,
+  } = useAsyncData<WorkSession[]>(fetchSessions, []);
 
   async function start(id: string): Promise<boolean> {
     setActionError(null);

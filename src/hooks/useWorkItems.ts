@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { errorMessage } from "../lib/errorMessage";
+import { useAsyncData } from "./useAsyncData";
 import * as workItemService from "../services/workItemService";
 import type { WorkItem } from "../services/workItemService";
 
@@ -9,22 +10,19 @@ import type { WorkItem } from "../services/workItemService";
 // record a DecompositionAttempt without waiting on a second render to see
 // the new state.
 export function useWorkItems(studentId: string, assignmentId: string) {
-  const [workItems, setWorkItems] = useState<WorkItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const fetchWorkItems = useCallback(() => {
-    return workItemService
-      .listWorkItems(assignmentId)
-      .then((data) => setWorkItems(data))
-      .catch((error) => setLoadError(errorMessage(error)))
-      .finally(() => setLoading(false));
-  }, [assignmentId]);
-
-  useEffect(() => {
-    fetchWorkItems();
-  }, [fetchWorkItems]);
+  const fetchWorkItems = useCallback(
+    () => workItemService.listWorkItems(assignmentId),
+    [assignmentId],
+  );
+  const {
+    data: workItems,
+    setData: setWorkItems,
+    loading,
+    loadError,
+    refetch: fetchWorkItemsAgain,
+  } = useAsyncData<WorkItem[]>(fetchWorkItems, []);
 
   async function markAllComplete(): Promise<boolean> {
     setActionError(null);
@@ -94,7 +92,7 @@ export function useWorkItems(studentId: string, assignmentId: string) {
     loading,
     loadError,
     actionError,
-    refetch: fetchWorkItems,
+    refetch: fetchWorkItemsAgain,
     markAllComplete,
     addItem,
     editItem,

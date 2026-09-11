@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { errorMessage } from "../lib/errorMessage";
+import { useAsyncData } from "./useAsyncData";
 import * as workSessionService from "../services/workSessionService";
 import type { WorkSession } from "../services/workSessionService";
 
@@ -13,28 +14,19 @@ import type { WorkSession } from "../services/workSessionService";
 // a session moved off a date simply never appears there again — no
 // extra filtering needed here for that.
 export function useWeekSessions(studentId: string) {
-  const [sessions, setSessions] = useState<WorkSession[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const fetchSessions = useCallback(() => {
-    return workSessionService
-      .listWorkSessionsForStudent(studentId)
-      .then((data) => setSessions(data))
-      .catch((error) => setLoadError(errorMessage(error)))
-      .finally(() => setLoading(false));
-  }, [studentId]);
-
-  useEffect(() => {
-    fetchSessions();
-  }, [fetchSessions]);
-
-  function retry() {
-    setLoading(true);
-    setLoadError(null);
-    fetchSessions();
-  }
+  const fetchSessions = useCallback(
+    () => workSessionService.listWorkSessionsForStudent(studentId),
+    [studentId],
+  );
+  const {
+    data: sessions,
+    setData: setSessions,
+    loading,
+    loadError,
+    retry,
+  } = useAsyncData<WorkSession[]>(fetchSessions, []);
 
   async function removeSession(id: string): Promise<boolean> {
     setActionError(null);

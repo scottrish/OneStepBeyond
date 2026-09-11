@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/EmptyState";
+import ErrorBanner from "../components/ErrorBanner";
 import { effortLabel } from "../domain/effortPresets";
 import { todayISODate } from "../domain/planningDate";
 import { sortByStartTime } from "../domain/sessionOrder";
@@ -31,8 +32,6 @@ const REFLECTION_CHOICES = [
   "Longer than I thought",
 ] as const;
 
-const errorBoxStyle =
-  "mb-4 rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground";
 
 export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageProps) {
   const studentId = user.id;
@@ -149,11 +148,7 @@ export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageP
         >
           Skip this question
         </Button>
-        {reflectionError && (
-          <p role="alert" className={errorBoxStyle}>
-            {reflectionError}
-          </p>
-        )}
+        {reflectionError && <ErrorBanner message={reflectionError} />}
       </main>
     );
   }
@@ -162,18 +157,9 @@ export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageP
     <main className="mx-auto w-full max-w-[420px] p-6">
       <h1 className="mb-1 text-3xl">Today</h1>
 
-      {loadError && (
-        <div role="alert" className={errorBoxStyle}>
-          <p className="mb-2">Couldn&rsquo;t load today&rsquo;s plan.</p>
-          <Button onClick={retry}>Try again</Button>
-        </div>
-      )}
+      {loadError && <ErrorBanner message="Couldn’t load today’s plan." onRetry={retry} />}
 
-      {actionError && (
-        <p role="alert" className={errorBoxStyle}>
-          {actionError}
-        </p>
-      )}
+      {actionError && <ErrorBanner message={actionError} />}
 
       {!loading && !loadError && (
         <>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
+import ErrorBanner from "../components/ErrorBanner";
 import { useAuth } from "../hooks/useAuth";
 import LoginPage from "../pages/LoginPage";
 import { PageHeader, Panel } from "./components/shell";
@@ -263,11 +264,7 @@ function DashboardContent({
     >
       {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
-      {loadError && (
-        <p role="alert" className="rounded-lg border border-destructive bg-card p-3 text-sm text-card-foreground">
-          Couldn&rsquo;t load dashboard data.
-        </p>
-      )}
+      {loadError && <ErrorBanner message="Couldn’t load dashboard data." />}
 
       {!loading && !loadError && (
         <>

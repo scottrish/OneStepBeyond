@@ -3,6 +3,16 @@
 // formats an *assignment's* due date (and always includes the year) —
 // these operate on "the day being planned" and need a weekday name
 // dueDate.ts has no reason to produce.
+//
+// Also houses timeLabel, a clock-time (not calendar-date) formatter —
+// not a natural fit by this file's own name, but it was independently
+// duplicated verbatim across four pages (HomePage, ActivitiesPage,
+// WeekLookAhead, PlanPage) before being consolidated here as this
+// module's own sibling label helpers were the closest existing home for
+// "small formatting helper Plan-adjacent pages share" (see
+// docs/decisions/20260911-architecture-refactor-proposal.md, increment
+// 1). Give it its own module only if a non-Plan-adjacent page ever needs
+// it too.
 
 // Parses a "YYYY-MM-DD" string as a local calendar date, not
 // `new Date(dateString)`, which treats a bare date string as UTC
@@ -54,6 +64,14 @@ export function longPlanDate(dateISO: string): string {
     month: "long",
     day: "numeric",
   });
+}
+
+// "3:05 PM" — 24-hour "HH:MM" to a 12-hour clock label.
+export function timeLabel(value: string): string {
+  const [hours, minutes] = value.split(":").map(Number);
+  const period = (hours ?? 0) >= 12 ? "PM" : "AM";
+  const twelveHour = (hours ?? 0) % 12 === 0 ? 12 : (hours ?? 0) % 12;
+  return `${twelveHour}:${String(minutes ?? 0).padStart(2, "0")} ${period}`;
 }
 
 export function daysBetween(fromISO: string, toISO: string): number {

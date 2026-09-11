@@ -1,32 +1,24 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { errorMessage } from "../lib/errorMessage";
+import { useAsyncData } from "./useAsyncData";
 import * as preferencesService from "../services/preferencesService";
 import { DEFAULT_PREFERENCES } from "../services/preferencesService";
 import type { Preferences, PreferencesInput } from "../services/preferencesService";
 
 export function usePreferences(studentId: string) {
-  const [preferences, setPreferences] = useState<Preferences>(DEFAULT_PREFERENCES);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const fetchPreferences = useCallback(() => {
-    return preferencesService
-      .getPreferences(studentId)
-      .then((data) => setPreferences(data))
-      .catch((error) => setLoadError(errorMessage(error)))
-      .finally(() => setLoading(false));
-  }, [studentId]);
-
-  useEffect(() => {
-    fetchPreferences();
-  }, [fetchPreferences]);
-
-  function retry() {
-    setLoading(true);
-    setLoadError(null);
-    fetchPreferences();
-  }
+  const fetchPreferences = useCallback(
+    () => preferencesService.getPreferences(studentId),
+    [studentId],
+  );
+  const {
+    data: preferences,
+    setData: setPreferences,
+    loading,
+    loadError,
+    retry,
+  } = useAsyncData<Preferences>(fetchPreferences, DEFAULT_PREFERENCES);
 
   async function savePreferences(input: PreferencesInput): Promise<boolean> {
     setActionError(null);

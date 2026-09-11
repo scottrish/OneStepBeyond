@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { errorMessage } from "../../lib/errorMessage";
+import { useCallback } from "react";
+import { useAsyncData } from "../../hooks/useAsyncData";
 import * as assignmentService from "../../services/assignmentService";
 import * as courseService from "../../services/courseService";
 import * as decompositionAttemptService from "../../services/decompositionAttemptService";
@@ -33,24 +33,25 @@ const EMPTY: DashboardData = {
 // existing services and RLS. One combined fetch since every Phase 1
 // screen needs some overlapping subset of the same five collections.
 export function useDashboardData(studentId: string) {
-  const [data, setData] = useState<DashboardData>(EMPTY);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const fetchData = useCallback(
+    () =>
+      Promise.all([
+        courseService.listCourses(studentId),
+        assignmentService.listAssignments(studentId),
+        workItemService.listWorkItemsForStudent(studentId),
+        decompositionAttemptService.listForStudent(studentId),
+        reflectionService.listForStudent(studentId),
+      ]).then(([courses, assignments, workItems, decompositionAttempts, reflections]) => ({
+        courses,
+        assignments,
+        workItems,
+        decompositionAttempts,
+        reflections,
+      })),
+    [studentId],
+  );
 
-  useEffect(() => {
-    Promise.all([
-      courseService.listCourses(studentId),
-      assignmentService.listAssignments(studentId),
-      workItemService.listWorkItemsForStudent(studentId),
-      decompositionAttemptService.listForStudent(studentId),
-      reflectionService.listForStudent(studentId),
-    ])
-      .then(([courses, assignments, workItems, decompositionAttempts, reflections]) => {
-        setData({ courses, assignments, workItems, decompositionAttempts, reflections });
-      })
-      .catch((error) => setLoadError(errorMessage(error)))
-      .finally(() => setLoading(false));
-  }, [studentId]);
+  const { data, loading, loadError } = useAsyncData<DashboardData>(fetchData, EMPTY);
 
   return { ...data, loading, loadError };
 }
