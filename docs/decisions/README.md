@@ -33,3 +33,4 @@ directory.
 | 14 | [Plan's Day step is removed; its content folds into Select](20260818-plan-day-step-removed.md) | 2026-08-18 |
 | 15 | [Dashboard mode toggle replaced by real, RLS-enforced access](20260819-dashboard-mode-toggle-replaced-by-real-access.md) | 2026-08-19 |
 | 16 | [Architecture refactor: audit findings and completed refactor](20260911-architecture-refactor-proposal.md) | 2026-09-11 |
+| 17 | [Page complexity reduction: audit findings and completed refactor](20260912-page-complexity-reduction-proposal.md) | 2026-09-12 |

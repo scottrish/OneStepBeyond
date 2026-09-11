@@ -2,13 +2,9 @@ import { useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Plus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import EmptyState from "@/components/EmptyState";
 import ErrorBanner from "../components/ErrorBanner";
-import { courseColorValue } from "../domain/courseColor";
-import { effortLabel } from "../domain/effortPresets";
-import { dueRelativeLabel, longPlanDate, timeLabel, todayISODate } from "../domain/planningDate";
+import { longPlanDate, todayISODate } from "../domain/planningDate";
 import { assignmentsNeedingAttention } from "../domain/riskDetection";
-import type { AttentionItem } from "../domain/riskDetection";
 import { sortByStartTime } from "../domain/sessionOrder";
 import { activitiesOn } from "../domain/studyCapacity";
 import { useActivities } from "../hooks/useActivities";
@@ -21,6 +17,10 @@ import * as workSessionService from "../services/workSessionService";
 import ActivitiesPage from "./ActivitiesPage";
 import AssignmentCapturePage from "./AssignmentCapturePage";
 import CoursesPage from "./CoursesPage";
+import ComingUpList from "./home/ComingUpList";
+import NeedsAttentionCard from "./home/NeedsAttentionCard";
+import NextCard from "./home/NextCard";
+import TodaysActivitiesList from "./home/TodaysActivitiesList";
 import PreferencesPage from "./PreferencesPage";
 import SettingsPage from "./SettingsPage";
 import SupportPage from "./SupportPage";
@@ -57,12 +57,6 @@ function displayNameFromEmail(email: string | undefined): string {
   if (localPart === "") return "there";
   return localPart.charAt(0).toUpperCase() + localPart.slice(1);
 }
-
-const ATTENTION_ACTION_LABEL: Record<AttentionItem["action"], string> = {
-  "break-it-down": "Break it down",
-  "find-time": "Find time",
-  "make-a-plan": "Make a plan",
-};
 
 export default function HomePage({
   user,
@@ -169,10 +163,6 @@ export default function HomePage({
       ),
     [assignments, workItems, allSessions, activities, today, preferences],
   );
-  // "At most one item, the most urgent" (home-dashboard.md) —
-  // assignmentsNeedingAttention already sorts soonest-due-first.
-  const needsAttention = attentionItems[0];
-
   // No longer excludes the Needs Attention item(s) — home-dashboard.md
   // originally required that when Needs Attention showed at most one
   // item. Once item 1b (home-dashboard-followthrough.md) allowed multiple
@@ -285,219 +275,37 @@ export default function HomePage({
 
       {!loading && !loadError && (
         <>
-          {next ? (
-            <div className="mt-6 rounded-3xl bg-primary p-6 text-primary-foreground">
-              <p className="text-sm opacity-80">Next</p>
-              <p className="mt-1 text-xl font-medium">
-                {workItems.find((w) => w.id === next.workItemId)?.title ?? "Study session"}
-              </p>
-              {(() => {
-                const item = workItems.find((w) => w.id === next.workItemId);
-                const assignment = item
-                  ? assignments.find((a) => a.id === item.assignmentId)
-                  : undefined;
-                return (
-                  assignment && (
-                    <button
-                      type="button"
-                      onClick={() => onOpenAssignment(assignment.id)}
-                      className="mt-1 block text-left text-sm opacity-80 underline-offset-4 hover:underline"
-                    >
-                      {assignment.title} · {courseName(assignment.courseId)}
-                    </button>
-                  )
-                );
-              })()}
-              <p className="mt-1 text-sm opacity-80">{effortLabel(next.plannedMinutes)}</p>
-              <Button
-                size="lg"
-                variant="secondary"
-                className="mt-4 w-full rounded-2xl"
-                onClick={handleStart}
-              >
-                {next.status === "planned" ? "Start" : "Continue"}
-              </Button>
-            </div>
-          ) : todaySessions.length > 0 ? (
-            // Every session for today is done — today-execution.md's own
-            // calm confirmation, reused here rather than falling through
-            // to the "no plan yet" empty state, which would wrongly imply
-            // nothing was ever planned.
-            <div className="mt-6 rounded-3xl bg-primary p-6 text-primary-foreground">
-              <p className="text-xl font-medium">That&rsquo;s everything for today.</p>
-              <p className="mt-1 text-sm opacity-80">
-                You did what you said you would. The evening is yours.
-              </p>
-            </div>
-          ) : (
-            <div className="mt-6">
-              <EmptyState
-                title="No plan for today yet."
-                hint="Planning takes about five minutes and makes the rest of the day easier."
-                action={<Button onClick={onGoToPlan}>Plan today</Button>}
-              />
-            </div>
-          )}
+          <NextCard
+            next={next}
+            todaySessions={todaySessions}
+            activeTodaySessions={activeTodaySessions}
+            totalPlannedMinutes={totalPlannedMinutes}
+            planSummaryActivity={planSummaryActivity}
+            workItems={workItems}
+            assignments={assignments}
+            courseName={courseName}
+            onStart={handleStart}
+            onOpenAssignment={onOpenAssignment}
+            onGoToPlan={onGoToPlan}
+          />
 
-          {next && activeTodaySessions.length > 1 && (
-            <div className="mt-3">
-              <h3 className="mb-2 text-sm font-semibold text-foreground">After that</h3>
-              <ul className="flex flex-col gap-1">
-                {activeTodaySessions.slice(1).map((session) => {
-                  const item = workItems.find((w) => w.id === session.workItemId);
-                  return (
-                    <li
-                      key={session.id}
-                      className="flex items-center gap-2 text-sm text-muted-foreground"
-                    >
-                      <span className="min-w-0 flex-1 truncate">
-                        {item?.title ?? "Study session"}
-                      </span>
-                      <span className="shrink-0 text-xs">
-                        {effortLabel(session.plannedMinutes)}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
+          <NeedsAttentionCard
+            attentionItems={attentionItems}
+            onOpenAssignment={onOpenAssignment}
+            onGoToPlan={onGoToPlan}
+          />
 
-          {next && (
-            <p className="mt-3 text-sm text-muted-foreground">
-              Today&rsquo;s plan: about {effortLabel(totalPlannedMinutes)} · {todaySessions.length}{" "}
-              {todaySessions.length === 1 ? "task" : "tasks"}
-              {planSummaryActivity && <> · before {planSummaryActivity.name}</>} ·{" "}
-              <button type="button" onClick={onGoToPlan} className="text-primary underline underline-offset-4">
-                View plan
-              </button>
-            </p>
-          )}
+          <TodaysActivitiesList todaysActivities={todaysActivities} />
 
-          {needsAttention && (
-            <div className="mt-4 rounded-2xl border border-border bg-card p-4">
-              <h2 className="mb-1 text-sm font-semibold text-foreground">Needs attention</h2>
-              <p className="text-sm text-foreground">
-                <button
-                  type="button"
-                  onClick={() => onOpenAssignment(needsAttention.assignment.id)}
-                  className="underline-offset-4 hover:underline"
-                >
-                  {needsAttention.assignment.title}
-                </button>
-                : {needsAttention.message}
-              </p>
-              {/* Every action lands on Plan, including "Break it down" —
-                  Plan's own Day step already shows every assignment
-                  needing a breakdown (this one included) with the full
-                  "Break down / Plan as one task instead" choice, so
-                  routing there gives the identical experience Plan itself
-                  offers instead of a separate, thinner one opened here.
-                  See docs/features/home-dashboard-followthrough.md item 2. */}
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3 rounded-2xl"
-                onClick={onGoToPlan}
-              >
-                {ATTENTION_ACTION_LABEL[needsAttention.action]}
-              </Button>
-
-              {attentionItems.length > 1 && (
-                <ul className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
-                  {attentionItems.slice(1).map((item) => (
-                    <li key={item.assignment.id} className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onOpenAssignment(item.assignment.id)}
-                        className="min-w-0 flex-1 truncate text-left text-sm text-foreground underline-offset-4 hover:underline"
-                      >
-                        {item.assignment.title}
-                      </button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0 rounded-2xl"
-                        onClick={onGoToPlan}
-                      >
-                        {ATTENTION_ACTION_LABEL[item.action]}
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-
-          {todaysActivities.length > 0 && (
-            <div className="mt-4">
-              <h2 className="mb-2 text-sm font-semibold text-foreground">Today&rsquo;s activities</h2>
-              <ul className="flex flex-col gap-1">
-                {todaysActivities.map((activity) => (
-                  <li
-                    key={activity.id}
-                    className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-2 text-sm"
-                  >
-                    <span className="text-foreground">{activity.name}</span>
-                    <span className="ml-auto text-muted-foreground">
-                      {timeLabel(activity.startTime)}–{timeLabel(activity.finishTime)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="mt-4">
-            <h2 className="mb-2 text-sm font-semibold text-foreground">Coming up</h2>
-            {comingUp.length > 0 ? (
-              <ul className="flex flex-col gap-1">
-                {comingUp.map((assignment) => (
-                  <li key={assignment.id}>
-                    <button
-                      type="button"
-                      onClick={() => onOpenAssignment(assignment.id)}
-                      className="flex min-h-11 w-full items-center gap-2 rounded-2xl border border-border bg-card px-4 py-2 text-left text-sm"
-                    >
-                      <span
-                        aria-hidden="true"
-                        className="h-3 w-3 shrink-0 rounded-full"
-                        style={{ background: courseColorValue(courses.find((c) => c.id === assignment.courseId)?.colorIndex ?? 0) }}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-foreground">{assignment.title}</span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {courseName(assignment.courseId)}
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {dueRelativeLabel(assignment.dueDate, today)}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState
-                title="Nothing coming up."
-                hint="Capture an assignment to see it here."
-                action={
-                  <Button onClick={() => setView({ name: "capture-assignment" })}>
-                    Add an assignment
-                  </Button>
-                }
-              />
-            )}
-            {comingUp.length > 0 && (
-              <button
-                type="button"
-                onClick={onGoToAssignments}
-                className="mt-2 text-sm text-primary underline underline-offset-4"
-              >
-                See all assignments
-              </button>
-            )}
-          </div>
+          <ComingUpList
+            comingUp={comingUp}
+            today={today}
+            courses={courses}
+            courseName={courseName}
+            onOpenAssignment={onOpenAssignment}
+            onGoToAssignments={onGoToAssignments}
+            onAddAssignment={() => setView({ name: "capture-assignment" })}
+          />
         </>
       )}
     </main>

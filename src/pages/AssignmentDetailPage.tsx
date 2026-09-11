@@ -1,25 +1,20 @@
-import { useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import { useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import ErrorBanner from "../components/ErrorBanner";
 import { courseColorValue } from "../domain/courseColor";
-import { EFFORT_PRESETS, effortLabel } from "../domain/effortPresets";
+import { effortLabel } from "../domain/effortPresets";
 import { formatDueDate } from "../domain/dueDate";
-import { todayISODate } from "../domain/planningDate";
 import { remainingMinutes } from "../domain/remainingMinutes";
-import { assignmentsNeedingAttention } from "../domain/riskDetection";
-import { useActivities } from "../hooks/useActivities";
-import { useAllWorkSessions } from "../hooks/useAllWorkSessions";
 import { useAssignment } from "../hooks/useAssignment";
+import { useAssignmentRisk } from "../hooks/useAssignmentRisk";
 import { useCourses } from "../hooks/useCourses";
-import { usePreferences } from "../hooks/usePreferences";
 import { useWorkItemOrchestration } from "../hooks/useWorkItemOrchestration";
 import { useWorkItems } from "../hooks/useWorkItems";
+import type { AssignmentEdit } from "../services/assignmentService";
+import AssignmentDetailDeleteConfirm from "./AssignmentDetailDeleteConfirm";
+import AssignmentDetailEditForm from "./AssignmentDetailEditForm";
 import AssignmentDetailSteps from "./AssignmentDetailSteps";
 import ReflectionPrompt from "./ReflectionPrompt";
 import WorkBreakdownPage from "./WorkBreakdownPage";
@@ -61,32 +56,12 @@ export default function AssignmentDetailPage({
     editItem,
     deleteItem,
   } = useWorkItems(user.id, assignmentId);
-  // Only feed docs/features/assignment-detail-cta-hierarchy.md item 2's
-  // risk message — kept out of the loading/loadError gate above, which
-  // stays scoped to useAssignment alone. The rest of this screen renders
-  // from its own already-loaded data regardless of whether this trio has
-  // resolved.
-  const {
-    activities,
-    loading: activitiesLoading,
-    loadError: activitiesLoadError,
-  } = useActivities(user.id);
-  const { sessions: allSessions, loading: allSessionsLoading } = useAllWorkSessions(user.id);
-  const {
-    preferences,
-    loading: preferencesLoading,
-    loadError: preferencesLoadError,
-  } = usePreferences(user.id);
-  const today = useMemo(() => todayISODate(), []);
+  const { attentionItem, suggestBreakdown } = useAssignmentRisk(user.id, assignment, workItems);
 
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [breakingDown, setBreakingDown] = useState(false);
   const [reflecting, setReflecting] = useState(false);
-  const [title, setTitle] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [effortMinutes, setEffortMinutes] = useState(0);
-  const [notes, setNotes] = useState("");
 
   // docs/features/assignment-detail-cta-hierarchy.md item 3b — inline
   // add/edit/delete replaces WorkBreakdownPage/"Edit breakdown" once at
@@ -109,46 +84,10 @@ export default function AssignmentDetailPage({
 
   const course = courses.find((c) => c.id === assignment?.courseId);
   const hasCompletedSteps = workItems.some((item) => item.completedAt !== null);
-  // Fail closed, not open, on a load error — usePreferences keeps
-  // DEFAULT_PREFERENCES even after a failed fetch, so computing anyway
-  // would silently use placeholder capacity assumptions and could show a
-  // confidently wrong message instead of an honestly absent one. See
-  // docs/features/assignment-detail-cta-hierarchy.md item 2.
-  const readyForRisk =
-    !activitiesLoading && !allSessionsLoading && !preferencesLoading &&
-    !activitiesLoadError && !preferencesLoadError;
-  const attentionItem =
-    assignment && readyForRisk
-      ? assignmentsNeedingAttention(
-          [assignment],
-          workItems,
-          allSessions,
-          activities,
-          today,
-          preferences,
-        )[0]
-      : undefined;
-  const suggestBreakdown =
-    !!assignment && workItems.length === 0 && assignment.effortMinutes > 45;
 
-  function startEditing() {
-    if (!assignment) return;
-    setTitle(assignment.title);
-    setDueDate(assignment.dueDate);
-    setEffortMinutes(assignment.effortMinutes);
-    setNotes(assignment.notes ?? "");
-    setEditing(true);
-  }
-
-  async function handleSaveEdit(event: FormEvent) {
-    event.preventDefault();
-    if (title.trim() === "") return;
-    const succeeded = await updateAssignment({ title, dueDate, effortMinutes, notes });
+  async function handleSaveEdit(patch: AssignmentEdit) {
+    const succeeded = await updateAssignment(patch);
     if (succeeded) setEditing(false);
-  }
-
-  function handleDeleteClick() {
-    setConfirmingDelete(true);
   }
 
   async function handleConfirmDelete() {
@@ -218,77 +157,20 @@ export default function AssignmentDetailPage({
       {loadError && <ErrorBanner message="Couldn’t load this assignment." />}
 
       {assignment && confirmingDelete && (
-        <div className="rounded-lg border border-destructive bg-card p-4">
-          <div className="mb-3 flex flex-col gap-1">
-            <p className="text-sm font-medium">Delete this assignment?</p>
-            {hasCompletedSteps && (
-              <p className="text-sm text-muted-foreground">
-                This assignment already has completed steps. Deleting it
-                will erase that progress.
-              </p>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              className="flex-1"
-              onClick={() => setConfirmingDelete(false)}
-            >
-              Cancel
-            </Button>
-            <Button variant="destructive" className="flex-1" onClick={handleConfirmDelete}>
-              Delete
-            </Button>
-          </div>
-        </div>
+        <AssignmentDetailDeleteConfirm
+          hasCompletedSteps={hasCompletedSteps}
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={handleConfirmDelete}
+        />
       )}
 
       {assignment && editing && (
-        <form onSubmit={handleSaveEdit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="edit-title">What is it?</Label>
-            <Input id="edit-title" value={title} onChange={(e) => setTitle(e.target.value)} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="edit-due">Due</Label>
-            <Input
-              id="edit-due"
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-            />
-          </div>
-          <div>
-            <span className="mb-1.5 block text-sm font-medium">Estimated time</span>
-            <div role="radiogroup" aria-label="Estimated time" className="flex flex-wrap gap-2">
-              {EFFORT_PRESETS.map((preset) => (
-                <Button
-                  key={preset.minutes}
-                  type="button"
-                  role="radio"
-                  aria-checked={effortMinutes === preset.minutes}
-                  variant={effortMinutes === preset.minutes ? "default" : "outline"}
-                  onClick={() => setEffortMinutes(preset.minutes)}
-                >
-                  {preset.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="edit-notes">Notes (optional)</Label>
-            <Textarea id="edit-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </div>
-          {assignmentActionError && <ErrorBanner message={assignmentActionError} />}
-          <div className="flex gap-2">
-            <Button type="button" variant="ghost" onClick={() => setEditing(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={title.trim() === ""} className="flex-1">
-              Save
-            </Button>
-          </div>
-        </form>
+        <AssignmentDetailEditForm
+          assignment={assignment}
+          actionError={assignmentActionError}
+          onSave={handleSaveEdit}
+          onCancel={() => setEditing(false)}
+        />
       )}
 
       {assignment && !editing && !confirmingDelete && (
@@ -309,7 +191,7 @@ export default function AssignmentDetailPage({
                 aria-label="Edit assignment"
                 variant="ghost"
                 size="icon"
-                onClick={startEditing}
+                onClick={() => setEditing(true)}
               >
                 <Pencil className="size-4 text-muted-foreground" />
               </Button>
@@ -317,7 +199,7 @@ export default function AssignmentDetailPage({
                 aria-label="Delete assignment"
                 variant="ghost"
                 size="icon"
-                onClick={handleDeleteClick}
+                onClick={() => setConfirmingDelete(true)}
               >
                 <Trash2 className="size-4 text-muted-foreground" />
               </Button>
