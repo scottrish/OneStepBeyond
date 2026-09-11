@@ -265,34 +265,102 @@ spec across all five phases of Increment 1 is now built.
 
 ---
 
+# Phase 6 — Real role-based access + supporter invitation (Increment 2 begins)
+
+**Status: partially done (2026-08-19 / 2026-08-20).**
+
+| Feature | Spec | Status |
+|---|---|---|
+| Real Role-Based Access | [supporter-role-based-access-feature-spec-v0.1.md](features/supporter-role-based-access-feature-spec-v0.1.md) | Done (2026-08-19) |
+| Supporter Invitation & Onboarding — Primary Flow | [supporter-invitation-feature-spec-v0.1.md](features/supporter-invitation-feature-spec-v0.1.md) | Partially done (2026-08-20) |
+
+**Why this, why now:** `docs/decisions/20260813-student-only-first-increment.md`
+deferred Support Relationships and per-role auth "to be specified once the
+student experience has been built and validated" — by the end of Phase 5,
+it had been. A spec review of `supporter-invitation-feature-spec-v0.1.md`
+(2026-08-19) found its own Acceptance Criteria ("Parent receives Parent
+dashboard access") had nothing to enforce them: the Coach/Parent/
+Diagnostic Dashboard (Backlog, below) was still a client-side toggle
+anyone signed in as the student could flip. Real Role-Based Access was
+built first, specifically because it's what makes the invitation flow
+safe to build at all — inviting a real third party into the product
+without it would have handed them the entire student account.
+
+**Real Role-Based Access implementation note (2026-08-19):** a
+`support_relationships` table (student, supporter, role, status) and a
+`superusers` table now back real Postgres RLS — a Supporter can read a
+Student's data only via an Active relationship, and Diagnostic Mode
+requires superuser status, never a Support Relationship (direct
+product-owner instruction: *"Diagnostic mode should require a superuser
+level of access. It is not intended to be used by a supporter."*). RLS is
+scoped to the five tables the dashboard actually queries
+(`courses`/`assignments`/`work_items`/`decomposition_attempts`/
+`reflections`), not every Student-scoped table, per Domain-Model.md's
+"do not add complexity without demonstrated value." The dashboard's old
+`ModeProvider`/`useMode()` toggle and its `localStorage` persistence are
+gone. See `docs/decisions/20260819-dashboard-mode-toggle-replaced-by-real-access.md`.
+
+**Supporter Invitation implementation note (2026-08-20):** the Primary
+Flow (Student invites Parent/Guardian, Coach, or Teacher — Teacher stores
+the exact same `role` as Coach, direct product-owner instruction: *"there
+is no need to distinguish teacher and coach"*) is built, with one
+deliberate delivery substitution: no real email is sent (*"this is just
+for testing"*) — the invite screen displays the constructed link
+directly, built with the same real, expiring, email-locked, one-time-use
+token it will use once real email delivery exists. A
+schema-migration-reviewer pass caught a genuine privilege-escalation gap
+in the accept/decline RLS policy before this shipped (an invited user
+could have rewritten `student_id` on their own legitimate invitation to
+forge Supporter access to an arbitrary student) — closed with a
+column-level `GRANT` restricting that policy to only the three columns it
+needs, verified via live attack queries against the running database.
+Not built this pass: resend, cancel, Remove Supporter, Supporter-leaves-
+relationship, and the entire Secondary/adult-initiated flow (§20+ of that
+spec, P2 by its own priority marking) — see that spec's own Status note.
+
+**Demoable at the end of what's built so far:** a Student can invite a
+real Parent/Guardian, Coach, or Teacher by email from Settings → Support,
+get a shareable link, and that person can sign up or sign in as
+themselves, accept, and immediately see the correct Coach- or Parent-
+mode dashboard for that one Student — enforced by the database, not by
+which screen the client renders.
+
+---
+
 # Backlog — known, not yet scheduled
 
 Everything below is either explicitly deferred by an existing decision
 record, or flagged as out-of-scope inside a Phase 1–5 spec. Listed here so
 it isn't lost, not because it's scheduled next.
 
-## Increment 2+ — multi-role (highest-value next increment)
+## Increment 2 — multi-role (in progress; see Phase 6 above)
 
-- **Support Relationships** (inviting/connecting a parent or coach to a
-  student, per-role authentication, a real second account type) —
-  deferred by `docs/decisions/20260813-student-only-first-increment.md`
-  pending validation of the student experience above. Depends on
-  multi-user accounts and per-role auth that Increment 1 does not build.
-  `Playwright-Test-Personas.md` already has parent/coach acceptance
-  criteria drafted for when this starts.
-- **Coach / Parent / Diagnostic Dashboard — Phase 1: done (2026-08-16),
-  built ahead of Support Relationships above.** See
-  [coach-parent-dashboard-feature-spec-v0.1.md](features/coach-parent-dashboard-feature-spec-v0.1.md)
-  and `docs/decisions/20260816-dashboard-reuses-student-auth.md`. Reached
-  at its own desktop-oriented `/dashboard` URL, entirely outside the
-  mobile `AppShell`; signs in with the *same* student account rather than
-  a real coach/parent identity, and Coach/Parent/Diagnostic are a
-  client-side display toggle only — not backend-enforced access levels.
-  Real third-party parent/coach access remains blocked on Support
-  Relationships above. The dashboard's own Phases 2–6 (Skills &
-  Capability, Behavior Trends, Scaffolding, AI-assisted sections) stay
-  not-yet-scheduled, same as the strategy docs' own later phases below —
-  no real data exists yet for any of them.
+- **Support Relationships and real role-based access — done.** See
+  Phase 6 above. `docs/decisions/20260813-student-only-first-increment.md`'s
+  deferral of this work is now superseded for the access-control portion;
+  its point about starting from a fresh `analyze-feature` pass against
+  the validated student data model is exactly what happened.
+- **Supporter Invitation — Primary Flow done, Secondary Flow and a few
+  Primary-Flow actions not yet.** See Phase 6 above and that spec's own
+  Status note for the precise list (resend, cancel, Remove Supporter,
+  Supporter-leaves-relationship, adult-initiated onboarding).
+  `Playwright-Test-Personas.md`'s parent/coach acceptance criteria are
+  now actionable against a real build, not just drafted ahead of one.
+- **Coach / Parent / Diagnostic Dashboard — Phase 1 content: done
+  (2026-08-16); its access model: replaced (2026-08-19), see Phase 6
+  above.** See
+  [coach-parent-dashboard-feature-spec-v0.1.md](features/coach-parent-dashboard-feature-spec-v0.1.md).
+  Still reached at its own desktop-oriented `/dashboard` URL, entirely
+  outside the mobile `AppShell` — that part is unchanged. What changed:
+  it no longer signs in with the student's own account or lets a
+  client-side toggle pick Coach/Parent/Diagnostic; a real Supporter signs
+  in as themselves and the mode is derived from their actual Active
+  relationship, enforced by RLS (`docs/decisions/20260819-dashboard-mode-toggle-replaced-by-real-access.md`,
+  superseding `docs/decisions/20260816-dashboard-reuses-student-auth.md`
+  for this part). The dashboard's own Phases 2–6 (Skills & Capability,
+  Behavior Trends, Scaffolding, AI-assisted sections) stay not-yet-
+  scheduled, same as the strategy docs' own later phases below — no real
+  data exists yet for any of them.
 
 ## Work Breakdown Coaching — Phases 2–6
 

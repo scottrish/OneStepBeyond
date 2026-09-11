@@ -70,11 +70,16 @@ The product is not intended to:
 
 - LMS integration
 - school administration features
-- teacher workflows
+- teacher workflows (a Teacher may be invited as a Supporter, same as a
+  Coach — see Primary Users below — but a Teacher acting as an
+  authoritative source for Assignment Briefs, grading, or rosters remains
+  deferred)
 - native mobile applications
-- parent and coach dashboards
 - fully adaptive ZPD personalization
 - AI assistance that depends on sufficient product and behavioral evidence
+
+**Update (2026-08-19/20):** parent and coach dashboards are no longer
+deferred — see Primary Users below and `docs/Roadmap.md`'s Phase 6.
 
 AI may later assist Domain Services, but AI itself is not the product model.
 
@@ -116,13 +121,28 @@ The Student is the primary user of the initial product.
 
 Supports planning without becoming the student's executive function.
 
-Parent functionality is deferred until the student experience is validated.
+**Update (2026-08-20):** the student experience (Increment 1, all five
+phases) is built and this deferral has ended — a Student can invite a
+real Parent/Guardian, who signs in as themselves and sees the Parent
+dashboard for that one Student, enforced by real per-relationship access
+control rather than a shared login. See `docs/Roadmap.md`'s Phase 6 and
+`docs/features/supporter-invitation-feature-spec-v0.1.md`. Not yet built:
+removing a Supporter, and the adult-initiated ("I discovered this before
+my student did") onboarding path — that Parent still needs the Student
+to send the first invitation.
 
 ## Executive Function Coach
 
 Uses behavioral evidence to understand planning patterns and adjust support strategies.
 
-Coach functionality is deferred until the student experience is validated.
+**Update (2026-08-20):** same status as Parent above — a Coach (or
+Teacher, invited identically) can be invited by a Student and reaches a
+real Coach dashboard once accepted. The dashboard's own richer
+capabilities (Skills & Capability, Behavior Trends, Scaffolding,
+AI-assisted coaching) remain unbuilt — see
+`docs/features/coach-parent-dashboard-feature-spec-v0.1.md`'s own later
+phases — this update is about *access*, not about the evidence a Coach
+can act on once inside.
 
 ---
 
@@ -358,7 +378,10 @@ The product should not treat support intensity as a permanent attribute of the s
 
 # Parent Dashboard
 
-Deferred until the student experience is validated.
+**Update (2026-08-20):** built and reachable by a real, invited Parent —
+see `docs/features/coach-parent-dashboard-feature-spec-v0.1.md` §30
+(Overview, Assignments & Work, Reflections) for what Parent Mode actually
+shows today. The list below describes capabilities still ahead of that.
 
 Potential future capabilities:
 
@@ -372,7 +395,13 @@ Potential future capabilities:
 
 # Coach Dashboard
 
-Deferred until the student experience is validated.
+**Update (2026-08-20):** built and reachable by a real, invited Coach (or
+Teacher, invited identically) — see
+`docs/features/coach-parent-dashboard-feature-spec-v0.1.md` §30
+(Overview, Assignments & Work + Assignment Detail, Reflections, Evidence
+Timeline) for what Coach Mode actually shows today. The list below
+describes capabilities still ahead of that — the dashboard's own Phases
+2–6.
 
 Potential future capabilities:
 

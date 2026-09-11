@@ -2,6 +2,17 @@
 
 Date: 2026-08-13
 
+**Update (2026-08-19/20):** the deferral below has ended — all five
+phases of the student-only increment this record describes are built
+(`docs/Roadmap.md`), and Support Relationships, real per-role access, and
+a Supporter invitation flow now exist. See `docs/Roadmap.md`'s Phase 6,
+`docs/decisions/20260819-dashboard-mode-toggle-replaced-by-real-access.md`,
+and `docs/features/supporter-invitation-feature-spec-v0.1.md`. This
+record's own Context and Decision below remain accurate as history — the
+Consequences section's closing point ("start from a fresh
+`analyze-feature` pass against the validated student data model") is
+exactly what happened.
+
 ## Context
 
 `docs/Product-Vision.md`'s MVP Deliverables originally listed the Parent

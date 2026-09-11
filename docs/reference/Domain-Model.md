@@ -1,6 +1,6 @@
 # Executive Function Coach — Domain Model
 
-Version 1.1
+Version 1.2
 
 ## Domain Purpose
 
@@ -551,7 +551,35 @@ Entities:
 - Supporter
 - Support Relationship
 
-Possible roles include Parent, Guardian, Executive Function Coach, Counselor, Teacher, and Tutor.
+Possible roles include Parent, Guardian, Executive Function Coach, Counselor, Teacher, and Tutor. **Teacher and Executive Function Coach are the same role at this time** (2026-08-19 product decision, `docs/features/supporter-invitation-feature-spec-v0.1.md` §3) — Teacher is offered as a second, friendlier label a Student can choose, not a behaviorally distinct role. A Teacher acting as an authoritative source for an Assignment Brief (see Commitments' own Assignment Brief above) is a different, unbuilt concept from a Teacher as a Supporter — do not conflate the two if the former is ever built.
+
+### Support Relationship
+
+Represents an ongoing connection between a Student and a Supporter, including its invitation lifecycle — a separate `SupportInvitation` concept was considered and rejected in favor of one entity whose own status carries the invitation phase (`docs/features/supporter-invitation-feature-spec-v0.1.md` §18: "simplify if invitation and relationship lifecycle are modeled together").
+
+```text
+SupportRelationship
+- studentId
+- supporterId       (unset until Accepted — the invited person may not
+                       have an account yet)
+- role
+- status
+- invitedBy
+- invitedEmail
+- invitedAt
+- acceptedAt
+- endedAt
+```
+
+Status lifecycle:
+
+```text
+Pending → Active → Ended
+Pending → Declined
+Pending → Expired
+```
+
+Only an Active Support Relationship grants a Supporter access to that Student's data, and only at that relationship's role's visibility. A Supporter never becomes owner of the Student's Assignments, Work Breakdowns, Plans, or Reflections (Domain Invariant 15, below) regardless of relationship status.
 
 ---
 
@@ -575,6 +603,8 @@ Possible roles include Parent, Guardian, Executive Function Coach, Counselor, Te
 | Scaffold | Specific assistance provided. |
 | Scaffold Strategy | Skill- and context-specific policy for selecting, escalating, fading, or restoring assistance. |
 | Reflection | Student thinking about what happened and what, if anything, to change next time. |
+| Supporter | A trusted adult (Parent/Guardian or Coach — Teacher is the same role as Coach) associated with a Student through a Support Relationship. |
+| Support Relationship | Ongoing connection between a Student and a Supporter, including its own invitation lifecycle (Pending/Active/Declined/Expired/Ended). |
 
 ---
 
@@ -702,6 +732,11 @@ If stronger decomposition assistance is appropriate, it is provided through the 
 - Skill Evidence Recorded
 - Reflection Recorded
 - Scaffold Provided
+- Supporter Invited
+- Support Relationship Activated
+- Support Relationship Declined
+- Support Relationship Expired
+- Support Relationship Ended
 
 ---
 
@@ -721,6 +756,7 @@ If stronger decomposition assistance is appropriate, it is provided through the 
 12. Skill Competency is contextual rather than global.
 13. Internal competency, ZPD, risk, review, and scaffold machinery remain hidden from the student-facing UI.
 14. Reflection should not be required when it cannot plausibly inform future behaviour or planning.
+15. A Supporter never becomes owner of a Student's Assignments, Work Breakdowns, Plans, or Reflections, regardless of Support Relationship status or role.
 
 ---
 
@@ -738,13 +774,34 @@ If stronger decomposition assistance is appropriate, it is provided through the 
 
 AI may implement or assist Domain Services, but AI itself is not a domain concept.
 
+**Update (2026-08-19):** this boundary now has a concrete example. Support Relationship *status* (Pending/Active/Declined/Expired/Ended) is domain — it's what "a Supporter never becomes owner" (Invariant 15) actually depends on. How a Postgres session proves it holds a given identity, invitation token mechanics, and superuser/diagnostic-access status are all authentication/authorization infrastructure, not domain concepts, the same as any other row-level security detail — see `docs/features/supporter-role-based-access-feature-spec-v0.1.md` §4 for where this line was drawn in practice.
+
 ---
 
 # Model Status
 
-Version 1.1 is a focused reconciliation of v1.0.
+Version 1.2 fills in the Support Network context, which v1.1 named but
+never fleshed out — written once Support Relationships moved from
+deferred to actually built (`docs/Roadmap.md`'s Phase 6).
 
 Primary changes:
+
+- gave Support Relationship its own attributes and status lifecycle,
+  folding what an earlier feature spec sketched as a separate
+  `SupportInvitation` entity into that same lifecycle rather than adding
+  a second entity
+- recorded the 2026-08-19 product decision that Teacher and Executive
+  Function Coach are the same role, not distinct ones
+- added Supporter and Support Relationship to the Ubiquitous Language
+  table (present in the bounded-context section since v1.0, never listed
+  there)
+- added Support Network's Domain Events
+- added Domain Invariant 15 (a Supporter never becomes owner of Student
+  data)
+- clarified the authentication/domain boundary with a concrete example,
+  now that one exists
+
+Version 1.1 was a focused reconciliation of v1.0:
 
 - standardized `AssignmentType`
 - replaced `Assignment Archetype` with `DecompositionStrategy`
