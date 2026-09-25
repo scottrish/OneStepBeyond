@@ -663,6 +663,9 @@ rest of that decision in place.
 
 ## Flagged for resolution alongside `study-hours-v2-proposal.md`
 
+> **Resolved 2026-09-25:** `PROTECTED_MINUTES` is retired
+> (`study-hours-v2-proposal.md` §3, option b), matching the prototype.
+
 The prototype's capacity formula (`availableMinutes`) no longer
 subtracts `PROTECTED_MINUTES` (currently a fixed 90 minutes, `src/
 domain/studyCapacity.ts:21`, applied to both weekday and weekend) at

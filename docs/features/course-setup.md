@@ -86,6 +86,10 @@ Unlike every other spec so far, this feature has no prototype screen to
 match against — the whole UX flow above is proposed, not ported. Two open
 questions were resolved by product decision (2026-08-14):
 
+*Both resolutions below are superseded as of 2026-09-25 by
+`course-management-v2-proposal.md` §1 (manual colour choice, with an
+automatic default) and §2 (cascading delete, with a strong warning).*
+
 1. **Auto-assigned, non-editable color** — confirmed. Simpler and
    consistent with the product's cognitive-load principles; manual
    color-coding can be revisited later if students ask for it.

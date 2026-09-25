@@ -124,7 +124,8 @@ reasoning and consequences.
 
 - Capacity = the day's realistic study window (shorter on weekends'
   earlier start / weekdays' later start) minus Activities (+ their travel
-  time) minus a fixed protected block reserved for rest/family/downtime —
+  time) minus a fixed protected block reserved for rest/family/downtime
+  (Superseded 2026-09-25: `PROTECTED_MINUTES` is being retired (`study-hours-v2-proposal.md` §3, option b).) —
   never presented to the student as "free time," and never fully
   consumable by planning (Design-Principles.md Eighth Principle, "Protect
   What Matters").

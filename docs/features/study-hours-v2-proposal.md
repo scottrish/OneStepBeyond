@@ -1,6 +1,8 @@
 # Feature: Study Hours — Split Saturday/Sunday Budgets (v2 proposal)
 
-**Status:** Proposed, not yet approved. Produced from a prototype-sync
+**Status:** §3 decided 2026-09-25 (option b: retire `PROTECTED_MINUTES`).
+The rest is still proposed; not yet built (roadmap Phase 7 step 4).
+Produced from a prototype-sync
 audit of `../OneStepBeyondPrototype` (baseline commit `834368f`; `main`
 HEAD `744026a`; re-synced 2026-09-24 against the unmerged
 `mobile-redesign` branch at `1ce3145`, whose only change to this screen
@@ -144,6 +146,15 @@ student is choosing how much time to give up, so a further silent
 subtraction on top is redundant rather than protective. This is the
 larger change and needs explicit sign-off against the named design
 principle, not an implementation-time judgment call.
+
+**Decision (2026-09-25, product owner): option (b), retire
+`PROTECTED_MINUTES`.** It isn't required. A day's available time is its
+window (weekday) or budget (Saturday, Sunday), minus activities with
+travel, minus work already planned. The student's own "done by" time and
+weekend budgets are the protection. Remove the constant and its
+subtraction from `availableMinutes` on every day, weekdays included, as
+part of this step. "Protect What Matters" in Design-Principles.md needs
+no change: it names no buffer.
 
 This app's existing tests (`src/domain/studyCapacity.test.ts`) encode
 option (a)'s current behavior exactly (`availableMinutes(...) ===

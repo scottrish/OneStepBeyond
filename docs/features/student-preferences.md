@@ -63,6 +63,7 @@ each.
   realistically hold to a fixed weekend time slot the way a school day's
   "after school" anchor holds. Concretely, this means weekend has no
   start/finish time at all — just a single "hours available" number.
+- *Superseded 2026-09-25: `PROTECTED_MINUTES` is being retired (`study-hours-v2-proposal.md` §3, option b).*
 - **The weekend budget is subtracted from the same way a weekday window
   is** — Activities/travel and the fixed `PROTECTED_MINUTES` block still
   come out of it, exactly like weekday's window span. It is not treated
@@ -151,6 +152,7 @@ each.
 
 ## Explicitly Out of Scope (this increment)
 
+- *Superseded 2026-09-25: `PROTECTED_MINUTES` is being retired (`study-hours-v2-proposal.md` §3, option b).*
 - The fixed protected/downtime block (`PROTECTED_MINUTES`, currently a
   flat 90-minute constant subtracted after the window and Activities) —
   not raised in this request; stays a fixed constant unless a future

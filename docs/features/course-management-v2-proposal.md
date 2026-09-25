@@ -1,6 +1,8 @@
 # Feature: Course Management — Color Selection, Deletion & Courses-First Onboarding (v2 proposal)
 
-**Status:** Proposed, not yet approved. Produced from a prototype-sync
+**Status:** §1 and §2 approved 2026-09-25 by the product owner (see the
+"Decision" notes in each). §3 was never contested. Not yet built
+(roadmap Phase 7 step 3). Produced from a prototype-sync
 audit of `../OneStepBeyondPrototype` (baseline commit `834368f`; `main`
 HEAD `744026a`; re-synced 2026-09-24 against the unmerged
 `mobile-redesign` branch at `1ce3145`, which changes how delete is
@@ -62,6 +64,10 @@ the "non-editable" half. Recommend product sign-off given this
 explicitly reopens a named, dated decision rather than filling an
 unaddressed gap.
 
+**Decision (2026-09-25): approved as proposed.** Manual colour choice,
+with the next unused colour pre-selected as the default. Supersedes
+`course-setup.md` resolution 1.
+
 **Functional Requirements:**
 - Add form: name field (unchanged) plus a color-swatch picker, defaulted
   to the next unused accent.
@@ -113,6 +119,23 @@ question" the original deferral was waiting for: an in-use course is
 deleted along with everything under it, made unmistakable by the warning
 copy, rather than blocked or silently orphaning data.
 
+**Decision (2026-09-25): approved, with a stronger warning.** Cascading
+hard delete as proposed, and supersedes `course-setup.md` resolution 2.
+When a course has assignments, the warning must say plainly that
+**every** assignment is deleted, whatever its state (not yet planned,
+planned, or completed), and not just "any planned work". It replaces the
+prototype's in-use copy above:
+
+> **Delete {name} and all its assignments?**
+> This also deletes its {N} assignment(s): ones you haven't planned yet,
+> ones you've planned, and ones you've completed. Their steps, planned
+> time and reflections go too. This can't be undone.
+
+The course name and the count are in the text, with correct singular and
+plural. The warning is styled as a destructive alert, not muted helper
+text. Buttons stay destructive **Delete** and ghost **Keep it**. A
+course with no assignments keeps the plain "Delete {name}?" prompt.
+
 **Functional Requirements:**
 - Delete affordance per course row, using the shared swipe-to-reveal /
   overflow-menu pattern (`mobile-gestures-reorder-and-swipe-v0.1.md`).
@@ -134,8 +157,10 @@ copy, rather than blocked or silently orphaning data.
 **Acceptance Criteria:**
 - Deleting a course with no assignments asks a plain confirmation and,
   once confirmed, removes only that course.
-- Deleting a course with assignments shows the assignment count in the
-  warning (correct singular/plural) and, once confirmed, removes the
+- Deleting a course with assignments shows the decided warning above:
+  the assignment count (correct singular/plural), and that not-yet-planned,
+  planned and completed assignments are all deleted. Once confirmed, it
+  removes the
   course and every assignment (and everything under those assignments)
   that referenced it.
 - Cancelling ("Keep it") leaves the course and everything under it
