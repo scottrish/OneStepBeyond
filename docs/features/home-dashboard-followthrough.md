@@ -243,6 +243,11 @@ rather than keep its own copy, so there is exactly one implementation.
 
 ## 4. "Find time" passes the assignment through to Plan
 
+> **Implemented 2026-09-25** as `daily-planning-and-completion-v2-proposal.md`
+> item 1 (`docs/decisions/20260925-plan-target.md`), with its refinements:
+> only steps that still need time are pre-selected, the target sorts
+> first, and "Make a plan" carries the target too.
+
 **Amends:** `home-dashboard.md`, `risk-detection.md` (next-action
 routing), `daily-planning.md` (Select step arrival).
 

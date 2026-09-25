@@ -23,10 +23,10 @@ type AssignmentDetailPageProps = {
   user: User;
   assignmentId: string;
   onBack: () => void;
-  // Bare tab switch, same pattern HomePage.tsx's own onGoToPlan uses —
-  // does not pass this assignment through to Plan (see
-  // docs/features/assignment-detail-cta-hierarchy.md's Explicitly Out of
-  // Scope, which defers that to home-dashboard-followthrough.md item 4).
+  // "Plan work for today": Plan's Select for today, with this
+  // assignment's steps that still need time already chosen
+  // (home-dashboard-followthrough.md item 4; docs/decisions/
+  // 20260925-plan-target.md, P1).
   onGoToPlan: () => void;
 };
 

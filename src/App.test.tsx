@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 import { useAuth } from "./hooks/useAuth";
@@ -439,7 +439,54 @@ describe("App", () => {
     expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
     expect(await screen.findByText(/let.s plan today/i)).toBeInTheDocument();
     expect(await screen.findByText(/what should you work on/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /draft response/i })).toBeInTheDocument();
+    // …and carries the assignment: its step is already chosen
+    // (docs/decisions/20260925-plan-target.md, P1).
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /draft response/i })).toHaveAttribute("aria-pressed", "true"),
+    );
+  });
+
+  it("Home's 'Find time' opens Plan on today's Select with that assignment's step chosen, even if Plan was on another day (P2)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(TODAY);
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: "student-1", email: "person@example.com" } as User,
+      signIn: vi.fn(),
+      signUp: vi.fn(),
+      signOut: vi.fn(),
+    });
+    mockedCourseService.listCourses.mockResolvedValue([{ id: "course-1", name: "Biology", colorIndex: 0 }]);
+    // Due tomorrow with nothing planned: Needs Attention offers "Find time".
+    mockedAssignmentService.listAssignments.mockResolvedValue([
+      {
+        id: "a1",
+        courseId: "course-1",
+        title: "Lab report",
+        dueDate: "2026-03-17",
+        effortMinutes: 30,
+        notes: null,
+        completedAt: null,
+      },
+    ]);
+    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+      { id: "w1", assignmentId: "a1", title: "Write methods", effortMinutes: 30, completedAt: null, position: 0 },
+    ]);
+    mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([]);
+    const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    render(<App />);
+
+    await userEventInstance.click(screen.getByRole("button", { name: "Plan" }));
+    await userEventInstance.click(await screen.findByRole("radio", { name: "Tue" }));
+    expect(await screen.findByText(/let.s plan tuesday/i)).toBeInTheDocument();
+
+    await userEventInstance.click(screen.getByRole("button", { name: "Home" }));
+    await userEventInstance.click(await screen.findByRole("button", { name: /find time/i }));
+
+    expect(await screen.findByText(/let.s plan today/i)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /write methods/i })).toHaveAttribute("aria-pressed", "true"),
+    );
   });
 
   it("opening Assignment Detail from Plan's Look ahead tab and tapping Back returns to Look ahead, not the wizard", async () => {

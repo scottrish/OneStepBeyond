@@ -772,7 +772,32 @@ describe("HomePage", () => {
       await userEvent.click(await screen.findByRole("button", { name: /break it down/i }));
 
       expect(onPlanWork).toHaveBeenCalledTimes(1);
+      // No target: Plan's breakdown notice lists it.
+      expect(onPlanWork).toHaveBeenCalledWith(undefined);
       expect(onOpenAssignment).not.toHaveBeenCalled();
+    });
+
+    it("'Find time' passes its assignment to Plan (daily-planning-and-completion-v2-proposal.md item 1)", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        {
+          id: "a1",
+          courseId: "course-1",
+          title: "Lab report",
+          dueDate: "2026-03-17",
+          effortMinutes: 30,
+          notes: null,
+          completedAt: null,
+        },
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        { id: "w1", assignmentId: "a1", title: "Write methods", effortMinutes: 30, completedAt: null, position: 0 },
+      ]);
+      const onPlanWork = vi.fn();
+
+      renderHomePage({ onPlanWork });
+
+      await userEvent.click(await screen.findByRole("button", { name: /find time/i }));
+      expect(onPlanWork).toHaveBeenCalledWith("a1");
     });
 
     it("shows every additional qualifying assignment as a compact row with its own action, not just the soonest", async () => {

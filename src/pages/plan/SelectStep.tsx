@@ -31,6 +31,9 @@ type SelectStepProps = {
   scheduledElsewhere: Map<string, string>;
   // workItemId -> minutes already planned (not done) on the chosen day.
   plannedOnDay: Map<string, number>;
+  // The assignment Plan was opened for (daily-planning-and-completion-v2-
+  // proposal.md item 1): its rows come first and are marked.
+  highlightedAssignmentId: string | null;
   showAll: boolean;
   onShowAll: () => void;
   onNext: () => void;
@@ -63,6 +66,7 @@ export default function SelectStep({
   onToggleCandidate,
   scheduledElsewhere,
   plannedOnDay,
+  highlightedAssignmentId,
   showAll,
   onShowAll,
   onNext,
@@ -140,6 +144,7 @@ export default function SelectStep({
               const minutesOnThisDay = plannedOnDay.get(workItem.id);
               const onThisDay = minutesOnThisDay !== undefined;
               const noteId = `planned-on-day-${workItem.id}`;
+              const highlighted = assignment.id === highlightedAssignmentId;
               return (
                 <li key={workItem.id}>
                   <button
@@ -154,7 +159,7 @@ export default function SelectStep({
                         : selected
                           ? "border-primary bg-accent/60"
                           : "border-border bg-card"
-                    }`}
+                    } ${highlighted ? "ring-2 ring-primary/40 ring-offset-1 ring-offset-background" : ""}`}
                   >
                     <span
                       aria-hidden="true"
@@ -172,6 +177,9 @@ export default function SelectStep({
                         {assignment.title} · {courseName(assignment.courseId)} ·{" "}
                         {dueRelativeLabel(assignment.dueDate, today)}
                       </span>
+                      {/* The ring isn't the only signal: screen readers hear why
+                          this row is first. */}
+                      {highlighted && <span className="sr-only">. The assignment you came to plan.</span>}
                       {onThisDay && (
                         <span
                           id={noteId}

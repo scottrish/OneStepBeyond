@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import ErrorBanner from "../components/ErrorBanner";
 import { errorMessage } from "../lib/errorMessage";
@@ -8,7 +8,13 @@ import {
   shortDayLabel,
   todayISODate,
 } from "../domain/planningDate";
-import { rankCandidates } from "../domain/planningCandidates";
+import {
+  preselectFor,
+  rankCandidates,
+  targetAssignmentId,
+  targetFirst,
+  type PlanTarget,
+} from "../domain/planningCandidates";
 import { activitiesOn, availableMinutes, studySlots } from "../domain/studyCapacity";
 import {
   activityBlocks,
@@ -96,6 +102,12 @@ type PlanPageProps = {
   // cards are deliberately not wired yet (multi-select checkboxes, a
   // different interaction-design question — see that decision record).
   onOpenAssignment: (assignmentId: string) => void;
+  // Plan opened for one assignment or one step (daily-planning-and-
+  // completion-v2-proposal.md item 1). Applied once, after the data it
+  // needs has loaded; then onTargetApplied lets App clear it, so a later
+  // remount doesn't re-apply a stale target over the student's choices.
+  target: PlanTarget | null;
+  onTargetApplied: () => void;
 };
 
 // A nested view within the Plan tab, distinct from both the wizard's own
@@ -132,6 +144,8 @@ export default function PlanPage({
   onStartExecution,
   onGoToAssignments,
   onOpenAssignment,
+  target,
+  onTargetApplied,
 }: PlanPageProps) {
   const studentId = user.id;
   const today = useMemo(() => todayISODate(), []);
@@ -178,7 +192,11 @@ export default function PlanPage({
     retimeSessions,
   } = useDailyPlanning(studentId, date);
   const drift = useEstimationDrift(studentId);
-  const { sessions: allSessions, refetch: refetchAllSessions } = useAllWorkSessions(studentId);
+  const {
+    sessions: allSessions,
+    loading: allSessionsLoading,
+    refetch: refetchAllSessions,
+  } = useAllWorkSessions(studentId);
   const { preferences, loading: preferencesLoading } = usePreferences(studentId);
 
   // preferences directly feeds capacity math below (availableMinutes/
@@ -198,10 +216,15 @@ export default function PlanPage({
     return courses.find((course) => course.id === courseId)?.name ?? "Course";
   }
 
-  const candidates = useMemo(
-    () => rankCandidates(assignments, workItems),
-    [assignments, workItems],
-  );
+  // The target this wizard pass was opened for. Kept after App clears the
+  // prop, so its rows stay first and marked until the student leaves the
+  // day (pickDay / addMoreWork reset it).
+  const [appliedTarget, setAppliedTarget] = useState<PlanTarget | null>(null);
+  const candidates = useMemo(() => {
+    const ranked = rankCandidates(assignments, workItems);
+    return targetFirst(ranked, targetAssignmentId(appliedTarget, ranked));
+  }, [assignments, workItems, appliedTarget]);
+  const highlightedAssignmentId = targetAssignmentId(appliedTarget, candidates);
   const visibleCandidates = showAll ? candidates : candidates.slice(0, 3);
 
   // Open assignments with zero Work Items — i.e. never broken down —
@@ -254,6 +277,27 @@ export default function PlanPage({
     }
     return map;
   }, [workSessions, date]);
+
+  // Apply a new target once its data has loaded — during render (React's
+  // "adjust state when a prop changes" pattern), not in an effect, so the
+  // pre-selection appears in the same paint as the list.
+  if (target && target !== appliedTarget && !loading && !loadError && !allSessionsLoading) {
+    const ranked = rankCandidates(assignments, workItems);
+    const picked = preselectFor(target, ranked, allSessions, date, new Set(plannedOnDay.keys()));
+    setAppliedTarget(target);
+    setChosen(
+      Object.fromEntries(
+        picked.map((id) => [id, ranked.find((c) => c.workItem.id === id)!.workItem.effortMinutes]),
+      ),
+    );
+    setTimes({});
+    // Every pre-selected row must be visible, whatever the cap.
+    setShowAll(true);
+  }
+
+  useEffect(() => {
+    if (target && target === appliedTarget) onTargetApplied();
+  }, [target, appliedTarget, onTargetApplied]);
 
   const capacity = availableMinutes(activities, workSessions, date, preferences);
   const commitments = activitiesOn(activities, date);
@@ -328,12 +372,14 @@ export default function PlanPage({
     setShowAll(false);
     setJustConfirmed(false);
     setStayOnDayViewFor(null);
+    setAppliedTarget(null);
     editing.closeEditor();
   }
 
   // The day view's "Add more work": the wizard for the same day. Confirming
   // adds to what's already there (docs/decisions/20260925-confirm-plan-appends.md).
   function addMoreWork() {
+    setAppliedTarget(null);
     setChosen({});
     setTimes({});
     setShowAll(false);
@@ -640,6 +686,7 @@ export default function PlanPage({
               onToggleCandidate={toggleCandidate}
               scheduledElsewhere={scheduledElsewhere}
               plannedOnDay={plannedOnDay}
+              highlightedAssignmentId={highlightedAssignmentId}
               showAll={showAll}
               onShowAll={() => setShowAll(true)}
               onNext={() => onStepChange("estimate")}

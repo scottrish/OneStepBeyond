@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
@@ -60,6 +60,7 @@ import * as decompositionAttemptService from "../services/decompositionAttemptSe
 import * as preferencesService from "../services/preferencesService";
 import PlanPage from "./PlanPage";
 import type { PlanTab, Step } from "./PlanPage";
+import type { PlanTarget } from "../domain/planningCandidates";
 
 const mockedActivityService = activityService as unknown as {
   listActivities: ReturnType<typeof vi.fn>;
@@ -111,6 +112,7 @@ function ControlledPlanPage({
   onGoToAssignments = vi.fn(),
   onOpenAssignment = vi.fn(),
   initialStep = "day",
+  initialTarget = null,
 }: {
   user: User;
   onStartExecution?: () => void;
@@ -119,10 +121,15 @@ function ControlledPlanPage({
   // Matches App.tsx's default: the chosen day's landing view
   // (docs/decisions/20260925-existing-day-view.md).
   initialStep?: Step;
+  // Plan opened for one assignment or step (item 1); cleared once applied,
+  // as App.tsx does.
+  initialTarget?: PlanTarget | null;
 }) {
   const [date, setDate] = useState(TODAY_ISO);
   const [step, setStep] = useState<Step>(initialStep);
   const [tab, setTab] = useState<PlanTab>("wizard");
+  const [target, setTarget] = useState<PlanTarget | null>(initialTarget);
+  const clearTarget = useCallback(() => setTarget(null), []);
   return (
     <PlanPage
       user={user}
@@ -135,6 +142,8 @@ function ControlledPlanPage({
       onStartExecution={onStartExecution}
       onGoToAssignments={onGoToAssignments}
       onOpenAssignment={onOpenAssignment}
+      target={target}
+      onTargetApplied={clearTarget}
     />
   );
 }
@@ -1076,6 +1085,8 @@ describe("PlanPage", () => {
                 onStartExecution={vi.fn()}
                 onGoToAssignments={vi.fn()}
                 onOpenAssignment={vi.fn()}
+                target={null}
+                onTargetApplied={vi.fn()}
               />
             )}
           </>
@@ -1130,6 +1141,8 @@ describe("PlanPage", () => {
           onStartExecution={vi.fn()}
           onGoToAssignments={vi.fn()}
           onOpenAssignment={vi.fn()}
+          target={null}
+          onTargetApplied={vi.fn()}
         />,
       );
 
@@ -1631,6 +1644,127 @@ describe("PlanPage", () => {
         expect(screen.queryByLabelText("Time for Write intro")).not.toBeInTheDocument();
         expect(screen.getByLabelText("Time for Draft outline")).toBeInTheDocument();
       });
+    });
+  });
+
+  describe("opened for one assignment (daily-planning-and-completion-v2-proposal.md item 1)", () => {
+    function essayWithThreeSteps() {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        assignment({ id: "lab", title: "Lab report", dueDate: "2026-03-17" }),
+        assignment({ id: "quiz", title: "Quiz prep", dueDate: "2026-03-17" }),
+        assignment({ id: "poem", title: "Poem", dueDate: "2026-03-18" }),
+        assignment({ id: "a1", title: "Essay", dueDate: "2026-03-20" }),
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        workItem({ id: "lab1", assignmentId: "lab", title: "Write methods" }),
+        workItem({ id: "quiz1", assignmentId: "quiz", title: "Flashcards" }),
+        workItem({ id: "poem1", assignmentId: "poem", title: "Annotate poem" }),
+        workItem({ id: "e1", assignmentId: "a1", title: "Outline", position: 0 }),
+        workItem({ id: "e2", assignmentId: "a1", title: "Draft body", position: 1 }),
+        workItem({ id: "e3", assignmentId: "a1", title: "Edit", position: 2 }),
+      ]);
+    }
+    const pressed = (name: RegExp) => screen.getByRole("button", { name }).getAttribute("aria-pressed");
+
+    it("lands on Select with only the steps that still need time chosen, listed first", async () => {
+      essayWithThreeSteps();
+      mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([
+        { id: "s1", workItemId: "e2", date: "2026-03-17", plannedMinutes: 20, startTime: null, status: "planned" },
+      ]);
+      render(
+        <ControlledPlanPage user={user} initialStep="select" initialTarget={{ kind: "assignment", assignmentId: "a1" }} />,
+      );
+
+      await waitFor(() => expect(pressed(/^outline/i)).toBe("true"));
+      expect(pressed(/^edit/i)).toBe("true");
+      expect(pressed(/^draft body/i)).toBe("false");
+      expect(screen.getByText(/step 1 of 4/i)).toBeInTheDocument();
+
+      // The essay (due last) is listed first, and every row is visible —
+      // not hidden behind "Show more".
+      const titles = screen
+        .getAllByRole("button")
+        .map((b) => b.textContent ?? "")
+        .filter((t) => /Outline|Draft body|Edit|Write methods|Flashcards|Annotate poem/.test(t));
+      expect(titles).toHaveLength(6);
+      expect(titles[0]).toMatch(/^Outline/);
+      expect(screen.queryByRole("button", { name: /show more assignments/i })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^outline/i })).toHaveTextContent(
+        "The assignment you came to plan.",
+      );
+    });
+
+    it("chooses every open step when all of them are already planned before the due date", async () => {
+      essayWithThreeSteps();
+      mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue(
+        ["e1", "e2", "e3"].map((id) => ({
+          id: `s-${id}`,
+          workItemId: id,
+          date: "2026-03-17",
+          plannedMinutes: 20,
+          startTime: null,
+          status: "planned" as const,
+        })),
+      );
+      render(
+        <ControlledPlanPage user={user} initialStep="select" initialTarget={{ kind: "assignment", assignmentId: "a1" }} />,
+      );
+
+      await waitFor(() => expect(pressed(/^outline/i)).toBe("true"));
+      expect(pressed(/^draft body/i)).toBe("true");
+      expect(pressed(/^edit/i)).toBe("true");
+    });
+
+    it("never chooses a step already planned on this day", async () => {
+      essayWithThreeSteps();
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        { id: "s1", workItemId: "e1", date: TODAY_ISO, plannedMinutes: 20, startTime: "16:00", status: "planned" },
+      ]);
+      render(
+        <ControlledPlanPage user={user} initialStep="select" initialTarget={{ kind: "assignment", assignmentId: "a1" }} />,
+      );
+
+      await waitFor(() => expect(pressed(/^draft body/i)).toBe("true"));
+      expect(screen.getByRole("button", { name: /^outline/i })).toBeDisabled();
+      expect(pressed(/^outline/i)).toBe("false");
+    });
+
+    it("a step target chooses exactly that step", async () => {
+      essayWithThreeSteps();
+      render(<ControlledPlanPage user={user} initialStep="select" initialTarget={{ kind: "pick", workItemId: "e2" }} />);
+
+      await waitFor(() => expect(pressed(/^draft body/i)).toBe("true"));
+      expect(pressed(/^outline/i)).toBe("false");
+      expect(pressed(/^edit/i)).toBe("false");
+    });
+
+    it("applies once: unticking a chosen step sticks", async () => {
+      essayWithThreeSteps();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(
+        <ControlledPlanPage user={user} initialStep="select" initialTarget={{ kind: "assignment", assignmentId: "a1" }} />,
+      );
+
+      await waitFor(() => expect(pressed(/^outline/i)).toBe("true"));
+      await userEventInstance.click(screen.getByRole("button", { name: /^outline/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: /^flashcards/i }));
+
+      expect(pressed(/^outline/i)).toBe("false");
+      expect(pressed(/^flashcards/i)).toBe("true");
+      expect(pressed(/^draft body/i)).toBe("true");
+    });
+
+    it("the rest of the wizard works the same with pre-chosen steps", async () => {
+      essayWithThreeSteps();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(
+        <ControlledPlanPage user={user} initialStep="select" initialTarget={{ kind: "pick", workItemId: "e2" }} />,
+      );
+
+      await waitFor(() => expect(pressed(/^draft body/i)).toBe("true"));
+      await userEventInstance.click(screen.getByRole("button", { name: /next: estimate time/i }));
+      expect(await screen.findByText(/step 2 of 4/i)).toBeInTheDocument();
+      expect(screen.getByText("Draft body")).toBeInTheDocument();
     });
   });
 });

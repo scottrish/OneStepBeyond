@@ -1,6 +1,8 @@
 # Feature: Daily Planning & Completion — Prototype Sync (v2 proposal)
 
-**Status:** Partly implemented. **Items 7 and 8** (Next card states,
+**Status:** Partly implemented. **Item 1** (plan target) was built
+2026-09-25 as roadmap Phase 7 step 5 (`docs/decisions/20260925-plan-target.md`).
+**Items 7 and 8** (Next card states,
 per-assignment Look Ahead warning) were built 2026-09-25 as roadmap
 Phase 7 step 11. **Item 2** (reorder, re-chain, retime,
 with drag) was built 2026-09-25 as roadmap Phase 7 step 10
@@ -117,6 +119,14 @@ Confirmed by reading current production code and specs, not assumed:
 ## Proposed increments
 
 ### 1. Implement `home-dashboard-followthrough.md` item 4 (foundation)
+
+> **Implemented 2026-09-25** (roadmap step 5; tag `v-pre-plan-target`
+> marks the state before). As decided: Assignment Detail's "Plan work
+> for today" carries its assignment too (P1), and every targeted entry
+> opens **today** (P2). Steps already planned on the chosen day are never
+> pre-selected, even in the fallback, because Select disables them. A
+> `pick` target exists for item 3's "Plan it as one piece". "Break it
+> down" still carries no target until step 7.
 
 No new design needed — implement the already-approved spec: `onGoToPlan`
 gains an optional assignment-id target, used today only by "Find time";

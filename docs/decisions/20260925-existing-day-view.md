@@ -33,7 +33,9 @@ The product owner approved it on 2026-09-25 (roadmap Phase 7 step 9).
 
    A student who leaves mid-wizard and comes back returns mid-wizard,
    keeping `20260816-plan-tab-state-lifted-not-reset-on-retap.md`.
-3. **"Add work" entries always go to Select:** Assignment Detail's "Plan
+3. *(Amended 2026-09-25 by `20260925-plan-target.md`: entries that carry
+   an assignment — "Find time", "Make a plan", Detail's "Plan work for
+   today" — also snap to today.)* **"Add work" entries always go to Select:** Assignment Detail's "Plan
    work for today" (`handleGoToPlanToday`), Home's Needs Attention
    actions, and the day view's own **Add more work**.
 4. **Confirming ("Looks good") lands on the day view,** showing the

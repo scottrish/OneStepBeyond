@@ -10,8 +10,15 @@ const ATTENTION_ACTION_LABEL: Record<AttentionItem["action"], string> = {
 type NeedsAttentionCardProps = {
   attentionItems: AttentionItem[];
   onOpenAssignment: (assignmentId: string) => void;
-  onGoToPlan: () => void;
+  // "Find time" and "Make a plan" pass their assignment, so Plan opens
+  // with its work already chosen (daily-planning-and-completion-v2-
+  // proposal.md item 1). "Break it down" passes nothing.
+  onGoToPlan: (assignmentId?: string) => void;
 };
+
+function planFor(item: AttentionItem): string | undefined {
+  return item.action === "break-it-down" ? undefined : item.assignment.id;
+}
 
 // docs/decisions/20260912-page-complexity-reduction-proposal.md increment
 // 1 — Home's "Needs attention" card, split out of HomePage.tsx.
@@ -41,14 +48,16 @@ export default function NeedsAttentionCard({
         </button>
         : {needsAttention.message}
       </p>
-      {/* Every action lands on Plan, including "Break it down" — Plan's
-          own Day step already shows every assignment needing a breakdown
-          (this one included) with the full "Break down / Plan as one
-          task instead" choice, so routing there gives the identical
-          experience Plan itself offers instead of a separate, thinner
-          one opened here. See
-          docs/features/home-dashboard-followthrough.md item 2. */}
-      <Button variant="outline" size="sm" className="mt-3 rounded-2xl" onClick={onGoToPlan}>
+      {/* Every action lands on Plan. "Find time" and "Make a plan" carry the
+          assignment; "Break it down" lands where Plan's breakdown notice
+          lists it (docs/features/home-dashboard-followthrough.md items 2
+          and 4). */}
+      <Button
+        variant="outline"
+        size="sm"
+        className="mt-3 rounded-2xl"
+        onClick={() => onGoToPlan(planFor(needsAttention))}
+      >
         {ATTENTION_ACTION_LABEL[needsAttention.action]}
       </Button>
 
@@ -67,7 +76,7 @@ export default function NeedsAttentionCard({
                 variant="outline"
                 size="sm"
                 className="shrink-0 rounded-2xl"
-                onClick={onGoToPlan}
+                onClick={() => onGoToPlan(planFor(item))}
               >
                 {ATTENTION_ACTION_LABEL[item.action]}
               </Button>

@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { todayISODate } from "./domain/planningDate";
+import type { PlanTarget } from "./domain/planningCandidates";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 import PlanPage from "./pages/PlanPage";
@@ -68,6 +69,11 @@ export default function App() {
   // "wizard" (see handleTabChange) — that's a deliberate return-to-landing
   // gesture, unlike returning from Detail.
   const [planTab, setPlanTab] = useState<PlanTab>("wizard");
+  // Plan opened for one assignment (daily-planning-and-completion-v2-
+  // proposal.md item 1). PlanPage applies it once its data loads, then
+  // clears it here via onTargetApplied.
+  const [planTarget, setPlanTarget] = useState<PlanTarget | null>(null);
+  const clearPlanTarget = useCallback(() => setPlanTarget(null), []);
 
   // Today Execution is reached from both Home's "Next" card
   // (home-dashboard.md) and Plan's own entry points (daily-planning.md's
@@ -108,27 +114,22 @@ export default function App() {
     return <LoginPage signIn={signIn} signUp={signUp} />;
   }
 
-  // Assignment Detail's "Plan work for today" (docs/features/
-  // assignment-detail-cta-hierarchy.md item 1) always means *today*,
-  // specifically — unlike Home's own onGoToPlan callers (which land on
-  // whatever day/step Plan was last left on), this one snaps the date
-  // back to today and the step back to Select (PlanPage's own landing
-  // step — see docs/decisions/20260818-plan-day-step-removed.md), in
-  // case Plan was last left mid-wizard for some other assignment's
-  // selections or showing a different day. Does not pass the originating
-  // assignment through or pre-select its Work Items — that remains
-  // home-dashboard-followthrough.md item 4's separate, larger, still-
-  // deferred scope (chosen/showAll timing against useAssignmentsList's
-  // async load).
-  function handleGoToPlanToday() {
+  // Plan for one assignment: Select, for *today*, with that assignment's
+  // steps that still need time already chosen and listed first. Used by
+  // Home's "Find time" / "Make a plan" and Assignment Detail's "Plan work
+  // for today" (docs/decisions/20260925-plan-target.md: P1 and P2 —
+  // targeted entries always mean today, whatever day Plan was last on).
+  function handlePlanAssignment(assignmentId: string) {
     setPlanDate(todayISODate());
     setPlanStep("select");
+    setPlanTarget({ kind: "assignment", assignmentId });
     handleTabChange("plan");
   }
 
-  // Home's Needs Attention actions ("Find time", "Make a plan") mean "add
-  // work", so they skip the day view and open Select on whatever day Plan
-  // is showing (docs/decisions/20260925-existing-day-view.md point 3).
+  // Home's Needs Attention "Break it down" (no target): Select on whatever
+  // day Plan is showing, where the breakdown notice lists it
+  // (docs/decisions/20260925-existing-day-view.md point 3). "Find time"
+  // and "Make a plan" carry their assignment instead (handlePlanAssignment).
   function handleGoToPlanToAddWork() {
     setPlanStep("select");
     handleTabChange("plan");
@@ -226,7 +227,7 @@ export default function App() {
             user={user}
             assignmentId={openAssignmentId}
             onBack={() => setOpenAssignmentId(null)}
-            onGoToPlan={handleGoToPlanToday}
+            onGoToPlan={() => handlePlanAssignment(openAssignmentId)}
           />
         ) : executingToday ? (
           <TodayExecutionPage user={user} onBack={() => setExecutingToday(false)} />
@@ -240,7 +241,9 @@ export default function App() {
                 user={user}
                 onStartExecution={() => setExecutingToday(true)}
                 onGoToPlan={() => handleTabChange("plan")}
-                onPlanWork={handleGoToPlanToAddWork}
+                onPlanWork={(assignmentId) =>
+                  assignmentId ? handlePlanAssignment(assignmentId) : handleGoToPlanToAddWork()
+                }
                 onGoToAssignments={() => handleTabChange("assignments")}
                 onOpenAssignment={setOpenAssignmentId}
                 onOpenCapture={() => setSecondary("capture")}
@@ -265,6 +268,8 @@ export default function App() {
                 onStartExecution={() => setExecutingToday(true)}
                 onGoToAssignments={() => handleTabChange("assignments")}
                 onOpenAssignment={setOpenAssignmentId}
+                target={planTarget}
+                onTargetApplied={clearPlanTarget}
               />
             )}
             {activeTab === "assignments" && (

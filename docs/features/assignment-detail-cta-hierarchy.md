@@ -834,6 +834,10 @@ one rather than rewriting it.
 
 ## Explicitly Out of Scope
 
+*Update 2026-09-25: "Plan work for today" now carries this assignment
+into Plan, with its steps pre-selected (`docs/decisions/
+20260925-plan-target.md`, P1). The deferral below is resolved.*
+
 - Passing the target assignment through to Plan so it lands pre-selected
   on the Select step — `home-dashboard-followthrough.md` item 4's already-
   identified, already-deferred architecture gap (`chosen`/`showAll` local
