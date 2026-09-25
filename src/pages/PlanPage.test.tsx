@@ -35,6 +35,7 @@ vi.mock("../services/workSessionService", () => ({
   listWorkSessionsForStudent: vi.fn(),
   createWorkSessions: vi.fn(),
   deleteWorkSession: vi.fn(),
+  updateWorkSessionStartTimes: vi.fn(),
 }));
 vi.mock("../services/planningSessionService", () => ({
   recordPlanningSession: vi.fn(),
@@ -78,6 +79,7 @@ const mockedWorkSessionService = workSessionService as unknown as {
   listWorkSessionsForStudent: ReturnType<typeof vi.fn>;
   createWorkSessions: ReturnType<typeof vi.fn>;
   deleteWorkSession: ReturnType<typeof vi.fn>;
+  updateWorkSessionStartTimes: ReturnType<typeof vi.fn>;
 };
 const mockedPlanningSessionService = planningSessionService as unknown as {
   recordPlanningSession: ReturnType<typeof vi.fn>;
@@ -1355,7 +1357,7 @@ describe("PlanPage", () => {
       );
       expect(mockedWorkSessionService.deleteWorkSession).not.toHaveBeenCalled();
 
-      expect(await screen.findByRole("status")).toHaveTextContent(/plan confirmed/i);
+      expect(await screen.findByText(/plan confirmed/i)).toHaveAttribute("role", "status");
       expect(screen.getByRole("heading", { name: /today.s plan/i })).toBeInTheDocument();
       expect(screen.getByText("Draft outline")).toBeInTheDocument();
       expect(screen.getByText("Write intro")).toBeInTheDocument();
@@ -1407,6 +1409,225 @@ describe("PlanPage", () => {
 
       await userEventInstance.click(within(days).getAllByRole("radio")[0]!);
       expect(await screen.findByRole("heading", { name: /today.s plan/i })).toBeInTheDocument();
+    });
+  });
+
+  describe("reorder, re-chain and retime (daily-planning-and-completion-v2-proposal.md item 2)", () => {
+    const session = (
+      id: string,
+      workItemId: string,
+      startTime: string | null,
+      plannedMinutes: number,
+      status: "planned" | "in_progress" | "done" = "planned",
+    ) => ({ id, workItemId, date: TODAY_ISO, plannedMinutes, startTime, status });
+
+    function threeItems() {
+      mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        workItem(),
+        workItem({ id: "w2", title: "Write intro", effortMinutes: 20, position: 1 }),
+        workItem({ id: "w3", title: "Read sources", effortMinutes: 30, position: 2 }),
+      ]);
+    }
+
+    function rowTitles() {
+      return screen
+        .getAllByText(/^(draft outline|write intro|read sources)$/i)
+        .map((node) => node.textContent);
+    }
+
+    async function openEditor(userEventInstance: ReturnType<typeof userEvent.setup>, title: string) {
+      await userEventInstance.click(await screen.findByRole("button", { name: `Edit ${title}` }));
+      return screen.findByRole("dialog");
+    }
+
+    it("planned rows have a drag handle named for the row; started and done rows don't", async () => {
+      threeItems();
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        session("s1", "w1", "15:15", 30),
+        session("s2", "w2", "16:00", 20, "in_progress"),
+        session("s3", "w3", "17:00", 30, "done"),
+      ]);
+      render(<ControlledPlanPage user={user} />);
+
+      const handle = await screen.findByRole("button", { name: "Drag to reorder Draft outline" });
+      expect(handle).toHaveAttribute("data-drag-handle");
+      expect(handle).toHaveAccessibleDescription(/press space or enter to pick up/i);
+      expect(screen.queryByRole("button", { name: /drag to reorder write intro/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /drag to reorder read sources/i })).not.toBeInTheDocument();
+    });
+
+    it("Earlier in the edit sheet re-chains the day, saves immediately, and reorders the rows", async () => {
+      threeItems();
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        session("s1", "w1", "15:15", 30),
+        session("s2", "w2", "15:45", 20),
+      ]);
+      mockedWorkSessionService.updateWorkSessionStartTimes.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<ControlledPlanPage user={user} />);
+
+      const sheet = await openEditor(userEventInstance, "Write intro");
+      expect(within(sheet).getByRole("button", { name: /later/i })).toBeDisabled();
+      await userEventInstance.click(within(sheet).getByRole("button", { name: /earlier/i }));
+
+      expect(mockedWorkSessionService.updateWorkSessionStartTimes).toHaveBeenCalledWith([
+        { id: "s2", startTime: "15:15" },
+        { id: "s1", startTime: "15:35" },
+      ]);
+      await userEventInstance.keyboard("{Escape}");
+      await waitFor(() => expect(rowTitles()).toEqual(["Write intro", "Draft outline"]));
+    });
+
+    it("a reorder never re-times started or done sessions; planned ones chain around them", async () => {
+      threeItems();
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        session("s1", "w1", "15:15", 30),
+        session("s3", "w3", "15:45", 30, "in_progress"),
+        session("s2", "w2", "16:15", 20),
+      ]);
+      mockedWorkSessionService.updateWorkSessionStartTimes.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<ControlledPlanPage user={user} />);
+
+      const sheet = await openEditor(userEventInstance, "Write intro");
+      await userEventInstance.click(within(sheet).getByRole("button", { name: /earlier/i }));
+
+      const updates = mockedWorkSessionService.updateWorkSessionStartTimes.mock.calls[0]![0];
+      expect(updates).toEqual([
+        { id: "s2", startTime: "15:15" },
+        { id: "s1", startTime: "16:15" },
+      ]);
+      expect(updates.some((update: { id: string }) => update.id === "s3")).toBe(false);
+    });
+
+    it("refuses a reorder that would run past midnight, saying why and saving nothing", async () => {
+      threeItems();
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        session("s1", "w1", "22:00", 30),
+        session("s3", "w3", "22:30", 90, "done"),
+        session("s2", "w2", null, 20),
+      ]);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<ControlledPlanPage user={user} />);
+
+      const sheet = await openEditor(userEventInstance, "Write intro");
+      await userEventInstance.click(within(sheet).getByRole("button", { name: /earlier/i }));
+
+      expect(await within(sheet).findByRole("alert")).toHaveTextContent(/runs past midnight/i);
+      expect(mockedWorkSessionService.updateWorkSessionStartTimes).not.toHaveBeenCalled();
+    });
+
+    describe("retiming one session in the edit sheet", () => {
+      beforeEach(() => {
+        mockedActivityService.listActivities.mockResolvedValue([
+          {
+            id: "act-1",
+            name: "Football practice",
+            days: [1],
+            startTime: "17:00",
+            finishTime: "18:00",
+            travelToMinutes: 0,
+            travelFromMinutes: 0,
+          },
+        ]);
+        threeItems();
+        mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+          session("s1", "w1", "16:00", 30),
+          session("s2", "w2", "15:15", 20),
+        ]);
+        mockedWorkSessionService.updateWorkSessionStartTimes.mockResolvedValue(undefined);
+      });
+
+      it("disables a suggested time that would overlap, and saves a free one immediately", async () => {
+        const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+        render(<ControlledPlanPage user={user} />);
+
+        const sheet = await openEditor(userEventInstance, "Draft outline");
+        // 15:15 is Write intro's slot.
+        expect(within(sheet).getByRole("button", { name: /before football practice/i })).toBeDisabled();
+        await userEventInstance.click(within(sheet).getByRole("button", { name: /after football practice/i }));
+
+        expect(mockedWorkSessionService.updateWorkSessionStartTimes).toHaveBeenCalledWith([
+          { id: "s1", startTime: "18:00" },
+        ]);
+      });
+
+      it("refuses an overlapping manual time with the reason, leaving the time unchanged", async () => {
+        const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+        render(<ControlledPlanPage user={user} />);
+
+        const sheet = await openEditor(userEventInstance, "Draft outline");
+        fireEvent.change(within(sheet).getByLabelText("Start time for Draft outline"), {
+          target: { value: "17:15" },
+        });
+        await userEventInstance.click(within(sheet).getByRole("button", { name: "Set time" }));
+
+        expect(within(sheet).getByRole("alert")).toHaveTextContent(
+          "That time overlaps with ‘Football practice’. Pick a different start.",
+        );
+        expect(mockedWorkSessionService.updateWorkSessionStartTimes).not.toHaveBeenCalled();
+
+        await userEventInstance.click(within(sheet).getByRole("button", { name: "Dismiss" }));
+        expect(within(sheet).queryByRole("alert")).not.toBeInTheDocument();
+      });
+
+      it("saves a free manual time", async () => {
+        const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+        render(<ControlledPlanPage user={user} />);
+
+        const sheet = await openEditor(userEventInstance, "Draft outline");
+        fireEvent.change(within(sheet).getByLabelText("Start time for Draft outline"), {
+          target: { value: "19:30" },
+        });
+        await userEventInstance.click(within(sheet).getByRole("button", { name: "Set time" }));
+
+        expect(mockedWorkSessionService.updateWorkSessionStartTimes).toHaveBeenCalledWith([
+          { id: "s1", startTime: "19:30" },
+        ]);
+      });
+    });
+
+    describe("Schedule step drafts", () => {
+      async function reachScheduleWithTwo(userEventInstance: ReturnType<typeof userEvent.setup>) {
+        threeItems();
+        render(<ControlledPlanPage user={user} />);
+        await screen.findByText(/step 1 of 4/i);
+        await userEventInstance.click(screen.getByRole("button", { name: /draft outline/i }));
+        await userEventInstance.click(screen.getByRole("button", { name: /write intro/i }));
+        await userEventInstance.click(screen.getByRole("button", { name: /next: estimate time/i }));
+        await userEventInstance.click(await screen.findByRole("button", { name: /next: when/i }));
+        await screen.findByText(/step 3 of 4/i);
+      }
+
+      it("Later re-chains the draft times on screen and writes nothing", async () => {
+        const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+        await reachScheduleWithTwo(userEventInstance);
+
+        expect(screen.getByLabelText<HTMLInputElement>("Time for Draft outline").value).toBe("15:15");
+        expect(screen.getByLabelText<HTMLInputElement>("Time for Write intro").value).toBe("15:35");
+        expect(screen.getByRole("button", { name: "Drag to reorder Draft outline" })).toBeInTheDocument();
+
+        await userEventInstance.click(screen.getByRole("button", { name: "More actions for Draft outline" }));
+        await userEventInstance.click(await screen.findByRole("menuitem", { name: "Later" }));
+
+        expect(screen.getByLabelText<HTMLInputElement>("Time for Write intro").value).toBe("15:15");
+        expect(screen.getByLabelText<HTMLInputElement>("Time for Draft outline").value).toBe("15:35");
+        expect(rowTitles()).toEqual(["Write intro", "Draft outline"]);
+        expect(mockedWorkSessionService.updateWorkSessionStartTimes).not.toHaveBeenCalled();
+        expect(mockedWorkSessionService.createWorkSessions).not.toHaveBeenCalled();
+      });
+
+      it("Remove in the row menu drops the item from the draft", async () => {
+        const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+        await reachScheduleWithTwo(userEventInstance);
+
+        await userEventInstance.click(screen.getByRole("button", { name: "More actions for Write intro" }));
+        await userEventInstance.click(await screen.findByRole("menuitem", { name: "Remove" }));
+
+        expect(screen.queryByLabelText("Time for Write intro")).not.toBeInTheDocument();
+        expect(screen.getByLabelText("Time for Draft outline")).toBeInTheDocument();
+      });
     });
   });
 });

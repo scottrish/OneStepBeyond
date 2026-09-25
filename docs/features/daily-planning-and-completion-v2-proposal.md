@@ -1,6 +1,8 @@
 # Feature: Daily Planning & Completion — Prototype Sync (v2 proposal)
 
-**Status:** Partly implemented. **Item 10** (existing-day view) and
+**Status:** Partly implemented. **Item 2** (reorder, re-chain, retime,
+with drag) was built 2026-09-25 as roadmap Phase 7 step 10
+(`docs/decisions/20260925-session-reorder-and-drag.md`). **Item 10** (existing-day view) and
 **items 6b/6c** (Select's "Planned today" note and same-day disable) were
 built 2026-09-25 as roadmap Phase 7 step 9, together with append-only
 confirm (`docs/decisions/20260925-existing-day-view.md`,
@@ -153,6 +155,25 @@ implementation** (`plan.tsx`'s initial-load effect, plus commit
 
 ### 2. Reordering and inline retiming in Plan and Week Look-Ahead
 
+> **Implemented 2026-09-25** (tag `v-pre-session-reorder` marks the
+> state before). Decisions settled in
+> `docs/decisions/20260925-session-reorder-and-drag.md`:
+> - **Weekend rule: option (a).** Activities (with travel) are obstacles
+>   on every day. So **no `planOrder` is saved**: order stays derived from
+>   start times, and a saved reorder writes only `startTime` for the
+>   sessions whose time changed (one guarded update per session, sent
+>   together, and not atomic; see the decision record).
+> - **Past midnight: refused.** If a re-chained session would start at or
+>   after midnight, nothing changes and "That order runs past midnight.
+>   Try moving something to another day." is shown.
+> - The chain starts at the earliest existing time, even one set by hand
+>   before the first study window.
+> - A manual retime is set with a **Set time** button, not on every
+>   keystroke. An overlap names the earliest block it runs into (a session
+>   title or an activity name).
+> - No Domain Event is recorded for a reorder or retime (same as Move and
+>   Remove).
+
 **New, not currently specified anywhere in this app.** This app has no
 session reordering today; `src/domain/reorder.ts`'s `moveItem` only
 reorders draft steps inside `WorkBreakdownPage`. This item defines the
@@ -212,7 +233,8 @@ This document's first draft described `main`'s version. Build the
 - **When the new order is saved.**
   - **Saved day** (existing-day view, Look Ahead): the new order and the
     re-chained start times save **immediately** on drop, as one write
-    (`planOrder` plus `startTime` for every affected session).
+    (`startTime` for every affected session; see the note above, since
+    no `planOrder` exists).
   - **Schedule step draft**: order and times are held in memory until
     Confirm, as the Schedule step already does.
 - **Retiming a single session** (edit sheet: suggested chips from
@@ -245,9 +267,10 @@ This document's first draft described `main`'s version. Build the
 - The re-chaining function has unit tests for: no existing times,
   a busy block in the middle, and a session whose re-chained start would
   run past midnight. For that last case, the prototype wraps the clock
-  (`% 24`). **Don't replicate that.** Decide explicitly whether to stop
-  the chain or flag the overflow, and record the choice in the domain
-  function's tests.
+  (`% 24`). **Don't replicate that.** *Resolved: the reorder is refused
+  with a message and nothing changes (`rechainTimes` returns null).*
+- *(Added 2026-09-25.)* On a day with no study windows, a reorder still
+  chains around that day's activities and their travel time.
 
 ### 3. "Plan it as one piece" moves to Assignment Detail, the single place for breakdown choices
 

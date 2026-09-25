@@ -3,7 +3,8 @@ import { errorMessage } from "../lib/errorMessage";
 import { useAsyncData } from "./useAsyncData";
 import * as planningSessionService from "../services/planningSessionService";
 import * as workSessionService from "../services/workSessionService";
-import type { WorkSession } from "../services/workSessionService";
+import type { StartTimeUpdate, WorkSession } from "../services/workSessionService";
+import { withStartTimes } from "../domain/sessionOrder";
 
 export type PlanItem = {
   workItemId: string;
@@ -94,6 +95,24 @@ export function useDailyPlanning(studentId: string, date: string) {
     }
   }
 
+  // A reorder's re-chained times, or one session's retime — shown
+  // immediately and saved in the background; on failure the error shows
+  // and the day reloads from the server (docs/decisions/
+  // 20260925-session-reorder-and-drag.md).
+  async function retimeSessions(updates: StartTimeUpdate[]): Promise<boolean> {
+    if (updates.length === 0) return true;
+    setActionError(null);
+    setWorkSessions((prev) => withStartTimes(prev, updates));
+    try {
+      await workSessionService.updateWorkSessionStartTimes(updates);
+      return true;
+    } catch (error) {
+      setActionError(errorMessage(error));
+      refetchSessions();
+      return false;
+    }
+  }
+
   return {
     workSessions,
     loading,
@@ -102,5 +121,6 @@ export function useDailyPlanning(studentId: string, date: string) {
     retry,
     confirmPlan,
     removeSession,
+    retimeSessions,
   };
 }

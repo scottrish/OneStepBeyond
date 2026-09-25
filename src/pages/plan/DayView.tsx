@@ -1,6 +1,8 @@
 import { Check, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import DismissableAlert from "@/components/DismissableAlert";
 import MobileActionBar from "@/components/MobileActionBar";
+import SortableList from "@/components/SortableList";
 import SwipeActionRow from "@/components/SwipeActionRow";
 import { effortLabel } from "../../domain/effortPresets";
 import { dayLabel, longPlanDate, timeLabel } from "../../domain/planningDate";
@@ -23,6 +25,13 @@ type DayViewProps = {
   courseName: (courseId: string) => string;
   // Shown right after the wizard's "Looks good" lands here.
   justConfirmed: boolean;
+  sessionTitle: (session: WorkSession) => string;
+  // A drag drop: every row id in the new order. Planned sessions are
+  // re-chained and saved immediately (docs/decisions/
+  // 20260925-session-reorder-and-drag.md).
+  onReorder: (orderedIds: string[]) => void;
+  reorderError: string | null;
+  onDismissReorderError: () => void;
   onOpenAssignment: (assignmentId: string) => void;
   onEditSession: (sessionId: string) => void;
   onRemoveSession: (session: WorkSession) => void;
@@ -34,9 +43,10 @@ type DayViewProps = {
 // Plan's existing-day view — docs/decisions/20260925-existing-day-view.md.
 // Shown instead of Select when the chosen day already has a plan: what's
 // due, the day's activities, and each session in time order, with its
-// time over its length. Planned sessions open the edit sheet (Move to
-// another day, Remove) or swipe left to Remove; started and done
-// sessions are read-only. Adding work goes through the wizard, which
+// time over its length. Planned sessions drag to reorder by their handle,
+// open the edit sheet (retime, Earlier/Later, Move to another day,
+// Remove), or swipe left to Remove; started and done sessions are
+// read-only and stay where they are. Adding work goes through the wizard, which
 // only ever adds (docs/decisions/20260925-confirm-plan-appends.md).
 export default function DayView({
   date,
@@ -49,6 +59,10 @@ export default function DayView({
   assignments,
   courseName,
   justConfirmed,
+  sessionTitle,
+  onReorder,
+  reorderError,
+  onDismissReorderError,
   onOpenAssignment,
   onEditSession,
   onRemoveSession,
@@ -88,21 +102,27 @@ export default function DayView({
       <h3 className="mt-5 mb-2 text-sm font-semibold text-foreground">
         Planned for {dayLabel(date, today)}
       </h3>
+      {reorderError && (
+        <DismissableAlert message={reorderError} onDismiss={onDismissReorderError} className="mb-2" />
+      )}
       {sessions.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nothing planned for this day yet.</p>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {sessions.map((session) => {
+        <SortableList
+          items={sessions}
+          getId={(session) => session.id}
+          getTitle={sessionTitle}
+          isSortable={(session) => session.status === "planned"}
+          onReorder={onReorder}
+          renderItem={(session, lead) => {
             const item = workItems.find((w) => w.id === session.workItemId);
             const assignment = item ? assignments.find((a) => a.id === item.assignmentId) : undefined;
-            const title = item?.title ?? "Study session";
+            const title = sessionTitle(session);
             const planned = session.status === "planned";
             const done = session.status === "done";
             const row = (
-              <div className="flex items-center gap-3 rounded-2xl border border-border bg-card py-2 pr-2 pl-4">
-                {done ? (
-                  <Check aria-hidden="true" className="size-4 shrink-0 text-primary" />
-                ) : null}
+              <div className="flex items-center gap-2 rounded-2xl border border-border bg-card py-2 pr-2 pl-1">
+                {lead(done ? <Check className="size-4 text-primary" /> : null)}
                 <span className={`min-w-0 flex-1 ${done ? "text-muted-foreground line-through" : ""}`}>
                   <span className="block truncate text-sm font-medium text-foreground">{title}</span>
                   <span className="block truncate text-xs text-muted-foreground">
@@ -134,25 +154,21 @@ export default function DayView({
                 )}
               </div>
             );
-            return (
-              <li key={session.id}>
-                {planned ? (
-                  <SwipeActionRow
-                    id={`day-${session.id}`}
-                    label={`${title} from ${dayLabel(date, today)}'s plan`}
-                    actionLabel="Remove"
-                    onAction={() => onRemoveSession(session)}
-                    className="rounded-2xl"
-                  >
-                    {row}
-                  </SwipeActionRow>
-                ) : (
-                  row
-                )}
-              </li>
+            return planned ? (
+              <SwipeActionRow
+                id={`day-${session.id}`}
+                label={`${title} from ${dayLabel(date, today)}'s plan`}
+                actionLabel="Remove"
+                onAction={() => onRemoveSession(session)}
+                className="rounded-2xl"
+              >
+                {row}
+              </SwipeActionRow>
+            ) : (
+              row
             );
-          })}
-        </ul>
+          }}
+        />
       )}
 
       <p className="mt-4 text-sm text-muted-foreground">

@@ -4,6 +4,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 vi.mock("../services/workSessionService", () => ({
   listWorkSessionsForStudent: vi.fn(),
   deleteWorkSession: vi.fn(),
+  updateWorkSessionStartTimes: vi.fn(),
 }));
 
 import * as workSessionService from "../services/workSessionService";
@@ -12,6 +13,7 @@ import { useWeekSessions } from "./useWeekSessions";
 const mockedService = workSessionService as unknown as {
   listWorkSessionsForStudent: ReturnType<typeof vi.fn>;
   deleteWorkSession: ReturnType<typeof vi.fn>;
+  updateWorkSessionStartTimes: ReturnType<typeof vi.fn>;
 };
 
 const session = {
@@ -91,5 +93,40 @@ describe("useWeekSessions", () => {
 
     expect(result.current.actionError).toBe("boom");
     expect(result.current.sessions).toEqual([session]);
+  });
+
+  it("retimeSessions shows the new times immediately and saves them", async () => {
+    mockedService.listWorkSessionsForStudent.mockResolvedValue([session]);
+    mockedService.updateWorkSessionStartTimes.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useWeekSessions("student-1"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let succeeded = false;
+    await act(async () => {
+      succeeded = await result.current.retimeSessions([{ id: "s1", startTime: "17:00" }]);
+    });
+
+    expect(succeeded).toBe(true);
+    expect(mockedService.updateWorkSessionStartTimes).toHaveBeenCalledWith([
+      { id: "s1", startTime: "17:00" },
+    ]);
+    expect(result.current.sessions).toEqual([{ ...session, startTime: "17:00" }]);
+  });
+
+  it("retimeSessions reports the error and reloads from the server when saving fails", async () => {
+    mockedService.listWorkSessionsForStudent.mockResolvedValue([session]);
+    mockedService.updateWorkSessionStartTimes.mockRejectedValue({ message: "boom" });
+
+    const { result } = renderHook(() => useWeekSessions("student-1"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.retimeSessions([{ id: "s1", startTime: "17:00" }]);
+    });
+
+    expect(result.current.actionError).toBe("boom");
+    await waitFor(() => expect(result.current.sessions).toEqual([session]));
+    expect(mockedService.listWorkSessionsForStudent).toHaveBeenCalledTimes(2);
   });
 });

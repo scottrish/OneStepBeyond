@@ -14,6 +14,8 @@ export type RowAction = {
   icon?: ComponentType<{ className?: string }>;
   onSelect: () => void;
   destructive?: boolean;
+  // E.g. Earlier on the first row: shown, but not selectable.
+  disabled?: boolean;
 };
 
 type RowActionsMenuProps = {
@@ -40,10 +42,11 @@ export default function RowActionsMenu({ label, actions, className }: RowActions
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44 rounded-xl p-1">
-        {actions.map(({ label: actionLabel, icon: Icon, onSelect, destructive }) => (
+        {actions.map(({ label: actionLabel, icon: Icon, onSelect, destructive, disabled }) => (
           <DropdownMenuItem
             key={actionLabel}
             className={cn("min-h-11 rounded-lg", destructive && "text-destructive focus:text-destructive")}
+            disabled={disabled}
             onSelect={onSelect}
           >
             {Icon ? <Icon className="size-4" /> : null} {actionLabel}

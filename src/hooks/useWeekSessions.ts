@@ -2,7 +2,8 @@ import { useCallback, useState } from "react";
 import { errorMessage } from "../lib/errorMessage";
 import { useAsyncData } from "./useAsyncData";
 import * as workSessionService from "../services/workSessionService";
-import type { WorkSession } from "../services/workSessionService";
+import type { StartTimeUpdate, WorkSession } from "../services/workSessionService";
+import { withStartTimes } from "../domain/sessionOrder";
 
 // Every one of the student's Work Sessions, across all dates — Week
 // Look-Ahead's own primary content (week-lookahead.md), unlike
@@ -25,6 +26,7 @@ export function useWeekSessions(studentId: string) {
     setData: setSessions,
     loading,
     loadError,
+    refetch,
     retry,
   } = useAsyncData<WorkSession[]>(fetchSessions, []);
 
@@ -40,5 +42,23 @@ export function useWeekSessions(studentId: string) {
     }
   }
 
-  return { sessions, loading, loadError, actionError, retry, removeSession };
+  // A reorder's re-chained times, or one session's retime — shown
+  // immediately and saved in the background; on failure the error shows
+  // and the day reloads from the server (docs/decisions/
+  // 20260925-session-reorder-and-drag.md).
+  async function retimeSessions(updates: StartTimeUpdate[]): Promise<boolean> {
+    if (updates.length === 0) return true;
+    setActionError(null);
+    setSessions((prev) => withStartTimes(prev, updates));
+    try {
+      await workSessionService.updateWorkSessionStartTimes(updates);
+      return true;
+    } catch (error) {
+      setActionError(errorMessage(error));
+      refetch();
+      return false;
+    }
+  }
+
+  return { sessions, loading, loadError, actionError, retry, removeSession, retimeSessions };
 }

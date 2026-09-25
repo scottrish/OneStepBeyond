@@ -13,6 +13,7 @@ import {
   listWorkSessionsForDate,
   listWorkSessionsForStudent,
   updateWorkSessionPlannedMinutes,
+  updateWorkSessionStartTimes,
   updateWorkSessionStatus,
 } from "./workSessionService";
 
@@ -186,6 +187,37 @@ describe("updateWorkSessionPlannedMinutes", () => {
 
     await expect(
       updateWorkSessionPlannedMinutes("session-1", 40),
+    ).rejects.toThrow("boom");
+  });
+});
+
+describe("updateWorkSessionStartTimes", () => {
+  it("updates each session's start time, guarded to still-planned rows", async () => {
+    const builder = mockQuery({ data: null, error: null });
+    mockedFrom.mockReturnValue(builder);
+
+    await updateWorkSessionStartTimes([
+      { id: "s1", startTime: "15:15" },
+      { id: "s2", startTime: "15:45" },
+    ]);
+
+    expect(mockedFrom).toHaveBeenCalledTimes(2);
+    expect(builder.update).toHaveBeenCalledWith({ start_time: "15:15" });
+    expect(builder.update).toHaveBeenCalledWith({ start_time: "15:45" });
+    expect(builder.eq).toHaveBeenCalledWith("id", "s2");
+    expect(builder.eq).toHaveBeenCalledWith("status", "planned");
+  });
+
+  it("throws when any update errors", async () => {
+    mockedFrom
+      .mockReturnValueOnce(mockQuery({ data: null, error: null }))
+      .mockReturnValueOnce(mockQuery({ data: null, error: new Error("boom") }));
+
+    await expect(
+      updateWorkSessionStartTimes([
+        { id: "s1", startTime: "15:15" },
+        { id: "s2", startTime: "15:45" },
+      ]),
     ).rejects.toThrow("boom");
   });
 });

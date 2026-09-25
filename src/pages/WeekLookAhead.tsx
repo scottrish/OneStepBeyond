@@ -1,18 +1,32 @@
-import { Check, X } from "lucide-react";
+import { useState } from "react";
+import { ArrowDown, ArrowUp, Check, X } from "lucide-react";
+import DismissableAlert from "@/components/DismissableAlert";
 import RowActionsMenu from "@/components/RowActionsMenu";
+import SortableList from "@/components/SortableList";
 import SwipeActionRow from "@/components/SwipeActionRow";
 import ErrorBanner from "../components/ErrorBanner";
+import { activityBlocks, rechainDay } from "../domain/defaultStartTimes";
 import { effortLabel } from "../domain/effortPresets";
 import { addDaysISODate, daysBetween, longPlanDate, timeLabel } from "../domain/planningDate";
-import { activitiesOn, availableMinutes, capacityPhrase } from "../domain/studyCapacity";
+import { moveItem } from "../domain/reorder";
+import { changedStartTimes, sortByStartTime } from "../domain/sessionOrder";
+import {
+  activitiesOn,
+  availableMinutes,
+  capacityPhrase,
+  studySlots,
+} from "../domain/studyCapacity";
 import type { Activity } from "../services/activityService";
 import type { Assignment } from "../services/assignmentService";
 import type { Preferences } from "../services/preferencesService";
 import type { WorkItem } from "../services/workItemService";
+import type { WorkSession } from "../services/workSessionService";
 import { useWeekSessions } from "../hooks/useWeekSessions";
+import { MIDNIGHT_MESSAGE } from "./plan/useSessionEditing";
 
-// docs/features/week-lookahead.md — a read-only, seven-day orientation
-// view reached from Plan's own "Look ahead" tab (not a separate bottom-
+// docs/features/week-lookahead.md — a seven-day orientation view (its
+// planned sessions can be reordered and removed, docs/decisions/
+// 20260925-session-reorder-and-drag.md) reached from Plan's own "Look ahead" tab (not a separate bottom-
 // nav destination, and not a calendar grid — see that spec's Explicitly
 // Out of Scope). Ported from
 // ../OneStepBeyondPrototype/src/components/efc/LookAhead.tsx, adapted to
@@ -52,7 +66,38 @@ export default function WeekLookAhead({
     actionError,
     retry,
     removeSession,
+    retimeSessions,
   } = useWeekSessions(studentId);
+  // A refused reorder's explanation, shown under the day it happened on.
+  const [reorderError, setReorderError] = useState<{ date: string; message: string } | null>(
+    null,
+  );
+
+  // The same re-chain as Plan's day view (daily-planning-and-completion-
+  // v2-proposal.md item 2): the day's planned sessions in the new order,
+  // around its started/done sessions and activities; saved immediately.
+  function reorderDay(date: string, orderedIds: string[]) {
+    setReorderError(null);
+    const daySessions = sessions.filter((session) => session.date === date);
+    const planned = orderedIds.filter((id) =>
+      daySessions.some((session) => session.id === id && session.status === "planned"),
+    );
+    const times = rechainDay(
+      daySessions,
+      planned,
+      studySlots(activities, date, preferences),
+      activityBlocks(activitiesOn(activities, date)),
+    );
+    if (!times) {
+      setReorderError({ date, message: MIDNIGHT_MESSAGE });
+      return;
+    }
+    void retimeSessions(changedStartTimes(daySessions, times));
+  }
+
+  function titleOf(session: WorkSession): string {
+    return workItems.find((w) => w.id === session.workItemId)?.title ?? "Study session";
+  }
 
   const days = Array.from({ length: WEEK_LENGTH }, (_, i) => addDaysISODate(today, i));
 
@@ -66,7 +111,12 @@ export default function WeekLookAhead({
         <ul className="flex flex-col gap-4">
           {days.map((date) => {
             const dayActivities = activitiesOn(activities, date);
-            const daySessions = sessions.filter((session) => session.date === date);
+            const daySessions = sortByStartTime(
+              sessions.filter((session) => session.date === date),
+            );
+            const plannedOrder = daySessions
+              .filter((session) => session.status === "planned")
+              .map((session) => session.id);
             const dueThatDay = assignments.filter(
               (assignment) => !assignment.completedAt && assignment.dueDate === date,
             );
@@ -132,49 +182,81 @@ export default function WeekLookAhead({
                   </ul>
                 )}
 
+                {reorderError?.date === date && (
+                  <DismissableAlert
+                    className="mt-3 mb-0"
+                    message={reorderError.message}
+                    onDismiss={() => setReorderError(null)}
+                  />
+                )}
+
                 {daySessions.length > 0 ? (
-                  <ul className="mt-3 flex flex-col gap-1">
-                    {daySessions.map((session) => {
+                  <SortableList
+                    className="mt-3 gap-1"
+                    items={daySessions}
+                    getId={(session) => session.id}
+                    getTitle={titleOf}
+                    isSortable={(session) => session.status === "planned"}
+                    onReorder={(ids) => reorderDay(date, ids)}
+                    renderItem={(session, lead) => {
                       const item = workItems.find((w) => w.id === session.workItemId);
                       const assignment = item
                         ? assignments.find((a) => a.id === item.assignmentId)
                         : undefined;
                       const done = session.status === "done";
-                      // Only planned sessions can be removed here: an
+                      // Only planned sessions can be moved or removed here: an
                       // in-progress one is ended from Today Execution, not
                       // deleted from a calendar (docs/features/
                       // mobile-gestures-reorder-and-swipe-v0.1.md §2).
-                      const removable = session.status === "planned";
+                      const planned = session.status === "planned";
                       const title = item?.title ?? "this session";
                       const dayName = date === today ? "today" : longPlanDate(date);
+                      const index = plannedOrder.indexOf(session.id);
                       const row = (
-                        <div className="flex items-center gap-2 bg-card py-0.5 text-sm">
-                              {done ? (
-                                <Check className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
-                              ) : (
-                                <span
-                                  aria-hidden="true"
-                                  className="size-1.5 shrink-0 rounded-full bg-primary"
-                                />
-                              )}
-                              <span className={`min-w-0 flex-1 ${done ? "line-through opacity-60" : ""}`}>
-                                <span className="block truncate text-foreground">
-                                  {item?.title ?? "Study session"}
-                                </span>
-                                {item && assignment && (
-                                  <span className="block truncate text-xs text-muted-foreground">
-                                    {assignment.title} · {courseName(assignment.courseId)}
-                                  </span>
-                                )}
+                        <div className="flex items-center gap-1 bg-card text-sm">
+                          {lead(
+                            done ? (
+                              <Check className="size-3.5 text-primary" />
+                            ) : (
+                              <span className="size-1.5 rounded-full bg-primary" />
+                            ),
+                          )}
+                          <span className={`min-w-0 flex-1 ${done ? "line-through opacity-60" : ""}`}>
+                            <span className="block truncate text-foreground">
+                              {item?.title ?? "Study session"}
+                            </span>
+                            {item && assignment && (
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {assignment.title} · {courseName(assignment.courseId)}
                               </span>
-                              <span className="shrink-0 text-xs text-muted-foreground">
-                                {session.startTime ? `${timeLabel(session.startTime)} · ` : ""}
-                                {effortLabel(session.plannedMinutes)}
-                              </span>
-                          {removable && (
+                            )}
+                          </span>
+                          {/* Time over length, as in Plan's day view, so the
+                              title keeps its width beside the handle and menu. */}
+                          <span className="shrink-0 text-right text-xs text-muted-foreground">
+                            {session.startTime ? (
+                              <span className="block">{timeLabel(session.startTime)}</span>
+                            ) : null}
+                            {effortLabel(session.plannedMinutes)}
+                          </span>
+                          {planned && (
                             <RowActionsMenu
                               label={`More actions for ${title}`}
                               actions={[
+                                {
+                                  label: "Earlier",
+                                  icon: ArrowUp,
+                                  disabled: index <= 0,
+                                  onSelect: () =>
+                                    reorderDay(date, moveItem(plannedOrder, index, "up")),
+                                },
+                                {
+                                  label: "Later",
+                                  icon: ArrowDown,
+                                  disabled: index >= plannedOrder.length - 1,
+                                  onSelect: () =>
+                                    reorderDay(date, moveItem(plannedOrder, index, "down")),
+                                },
                                 {
                                   label: "Remove",
                                   icon: X,
@@ -186,25 +268,21 @@ export default function WeekLookAhead({
                           )}
                         </div>
                       );
-                      return (
-                        <li key={session.id}>
-                          {removable ? (
-                            <SwipeActionRow
-                              id={`lookahead-${session.id}`}
-                              label={`${title} from ${dayName}'s plan`}
-                              actionLabel="Remove"
-                              onAction={() => removeSession(session.id)}
-                              className="rounded-lg"
-                            >
-                              {row}
-                            </SwipeActionRow>
-                          ) : (
-                            row
-                          )}
-                        </li>
+                      return planned ? (
+                        <SwipeActionRow
+                          id={`lookahead-${session.id}`}
+                          label={`${title} from ${dayName}'s plan`}
+                          actionLabel="Remove"
+                          onAction={() => removeSession(session.id)}
+                          className="rounded-lg"
+                        >
+                          {row}
+                        </SwipeActionRow>
+                      ) : (
+                        row
                       );
-                    })}
-                  </ul>
+                    }}
+                  />
                 ) : dueSoonUnaddressed ? (
                   <p className="mt-3 text-sm text-attention-foreground">
                     Preparation still needs a plan.

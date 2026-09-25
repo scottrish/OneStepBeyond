@@ -10,7 +10,12 @@ import {
 } from "../domain/planningDate";
 import { rankCandidates } from "../domain/planningCandidates";
 import { activitiesOn, availableMinutes, studySlots } from "../domain/studyCapacity";
-import { defaultStartTimes, toMinutes } from "../domain/defaultStartTimes";
+import {
+  activityBlocks,
+  defaultStartTimes,
+  rechainTimes,
+  sessionBlocks,
+} from "../domain/defaultStartTimes";
 import { useActivities } from "../hooks/useActivities";
 import { useAllWorkSessions } from "../hooks/useAllWorkSessions";
 import { useAssignmentsList } from "../hooks/useAssignmentsList";
@@ -19,7 +24,6 @@ import { useDailyPlanning } from "../hooks/useDailyPlanning";
 import { useEstimationDrift } from "../hooks/useEstimationDrift";
 import { usePreferences } from "../hooks/usePreferences";
 import * as workBreakdownService from "../services/workBreakdownService";
-import * as workSessionService from "../services/workSessionService";
 import type { Assignment } from "../services/assignmentService";
 import type { WorkSession } from "../services/workSessionService";
 import ConfirmStep from "./plan/ConfirmStep";
@@ -28,6 +32,7 @@ import SessionSheet from "./plan/SessionSheet";
 import EstimateStep from "./plan/EstimateStep";
 import ScheduleStep from "./plan/ScheduleStep";
 import SelectStep from "./plan/SelectStep";
+import { MIDNIGHT_MESSAGE, useSessionEditing } from "./plan/useSessionEditing";
 import WeekLookAhead from "./WeekLookAhead";
 import WorkBreakdownPage from "./WorkBreakdownPage";
 
@@ -134,6 +139,10 @@ export default function PlanPage({
   const [view, setView] = useState<View>({ name: "wizard" });
   const [chosen, setChosen] = useState<Record<string, number>>({});
   const [times, setTimes] = useState<Record<string, string>>({});
+  // The Schedule step's draft order — set on entering Schedule, changed by
+  // drag or Earlier/Later, held in memory until Confirm like `times`.
+  const [scheduleOrder, setScheduleOrder] = useState<string[]>([]);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [justConfirmed, setJustConfirmed] = useState(false);
   // Keeps the day view showing after the student removes the day's last
@@ -143,10 +152,6 @@ export default function PlanPage({
   const [stayOnDayViewFor, setStayOnDayViewFor] = useState<string | null>(null);
   const [planningAssignmentId, setPlanningAssignmentId] = useState<string | null>(null);
   const [planDirectlyError, setPlanDirectlyError] = useState<string | null>(null);
-  const [movingSessionId, setMovingSessionId] = useState<string | null>(null);
-  const [moveTargetDate, setMoveTargetDate] = useState<string | null>(null);
-  const [moveSubmitting, setMoveSubmitting] = useState(false);
-  const [moveError, setMoveError] = useState<string | null>(null);
 
   const {
     activities,
@@ -170,6 +175,7 @@ export default function PlanPage({
     retry: retrySessions,
     confirmPlan,
     removeSession,
+    retimeSessions,
   } = useDailyPlanning(studentId, date);
   const drift = useEstimationDrift(studentId);
   const { sessions: allSessions, refetch: refetchAllSessions } = useAllWorkSessions(studentId);
@@ -259,20 +265,6 @@ export default function PlanPage({
     [activities, date, preferences],
   );
 
-  // FR-3 (docs/features/iterations/daily-planning/daily-planning.i04.md):
-  // capacity for whichever day is currently chosen as a move's target, so
-  // the move panel can show the same calm over-capacity notice Estimate
-  // already uses, before the move is confirmed.
-  const movingSession = workSessions.find((session) => session.id === movingSessionId);
-  const moveTargetCapacity =
-    moveTargetDate !== null
-      ? availableMinutes(activities, allSessions, moveTargetDate, preferences)
-      : null;
-  const moveOverCapacity =
-    movingSession !== undefined &&
-    moveTargetCapacity !== null &&
-    movingSession.plannedMinutes > moveTargetCapacity;
-
   const chosenIds = Object.keys(chosen);
   const planned = chosenIds.reduce((sum, id) => sum + (chosen[id] ?? 0), 0);
   const over = planned > capacity;
@@ -297,6 +289,37 @@ export default function PlanPage({
   const showDayView = safeStep === "day" && (dayHasPlan || stayOnDayViewFor === date);
   const wizardStep: Exclude<Step, "day"> = safeStep === "day" ? "select" : safeStep;
 
+  function sessionTitle(session: WorkSession): string {
+    return workItems.find((item) => item.id === session.workItemId)?.title ?? "Study session";
+  }
+
+  const editing = useSessionEditing({
+    studentId,
+    date,
+    workSessions,
+    slots,
+    commitments,
+    titleOf: sessionTitle,
+    removeSession,
+    retimeSessions,
+    onSessionsChanged: refetchAllSessions,
+    onKeepDayView: () => setStayOnDayViewFor(date),
+  });
+
+  // FR-3 (docs/features/iterations/daily-planning/daily-planning.i04.md):
+  // capacity for whichever day is currently chosen as a move's target, so
+  // the edit sheet can show the same calm over-capacity notice Estimate
+  // already uses, before the move is confirmed.
+  const { editingSession, moveTargetDate } = editing;
+  const moveTargetCapacity =
+    moveTargetDate !== null
+      ? availableMinutes(activities, allSessions, moveTargetDate, preferences)
+      : null;
+  const moveOverCapacity =
+    editingSession !== undefined &&
+    moveTargetCapacity !== null &&
+    editingSession.plannedMinutes > moveTargetCapacity;
+
   function pickDay(nextDate: string) {
     onDateChange(nextDate);
     onStepChange("day");
@@ -305,7 +328,7 @@ export default function PlanPage({
     setShowAll(false);
     setJustConfirmed(false);
     setStayOnDayViewFor(null);
-    cancelMove();
+    editing.closeEditor();
   }
 
   // The day view's "Add more work": the wizard for the same day. Confirming
@@ -317,17 +340,6 @@ export default function PlanPage({
     setJustConfirmed(false);
     setStayOnDayViewFor(null);
     onStepChange("select");
-  }
-
-  // Removing from the day view (its edit sheet, or a swipe). Pins the day
-  // view so removing the last session doesn't swap the screen for Select.
-  async function removeFromDay(session: WorkSession) {
-    setStayOnDayViewFor(date);
-    const removed = await removeSession(session.id);
-    if (removed) {
-      cancelMove();
-      refetchAllSessions();
-    }
   }
 
   // The alternative to "Break down ..." offered by BreakdownList/Notice:
@@ -358,62 +370,6 @@ export default function PlanPage({
     }
   }
 
-  // FR-3: relocates an already-planned (not-yet-started) session to a
-  // different day in one action, instead of the student separately
-  // re-planning it elsewhere and removing the original. Create-before-
-  // remove — same insert-before-delete ordering this codebase always
-  // uses for a multi-step write, so a failure partway through never
-  // deletes the original without anything replacing it. Deliberately
-  // does not record a Planning Session Domain Event: this mirrors
-  // Remove, which is also a single-item plan edit outside the wizard and
-  // doesn't record one today — only a full wizard confirm does. See
-  // docs/features/iterations/daily-planning/daily-planning.i04.md.
-  function startMove(sessionId: string) {
-    setMovingSessionId(sessionId);
-    setMoveTargetDate(null);
-    setMoveError(null);
-  }
-
-  function cancelMove() {
-    setMovingSessionId(null);
-    setMoveTargetDate(null);
-    setMoveError(null);
-  }
-
-  async function confirmMove(session: WorkSession) {
-    if (!moveTargetDate) return;
-    // Moving the day's last session away shouldn't swap the day view for
-    // Select underneath the student (same as removeFromDay).
-    setStayOnDayViewFor(date);
-    setMoveSubmitting(true);
-    setMoveError(null);
-    try {
-      await workSessionService.createWorkSessions(studentId, [
-        {
-          workItemId: session.workItemId,
-          date: moveTargetDate,
-          plannedMinutes: session.plannedMinutes,
-          // The target day's open slots differ from the original day's,
-          // so there's no reliable time to carry over — left unset
-          // rather than guessed.
-          startTime: null,
-        },
-      ]);
-    } catch (error) {
-      setMoveError(errorMessage(error));
-      setMoveSubmitting(false);
-      return;
-    }
-    refetchAllSessions();
-    const removed = await removeSession(session.id);
-    setMoveSubmitting(false);
-    // If removal failed, useDailyPlanning's own actionError already
-    // surfaces it (rendered near the top of this page); leave the move
-    // panel open so the student can see the new session now also exists
-    // and retry removing the original from here.
-    if (removed) cancelMove();
-  }
-
   function toggleCandidate(itemId: string, estimateMinutes: number) {
     setChosen((prev) => {
       const next = { ...prev };
@@ -431,29 +387,62 @@ export default function PlanPage({
   // 20260925-confirm-plan-appends.md), so new work defaults after what's
   // already there: the day's existing sessions and its activities
   // (with travel), not just the study windows.
-  function enterSchedule() {
-    const existing = workSessions
-      .filter((session) => session.date === date && session.startTime)
-      .map((session) => {
-        const start = toMinutes(session.startTime!);
-        return { start, end: start + session.plannedMinutes };
-      });
-    const busy = [
-      ...existing,
-      ...commitments.map((activity) => ({
-        start: toMinutes(activity.startTime) - activity.travelToMinutes,
-        end: toMinutes(activity.finishTime) + activity.travelFromMinutes,
-      })),
+  // What the Schedule step's drafts must fit around: the day's existing
+  // sessions (any status) and its activities, with travel.
+  function scheduleBusy() {
+    return [
+      ...sessionBlocks(workSessions.filter((session) => session.date === date)),
+      ...activityBlocks(commitments),
     ];
+  }
+
+  function enterSchedule() {
+    const existing = sessionBlocks(workSessions.filter((session) => session.date === date));
+    setScheduleOrder(chosenIds);
+    setScheduleError(null);
     setTimes(
       defaultStartTimes(
         chosenIds.map((id) => ({ id, minutes: chosen[id] ?? 0 })),
         slots,
-        busy,
+        scheduleBusy(),
         Math.max(0, ...existing.map((block) => block.end)),
       ),
     );
     onStepChange("schedule");
+  }
+
+  // Reordering the Schedule step's drafts (drag or Earlier/Later)
+  // re-chains their times in memory; nothing is saved until Confirm
+  // (daily-planning-and-completion-v2-proposal.md item 2).
+  function reorderDrafts(orderedIds: string[]) {
+    setScheduleError(null);
+    const next = rechainTimes(
+      orderedIds.map((id) => ({ id, minutes: chosen[id] ?? 0, startTime: times[id] ?? null })),
+      slots,
+      scheduleBusy(),
+    );
+    if (!next) {
+      setScheduleError(MIDNIGHT_MESSAGE);
+      return;
+    }
+    setScheduleOrder(orderedIds);
+    setTimes((prev) => ({ ...prev, ...next }));
+  }
+
+  // Drops an item from the draft (swipe or its menu's Remove); nothing
+  // had been saved for it.
+  function removeDraft(itemId: string) {
+    setScheduleOrder((prev) => prev.filter((id) => id !== itemId));
+    setChosen((prev) => {
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
+    setTimes((prev) => {
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
   }
 
   async function finish() {
@@ -620,8 +609,12 @@ export default function PlanPage({
               courseName={courseName}
               justConfirmed={justConfirmed}
               onOpenAssignment={onOpenAssignment}
-              onEditSession={startMove}
-              onRemoveSession={removeFromDay}
+              sessionTitle={sessionTitle}
+              reorderError={editing.reorderError}
+              onDismissReorderError={editing.dismissReorderError}
+              onReorder={(ids) => void editing.reorder(ids)}
+              onEditSession={editing.openEditor}
+              onRemoveSession={editing.removeFromDay}
               onStartExecution={onStartExecution}
               onAddMore={addMoreWork}
               onDone={() => onTabChange("lookahead")}
@@ -667,7 +660,11 @@ export default function PlanPage({
             />
           ) : wizardStep === "schedule" ? (
             <ScheduleStep
-              chosenIds={chosenIds}
+              order={scheduleOrder.filter((id) => id in chosen)}
+              error={scheduleError}
+              onDismissError={() => setScheduleError(null)}
+              onReorder={reorderDrafts}
+              onRemove={removeDraft}
               candidates={candidates}
               chosen={chosen}
               times={times}
@@ -699,21 +696,31 @@ export default function PlanPage({
       )}
 
       <SessionSheet
-        session={movingSession}
-        title={
-          workItems.find((item) => item.id === movingSession?.workItemId)?.title ?? "Study session"
-        }
+        session={editingSession}
+        title={editingSession ? sessionTitle(editingSession) : "Study session"}
         date={date}
         today={today}
+        slots={slots}
+        isFree={editing.isFree}
+        retimeError={editing.retimeError}
+        onDismissRetimeError={editing.dismissRetimeError}
+        onRetime={(session, startTime) => void editing.retime(session, startTime)}
+        canMoveEarlier={editingSession !== undefined && editing.plannedOrder[0] !== editingSession.id}
+        canMoveLater={
+          editingSession !== undefined && editing.plannedOrder.at(-1) !== editingSession.id
+        }
+        onMove={(session, direction) => editing.moveEarlierOrLater(session, direction)}
+        reorderError={editing.reorderError}
+        onDismissReorderError={editing.dismissReorderError}
         moveTargetDate={moveTargetDate}
-        moveSubmitting={moveSubmitting}
-        moveError={moveError}
+        moveSubmitting={editing.moveSubmitting}
+        moveError={editing.moveError}
         moveOverCapacity={moveOverCapacity}
         moveTargetCapacity={moveTargetCapacity}
-        onSetMoveTargetDate={setMoveTargetDate}
-        onConfirmMove={confirmMove}
-        onRemove={removeFromDay}
-        onClose={cancelMove}
+        onSetMoveTargetDate={editing.setMoveTargetDate}
+        onConfirmMove={(session) => void editing.confirmMove(session)}
+        onRemove={(session) => void editing.removeFromDay(session)}
+        onClose={editing.closeEditor}
       />
     </div>
   );

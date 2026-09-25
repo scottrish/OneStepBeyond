@@ -91,6 +91,12 @@ describe("canStartSwipe", () => {
     expect(canStartSwipe(el('<button aria-haspopup="menu"><svg></svg></button>', "svg"))).toBe(false);
   });
 
+  it("refuses anything inside a data-no-swipe region (e.g. a sideways-scrolling chip row)", () => {
+    expect(
+      canStartSwipe(el('<div data-no-swipe><button type="button">15:15</button></div>', "button")),
+    ).toBe(false);
+  });
+
   it("allows a non-element target", () => {
     expect(canStartSwipe(null)).toBe(true);
   });

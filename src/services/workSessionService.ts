@@ -136,3 +136,31 @@ export async function updateWorkSessionPlannedMinutes(
 
   if (error) throw error;
 }
+
+export type StartTimeUpdate = {
+  id: string;
+  startTime: string;
+};
+
+// A reorder's re-chained times (or a single retime) for one day's
+// planned sessions. One update per row, sent together: without a
+// Postgres function there's no atomic multi-row update, and an upsert
+// would have to resend whole rows — risking a stale status overwriting
+// a session Today Execution started meanwhile. Each update is guarded
+// to still-planned rows for the same reason. A partial failure leaves
+// some times stale but loses nothing; callers reload on error.
+// docs/decisions/20260925-session-reorder-and-drag.md.
+export async function updateWorkSessionStartTimes(updates: StartTimeUpdate[]): Promise<void> {
+  const results = await Promise.all(
+    updates.map(({ id, startTime }) =>
+      supabase
+        .from("work_sessions")
+        .update({ start_time: startTime })
+        .eq("id", id)
+        .eq("status", "planned"),
+    ),
+  );
+
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw failed.error;
+}

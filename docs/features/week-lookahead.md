@@ -71,8 +71,9 @@ packed" without having to plan every day just to see that.
 ## Functional Requirements
 
 - Fully read-only: no way to plan or schedule from this view directly
-  beyond removing an already-planned session or jumping into that day's
-  Planning flow.
+  beyond removing an already-planned session, reordering a day's planned
+  sessions (added 2026-09-25, `daily-planning-and-completion-v2-proposal.md`
+  item 2), or jumping into that day's Planning flow.
 - Capacity per day uses the same `availableMinutes` calculation as
   Planning (Activities + travel time + a protected rest block subtracted
   from the realistic study window) — the two views must never disagree

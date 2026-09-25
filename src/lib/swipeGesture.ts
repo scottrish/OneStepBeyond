@@ -45,8 +45,10 @@ export function settleOffset(offset: number, width: number = SWIPE_ACTION_WIDTH)
 
 // Places a swipe must never start from: text fields (horizontal movement
 // there is caret placement/selection), drag handles (their own gesture),
-// and popup triggers (Radix opens menus on pointerdown, so a swipe
-// starting there would also open the menu).
+// popup triggers (Radix opens menus on pointerdown, so a swipe
+// starting there would also open the menu), and anything marked
+// data-no-swipe — e.g. the Schedule step's sideways-scrolling time chips,
+// where horizontal movement belongs to that scroll.
 const NO_SWIPE_SELECTOR = [
   // Text-like inputs only: a checkbox or radio has no caret to fight over.
   "input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='reset'])",
@@ -55,6 +57,7 @@ const NO_SWIPE_SELECTOR = [
   "[contenteditable]:not([contenteditable='false'])",
   "[data-drag-handle]",
   "[aria-haspopup]",
+  "[data-no-swipe]",
 ].join(",");
 
 /** Whether a pointerdown on `target` may begin a swipe. */

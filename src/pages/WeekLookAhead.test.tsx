@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 vi.mock("../services/workSessionService", () => ({
   listWorkSessionsForStudent: vi.fn(),
   deleteWorkSession: vi.fn(),
+  updateWorkSessionStartTimes: vi.fn(),
 }));
 
 import * as workSessionService from "../services/workSessionService";
@@ -14,6 +15,7 @@ import type { Preferences } from "../services/preferencesService";
 const mockedWorkSessionService = workSessionService as unknown as {
   listWorkSessionsForStudent: ReturnType<typeof vi.fn>;
   deleteWorkSession: ReturnType<typeof vi.fn>;
+  updateWorkSessionStartTimes: ReturnType<typeof vi.fn>;
 };
 
 // 2026-03-16 is a Monday, matching PlanPage.test.tsx's own convention.
@@ -314,5 +316,86 @@ describe("WeekLookAhead", () => {
 
     await screen.findByRole("button", { name: /due: chapter 1 problems/i });
     expect(screen.queryByText(/preparation still needs a plan/i)).not.toBeInTheDocument();
+  });
+
+  describe("reordering a day (daily-planning-and-completion-v2-proposal.md item 2)", () => {
+    const items = [
+      { id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 30, completedAt: null, position: 0 },
+      { id: "w2", assignmentId: "a1", title: "Write intro", effortMinutes: 20, completedAt: null, position: 1 },
+      { id: "w3", assignmentId: "a1", title: "Read sources", effortMinutes: 30, completedAt: null, position: 2 },
+    ];
+    const session = (id: string, workItemId: string, startTime: string | null, plannedMinutes: number, status = "planned") => ({
+      id,
+      workItemId,
+      date: TODAY_ISO,
+      plannedMinutes,
+      startTime,
+      status,
+    });
+
+    it("lists a day's sessions in time order, with a drag handle only on planned ones", async () => {
+      mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([
+        session("s2", "w2", "17:00", 20),
+        session("s3", "w3", "16:00", 30, "done"),
+        session("s1", "w1", "15:15", 30),
+      ]);
+      renderWeekLookAhead({ workItems: items });
+
+      await screen.findByText("Draft outline");
+      const titles = screen
+        .getAllByText(/draft outline|write intro|read sources/i)
+        .map((node) => node.textContent);
+      expect(titles).toEqual(["Draft outline", "Read sources", "Write intro"]);
+      expect(screen.getByRole("button", { name: "Drag to reorder Draft outline" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /drag to reorder read sources/i })).not.toBeInTheDocument();
+    });
+
+    it("Earlier re-chains the day around a done session and saves immediately", async () => {
+      mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([
+        session("s1", "w1", "15:15", 30),
+        session("s3", "w3", "15:45", 30, "done"),
+        session("s2", "w2", "16:15", 20),
+      ]);
+      mockedWorkSessionService.updateWorkSessionStartTimes.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup();
+      renderWeekLookAhead({ workItems: items });
+
+      await userEventInstance.click(await screen.findByRole("button", { name: "More actions for Write intro" }));
+      await userEventInstance.click(await screen.findByRole("menuitem", { name: "Earlier" }));
+
+      expect(mockedWorkSessionService.updateWorkSessionStartTimes).toHaveBeenCalledWith([
+        { id: "s2", startTime: "15:15" },
+        { id: "s1", startTime: "16:15" },
+      ]);
+    });
+
+    it("Earlier is disabled on the day's first planned session, Later on its last", async () => {
+      mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([
+        session("s1", "w1", "15:15", 30),
+        session("s2", "w2", "16:00", 20),
+      ]);
+      const userEventInstance = userEvent.setup();
+      renderWeekLookAhead({ workItems: items });
+
+      await userEventInstance.click(await screen.findByRole("button", { name: "More actions for Draft outline" }));
+      expect(await screen.findByRole("menuitem", { name: "Earlier" })).toHaveAttribute("aria-disabled", "true");
+      expect(screen.getByRole("menuitem", { name: "Later" })).not.toHaveAttribute("aria-disabled");
+    });
+
+    it("refuses a reorder that would run past midnight, and saves nothing", async () => {
+      mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([
+        session("s1", "w1", "22:00", 30),
+        session("s3", "w3", "22:30", 90, "done"),
+        session("s2", "w2", null, 20),
+      ]);
+      const userEventInstance = userEvent.setup();
+      renderWeekLookAhead({ workItems: items });
+
+      await userEventInstance.click(await screen.findByRole("button", { name: "More actions for Write intro" }));
+      await userEventInstance.click(await screen.findByRole("menuitem", { name: "Earlier" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/runs past midnight/i);
+      expect(mockedWorkSessionService.updateWorkSessionStartTimes).not.toHaveBeenCalled();
+    });
   });
 });

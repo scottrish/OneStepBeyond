@@ -5,6 +5,7 @@ vi.mock("../services/workSessionService", () => ({
   listWorkSessionsForDate: vi.fn(),
   createWorkSessions: vi.fn(),
   deleteWorkSession: vi.fn(),
+  updateWorkSessionStartTimes: vi.fn(),
 }));
 
 vi.mock("../services/planningSessionService", () => ({
@@ -19,6 +20,7 @@ const mockedWorkSessionService = workSessionService as unknown as {
   listWorkSessionsForDate: ReturnType<typeof vi.fn>;
   createWorkSessions: ReturnType<typeof vi.fn>;
   deleteWorkSession: ReturnType<typeof vi.fn>;
+  updateWorkSessionStartTimes: ReturnType<typeof vi.fn>;
 };
 const mockedPlanningSessionService = planningSessionService as unknown as {
   recordPlanningSession: ReturnType<typeof vi.fn>;
@@ -132,5 +134,40 @@ describe("useDailyPlanning", () => {
 
     expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("s1");
     expect(result.current.workSessions).toEqual([]);
+  });
+
+  it("retimeSessions shows the new times immediately and saves them", async () => {
+    mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session]);
+    mockedWorkSessionService.updateWorkSessionStartTimes.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useDailyPlanning("student-1", "2026-03-16"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let succeeded = false;
+    await act(async () => {
+      succeeded = await result.current.retimeSessions([{ id: "s1", startTime: "17:00" }]);
+    });
+
+    expect(succeeded).toBe(true);
+    expect(mockedWorkSessionService.updateWorkSessionStartTimes).toHaveBeenCalledWith([
+      { id: "s1", startTime: "17:00" },
+    ]);
+    expect(result.current.workSessions).toEqual([{ ...session, startTime: "17:00" }]);
+  });
+
+  it("retimeSessions reports the error and reloads from the server when saving fails", async () => {
+    mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session]);
+    mockedWorkSessionService.updateWorkSessionStartTimes.mockRejectedValue({ message: "boom" });
+
+    const { result } = renderHook(() => useDailyPlanning("student-1", "2026-03-16"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.retimeSessions([{ id: "s1", startTime: "17:00" }]);
+    });
+
+    expect(result.current.actionError).toBe("boom");
+    await waitFor(() => expect(result.current.workSessions).toEqual([session]));
+    expect(mockedWorkSessionService.listWorkSessionsForDate).toHaveBeenCalledTimes(2);
   });
 });

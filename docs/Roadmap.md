@@ -329,7 +329,7 @@ which screen the client renders.
 
 # Phase 7 — Prototype parity: mobile-first redesign + planning, completion & coaching
 
-**Status: in progress. Steps 1 (2026-09-24), 2 and 9 (2026-09-25) done, taken out of order at product-owner direction; step 3 analyzed and awaiting decisions; the rest proposed.**
+**Status: in progress. Steps 1 (2026-09-24), 2, 9 and 10 (2026-09-25) done, taken out of order at product-owner direction; step 3 analyzed and awaiting decisions; the rest proposed.**
 
 **Why this, why now:** `../OneStepBeyondPrototype` (this app's visual and
 behavioral source of truth, per CLAUDE.md) has moved on a lot since
@@ -381,7 +381,7 @@ All items are from [daily-planning-and-completion-v2-proposal.md](features/daily
 | 7 | "Plan it as one piece" moves to Assignment Detail | 3 | Decision record moving it off Plan (supersedes part of `20260816-plan-directly-without-breakdown.md`) | Needs step 5's single-item pre-select |
 | 8 | Select: full list *(6b "Planned today" note and 6c same-day disable ✅ done 2026-09-25 with step 9)* | 6a | **6a** (drop the three-candidate cap?) | 6a replaces a `daily-planning.md` acceptance criterion |
 | 9 | ✅ **Done 2026-09-25**, together with 6b/6c and append-only confirm. Existing-day view | 10 | Decision record partly reopening `20260818-plan-day-step-removed.md` | Moves "Move to another day" into the edit sheet |
-| 10 | Reorder, re-chain, and retime (edit sheet), **plus drag** | 2 + gestures spec §1 | **D1** (`@dnd-kit` drag vs. Earlier/Later buttons only); how to re-chain on weekends (item 2, a vs. b) | Needs step 9's view and edit sheet. Covers the Schedule step, the day view, and Look Ahead |
+| 10 | ✅ **Done 2026-09-25.** Reorder, re-chain, and retime (edit sheet), **plus drag** | 2 + gestures spec §1 | ~~D1~~ `@dnd-kit` + Earlier/Later; ~~weekends~~ (a) activities as obstacles; past midnight refused (`20260925-session-reorder-and-drag.md`) | Needs step 9's view and edit sheet. Covers the Schedule step, the day view, and Look Ahead |
 | 11 | Next card "Working on" and late start; per-assignment Look Ahead warning | 7, 8 | — | Small and independent. Can fill any gap in Phases B–C |
 
 ## Phase D — Coaching

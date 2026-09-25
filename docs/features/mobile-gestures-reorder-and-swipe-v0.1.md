@@ -3,8 +3,9 @@
 **Status:** §2 (swipe) implemented 2026-09-25 (tag `v-pre-swipe-removal`
 marks the state before; see "Implementation Notes (as built)"), on the
 lists that exist today (see "Scope of the first increment" below). §1
-(drag) is deferred to roadmap Phase 7 step 10, where it has something to
-reorder; D1 is still open for it. Produced 2026-09-24 from a
+(drag) and the Plan rows of §2's table were implemented 2026-09-25 with
+roadmap Phase 7 step 10 (tag `v-pre-session-reorder`). **D1 resolved:
+Option A** (`docs/decisions/20260925-session-reorder-and-drag.md`). Produced 2026-09-24 from a
 prototype-sync audit of `../OneStepBeyondPrototype`'s unmerged
 `mobile-redesign` branch (`1ce3145`; gesture work in commits
 `5e39235`–`ac89c94`).
@@ -136,7 +137,8 @@ buttons that do the same reorder, disabled at the ends.
   copy. Give each of these rows the same "Edit {title}" button and edit
   sheet the existing-day view uses (with Earlier/Later, and Remove where
   it applies), or an overflow menu with Earlier / Later / Remove.
-  Choose one pattern and use it on both lists.
+  Choose one pattern and use it on both lists. *Resolved 2026-09-25: the
+  overflow menu (Earlier / Later / Remove) on both.*
 
 ## 2. Swipe to reveal a destructive action
 
@@ -297,7 +299,34 @@ event as any other reorder.
 - Changing any confirmation copy or cascade rule. Those stay in their
   owning specs.
 
-## Implementation Notes (as built, 2026-09-25)
+## Implementation Notes (as built, §1, 2026-09-25)
+
+- **Components:** `src/components/SortableList.tsx` (dnd-kit `DndContext`
+  + `SortableContext`; the handle carries `data-drag-handle`, so a swipe
+  never starts there) and `src/lib/sortAnnouncements.ts` (pure,
+  title-based announcement text). Vertical-only movement is a one-line
+  modifier, so `@dnd-kit/modifiers` isn't needed.
+- **Rows that aren't planned** stay in the list as drop positions but
+  can't be dragged. Their leading 44 px slot holds the done check (or
+  Look Ahead's dot), so every row's content lines up.
+- **Pick-up announcement:** dnd-kit reports the picked-up row as "over"
+  itself straight away, which overwrote "Picked up …" in the live region.
+  Found in the real browser, not jsdom. Move announcements now fire only
+  when the target changes.
+- **Schedule step:** its sideways-scrolling time chips are marked
+  `data-no-swipe`, so horizontal movement there scrolls the chips instead
+  of opening the row.
+- **Look Ahead rows** now show the time above the length, as the day view
+  does. With the handle and menu on the same row, one line of "3:15 PM ·
+  30m" cut titles to a few characters at 320 px.
+- **Verified in a real browser** (Chromium, touch emulation via CDP, 375
+  and 320 px, against local Supabase): a touch drag re-chains and saves,
+  and the order survives navigating away and back; keyboard pick-up,
+  move and drop announce titles and positions; a vertical swipe on a row's
+  content scrolls without reordering; there's no horizontal overflow at
+  320 px on the day view, edit sheet, Look Ahead or Schedule.
+
+## Implementation Notes (as built, §2, 2026-09-25)
 
 - **Components:** `src/lib/swipeGesture.ts` (pure thresholds and the
   can-start rule), `src/components/SwipeActionRow.tsx`,
