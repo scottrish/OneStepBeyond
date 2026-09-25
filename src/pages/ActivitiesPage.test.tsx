@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 
@@ -177,11 +177,52 @@ describe("ActivitiesPage", () => {
     render(<ActivitiesPage user={user} onBack={vi.fn()} />);
     await screen.findByText("Football practice");
 
+    // The visible trash button became a row menu (the keyboard route) —
+    // docs/features/mobile-gestures-reorder-and-swipe-v0.1.md §2.
     await userEventInstance.click(
-      screen.getByRole("button", { name: /remove football practice/i }),
+      screen.getByRole("button", { name: "More actions for Football practice" }),
     );
+    await userEventInstance.click(await screen.findByRole("menuitem", { name: "Remove" }));
 
     expect(mockedService.deleteActivity).toHaveBeenCalledWith("1");
+  });
+
+  describe("swipe to reveal Remove", () => {
+    function swipeLeftFrom(from: Element) {
+      const surface = from.closest("[data-swipe-content]")!;
+      const start = { clientX: 300, clientY: 100, pointerId: 1, pointerType: "touch" };
+      fireEvent.pointerDown(from, start);
+      for (const x of [290, 270, 250, 230, 210]) fireEvent.pointerMove(surface, { ...start, clientX: x });
+      fireEvent.pointerUp(surface, { ...start, clientX: 210 });
+    }
+
+    it("reveals Remove, which removes immediately as before", async () => {
+      mockedService.listActivities.mockResolvedValue([activity]);
+      mockedService.deleteActivity.mockResolvedValue(undefined);
+
+      render(<ActivitiesPage user={user} onBack={vi.fn()} />);
+      swipeLeftFrom(await screen.findByText("Football practice"));
+      fireEvent.click(screen.getByRole("button", { name: "Remove Football practice" }));
+
+      await waitFor(() => expect(mockedService.deleteActivity).toHaveBeenCalledWith("1"));
+    });
+
+    it("does not toggle a day when the swipe ends over its button", async () => {
+      // This file doesn't reset mocks between tests; an earlier test also
+      // toggles days, so start this one from a clean call count.
+      mockedService.updateActivityDays.mockClear();
+      mockedService.listActivities.mockResolvedValue([activity]);
+
+      render(<ActivitiesPage user={user} onBack={vi.fn()} />);
+      await screen.findByText("Football practice");
+      const days = screen.getByRole("group", { name: "Days for Football practice" });
+      const monday = within(days).getAllByRole("button")[0]!;
+
+      swipeLeftFrom(monday);
+      fireEvent.click(monday); // the click a browser sends after the swipe
+
+      expect(mockedService.updateActivityDays).not.toHaveBeenCalled();
+    });
   });
 
   it("calls onBack when the back button is clicked", async () => {

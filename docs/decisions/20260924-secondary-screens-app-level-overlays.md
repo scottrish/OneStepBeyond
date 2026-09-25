@@ -39,12 +39,15 @@ state that renders in place of the active tab's content.
    Opening an overlay never changes `activeTab`, so this happens
    naturally, exactly as it does for Assignment Detail. Plan's lifted
    day/step/tab state is untouched.
-3. **Existing back routes are preserved exactly:** Support's Back →
-   Settings. Courses, Activities, and Study hours Back → closes the
-   overlay (they previously returned to Home, and Home was always the
-   active tab then). Capture's Cancel → closes the overlay. Capture's
-   `onGoToCourses` → the Courses overlay. Saving an assignment closes the
-   overlay and opens Assignment Detail, as before.
+3. **Back routes:** Support, Activities, and Study hours Back →
+   Settings. Courses Back → **whichever screen opened it**: Settings, or
+   capture when it was opened from capture's "Add a course" (so a
+   student with no courses returns to the assignment they were adding).
+   Capture's Cancel and Settings' Back close the overlay. Saving an
+   assignment closes the overlay and opens Assignment Detail, as before.
+   *(Amended 2026-09-25 by product-owner direction. Originally this
+   point preserved the old behavior, where Courses, Activities, and
+   Study hours went Back to Home.)*
 4. **Tapping any tab closes every overlay**, extending `handleTabChange`,
    which already clears Assignment Detail and Today Execution.
 5. **Precedence when more than one is set:** Assignment Detail, then

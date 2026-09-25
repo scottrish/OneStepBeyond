@@ -705,7 +705,8 @@ describe("AssignmentDetailPage", () => {
       );
       await screen.findByText("Step 1");
 
-      await userEventInstance.click(screen.getByRole("button", { name: /edit step 1/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: "More actions for Step 1" }));
+      await userEventInstance.click(await screen.findByRole("menuitem", { name: "Edit" }));
       const titleInput = screen.getByRole("textbox", { name: /edit step 1/i });
       await userEventInstance.clear(titleInput);
       await userEventInstance.type(titleInput, "Step 1 revised");
@@ -745,14 +746,17 @@ describe("AssignmentDetailPage", () => {
       mockedWorkItemService.listWorkItems.mockResolvedValue([
         { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: "2026-03-01T00:00:00Z", position: 0 },
       ]);
+      const userEventInstance = userEvent.setup();
 
       render(
         <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
       );
       await screen.findByText("Step 1");
 
-      expect(screen.queryByRole("button", { name: /edit step 1/i })).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /delete step 1/i })).toBeInTheDocument();
+      // A completed step's row menu offers Delete but not Edit.
+      await userEventInstance.click(screen.getByRole("button", { name: "More actions for Step 1" }));
+      expect(await screen.findByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: "Edit" })).not.toBeInTheDocument();
     });
 
     it("deletes an incomplete step immediately, with no confirmation, and updates the total effort", async () => {
@@ -770,7 +774,8 @@ describe("AssignmentDetailPage", () => {
       );
       await screen.findByText("Step 1");
 
-      await userEventInstance.click(screen.getByRole("button", { name: /delete step 1/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: "More actions for Step 1" }));
+      await userEventInstance.click(await screen.findByRole("menuitem", { name: "Delete" }));
 
       expect(screen.queryByText(/delete this assignment/i)).not.toBeInTheDocument();
       await waitFor(() => expect(mockedWorkItemService.deleteWorkItems).toHaveBeenCalledWith(["w1"]));
@@ -800,7 +805,8 @@ describe("AssignmentDetailPage", () => {
       );
       await screen.findByText("Step 1");
 
-      await userEventInstance.click(screen.getByRole("button", { name: /delete step 1/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: "More actions for Step 1" }));
+      await userEventInstance.click(await screen.findByRole("menuitem", { name: "Delete" }));
 
       expect(await screen.findByText(/already complete.*erase that progress/i)).toBeInTheDocument();
       expect(mockedWorkItemService.deleteWorkItems).not.toHaveBeenCalled();
@@ -827,7 +833,8 @@ describe("AssignmentDetailPage", () => {
       );
       await screen.findByText("Step 1");
 
-      await userEventInstance.click(screen.getByRole("button", { name: /delete step 1/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: "More actions for Step 1" }));
+      await userEventInstance.click(await screen.findByRole("menuitem", { name: "Delete" }));
       await screen.findByText(/erase that progress/i);
       await userEventInstance.click(screen.getByRole("button", { name: /^delete$/i }));
 

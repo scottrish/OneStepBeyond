@@ -329,7 +329,7 @@ which screen the client renders.
 
 # Phase 7 — Prototype parity: mobile-first redesign + planning, completion & coaching
 
-**Status: in progress. Step 1 done (2026-09-24); steps 2–13 proposed.**
+**Status: in progress. Steps 1 (2026-09-24) and 2 (2026-09-25) done; steps 3–13 proposed.**
 
 **Why this, why now:** `../OneStepBeyondPrototype` (this app's visual and
 behavioral source of truth, per CLAUDE.md) has moved on a lot since
@@ -361,7 +361,7 @@ normal Definition of Done and tag proposals.
 | # | Step | Spec | Decision needed first | Notes |
 |---|---|---|---|---|
 | 1 | ✅ **Done 2026-09-24.** Mobile shell & touch ergonomics, **plus PWA phase 1** (manifest, icons, meta tags, no service worker) | [mobile-app-shell-and-touch-ergonomics-v0.1.md](features/mobile-app-shell-and-touch-ergonomics-v0.1.md) | Approve the app-icon mark (drafts in `public/icons/`). A decision record for lifting capture and Settings into `App.tsx` overlays | Touches every student screen. Tag `v-pre-mobile-shell`. Adds shadcn `Sheet` + `DropdownMenu` |
-| 2 | Swipe-to-reveal removal (existing lists only: Assignments, Activities, Courses, steps) | [mobile-gestures-reorder-and-swipe-v0.1.md](features/mobile-gestures-reorder-and-swipe-v0.1.md) §2 | **D2**: the step-delete confirmation rule | Needs step 1's overflow menu. Drag (§1) waits for step 10 |
+| 2 | ✅ **Done 2026-09-25.** Swipe-to-reveal removal (existing lists: Assignments, Assignment Detail steps, breakdown draft steps, Activities, Week Look-Ahead; Courses joins in step 3) | [mobile-gestures-reorder-and-swipe-v0.1.md](features/mobile-gestures-reorder-and-swipe-v0.1.md) §2 | **D2**: the step-delete confirmation rule | Needs step 1's overflow menu. Drag (§1) waits for step 10 |
 
 ## Phase B — Independent setup features (any order)
 

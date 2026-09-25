@@ -1,14 +1,10 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
-import { MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import RowActionsMenu from "@/components/RowActionsMenu";
+import SwipeActionRow from "@/components/SwipeActionRow";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -169,72 +165,68 @@ function AssignmentCard({
     );
   }
 
+  // Swipe left to reveal Delete — the same handleDeleteClick (and inline
+  // confirmation) as the row menu's Delete. docs/features/
+  // mobile-gestures-reorder-and-swipe-v0.1.md §2.
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-start gap-2">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="min-w-0 flex-1 text-left"
-        >
-          <div className="flex items-center gap-2">
-            {course && (
-              <span
-                aria-hidden="true"
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ background: courseColorValue(course.colorIndex) }}
-              />
-            )}
-            <span className="text-xs text-muted-foreground">{course?.name}</span>
-            <span className="ml-auto text-xs text-muted-foreground">
-              {formatDueDate(assignment.dueDate)}
-            </span>
-          </div>
-          <p className="mt-2 text-base font-medium">{assignment.title}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {structured
-              ? `${doneCount} of ${items.length} steps complete · about ${effortLabel(remaining)} left`
-              : items.length > 0
-                ? `About ${effortLabel(remaining)} left of ${effortLabel(assignment.effortMinutes)} planned`
-                : `About ${effortLabel(remaining)} left`}
-          </p>
-          {structured && (
-            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary"
-                style={{ width: `${percentDone}%` }}
-              />
+    <SwipeActionRow
+      id={`assignment-${assignment.id}`}
+      label={assignment.title}
+      actionLabel="Delete"
+      onAction={handleDeleteClick}
+      className="rounded-lg"
+    >
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="flex items-start gap-2">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="min-w-0 flex-1 text-left"
+          >
+            <div className="flex items-center gap-2">
+              {course && (
+                <span
+                  aria-hidden="true"
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ background: courseColorValue(course.colorIndex) }}
+                />
+              )}
+              <span className="text-xs text-muted-foreground">{course?.name}</span>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {formatDueDate(assignment.dueDate)}
+              </span>
             </div>
-          )}
-        </button>
-        {/* docs/features/mobile-app-shell-and-touch-ergonomics-v0.1.md §4:
-            one overflow menu instead of two stacked icon buttons. Delete
-            still goes through the in-card confirmation above. */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              aria-label={`Actions for ${assignment.title}`}
-              variant="ghost"
-              size="icon"
-              className="-mr-2 shrink-0 rounded-full"
-            >
-              <MoreHorizontal className="size-5 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44 rounded-xl p-1">
-            <DropdownMenuItem className="min-h-11 rounded-lg" onSelect={() => setEditing(true)}>
-              <Pencil className="size-4" /> Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="min-h-11 rounded-lg text-destructive focus:text-destructive"
-              onSelect={handleDeleteClick}
-            >
-              <Trash2 className="size-4" /> Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <p className="mt-2 text-base font-medium">{assignment.title}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {structured
+                ? `${doneCount} of ${items.length} steps complete · about ${effortLabel(remaining)} left`
+                : items.length > 0
+                  ? `About ${effortLabel(remaining)} left of ${effortLabel(assignment.effortMinutes)} planned`
+                  : `About ${effortLabel(remaining)} left`}
+            </p>
+            {structured && (
+              <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${percentDone}%` }}
+                />
+              </div>
+            )}
+          </button>
+          {/* docs/features/mobile-app-shell-and-touch-ergonomics-v0.1.md §4:
+              one overflow menu instead of two stacked icon buttons. Delete
+              still goes through the in-card confirmation above. */}
+          <RowActionsMenu
+            label={`Actions for ${assignment.title}`}
+            className="-mr-2"
+            actions={[
+              { label: "Edit", icon: Pencil, onSelect: () => setEditing(true) },
+              { label: "Delete", icon: Trash2, onSelect: handleDeleteClick, destructive: true },
+            ]}
+          />
+        </div>
       </div>
-    </div>
+    </SwipeActionRow>
   );
 }
 

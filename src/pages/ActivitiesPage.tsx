@@ -3,6 +3,8 @@ import type { FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import RowActionsMenu from "@/components/RowActionsMenu";
+import SwipeActionRow from "@/components/SwipeActionRow";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ErrorBanner from "../components/ErrorBanner";
@@ -111,44 +113,59 @@ export default function ActivitiesPage({ user, onBack }: ActivitiesPageProps) {
       {activities.length > 0 && (
         <ul className="mb-4 flex flex-col gap-3">
           {activities.map((activity) => (
-            <li
-              key={activity.id}
-              className="rounded-lg border border-border bg-card p-3"
-            >
-              <div className="flex items-start gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {activity.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {timeLabel(activity.startTime)}–{timeLabel(activity.finishTime)}
-                    {activity.travelToMinutes > 0 ? ` · +${activity.travelToMinutes}m there` : ""}
-                    {activity.travelFromMinutes > 0
-                      ? ` · +${activity.travelFromMinutes}m back`
-                      : ""}
-                  </p>
+            <li key={activity.id}>
+              {/* Swipe left to reveal Remove, or use the row menu (the
+                  keyboard route) — both replace the old visible trash
+                  button. Removal itself is unchanged: immediate, no
+                  confirmation. docs/features/
+                  mobile-gestures-reorder-and-swipe-v0.1.md §2. */}
+              <SwipeActionRow
+                id={`activity-${activity.id}`}
+                label={activity.name}
+                actionLabel="Remove"
+                onAction={() => removeActivity(activity.id)}
+                className="rounded-lg"
+              >
+                <div className="rounded-lg border border-border bg-card p-3">
+                  <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {activity.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {timeLabel(activity.startTime)}–{timeLabel(activity.finishTime)}
+                        {activity.travelToMinutes > 0 ? ` · +${activity.travelToMinutes}m there` : ""}
+                        {activity.travelFromMinutes > 0
+                          ? ` · +${activity.travelFromMinutes}m back`
+                          : ""}
+                      </p>
+                    </div>
+                    <RowActionsMenu
+                      label={`More actions for ${activity.name}`}
+                      actions={[
+                        {
+                          label: "Remove",
+                          icon: Trash2,
+                          onSelect: () => removeActivity(activity.id),
+                          destructive: true,
+                        },
+                      ]}
+                    />
+                  </div>
+                  <div className="mt-3">
+                    <DayToggle
+                      ariaLabel={`Days for ${activity.name}`}
+                      days={activity.days}
+                      onToggle={(day) => {
+                        const next = activity.days.includes(day)
+                          ? activity.days.filter((d) => d !== day)
+                          : [...activity.days, day].sort();
+                        updateDays(activity.id, next);
+                      }}
+                    />
+                  </div>
                 </div>
-                <Button
-                  aria-label={`Remove ${activity.name}`}
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeActivity(activity.id)}
-                >
-                  <Trash2 className="size-4 text-muted-foreground" />
-                </Button>
-              </div>
-              <div className="mt-3">
-                <DayToggle
-                  ariaLabel={`Days for ${activity.name}`}
-                  days={activity.days}
-                  onToggle={(day) => {
-                    const next = activity.days.includes(day)
-                      ? activity.days.filter((d) => d !== day)
-                      : [...activity.days, day].sort();
-                    updateDays(activity.id, next);
-                  }}
-                />
-              </div>
+              </SwipeActionRow>
             </li>
           ))}
         </ul>

@@ -3,6 +3,8 @@ import type { FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import RowActionsMenu from "@/components/RowActionsMenu";
+import SwipeActionRow from "@/components/SwipeActionRow";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -198,44 +200,58 @@ export default function WorkBreakdownPage({
               {draftItems.length > 0 && (
                 <ul className="mb-4 flex flex-col gap-2">
                   {draftItems.map((item, index) => (
-                    <li
-                      key={item.key}
-                      className="flex items-center gap-2 rounded-lg border border-border bg-card p-2"
-                    >
-                      <Input
-                        aria-label={`Step ${index + 1}`}
-                        value={item.title}
-                        onChange={(event) => editItem(item.key, event.target.value)}
-                        className="flex-1"
-                      />
-                      <div className="flex shrink-0 flex-col">
-                        <Button
-                          aria-label={`Move ${item.title || `step ${index + 1}`} up`}
-                          variant="ghost"
-                          size="icon"
-                          disabled={index === 0}
-                          onClick={() => moveDraftItem(index, "up")}
-                        >
-                          <ChevronUp className="size-4" />
-                        </Button>
-                        <Button
-                          aria-label={`Move ${item.title || `step ${index + 1}`} down`}
-                          variant="ghost"
-                          size="icon"
-                          disabled={index === draftItems.length - 1}
-                          onClick={() => moveDraftItem(index, "down")}
-                        >
-                          <ChevronDown className="size-4" />
-                        </Button>
-                      </div>
-                      <Button
-                        aria-label={`Delete ${item.title || `step ${index + 1}`}`}
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteItem(item.key)}
+                    <li key={item.key}>
+                      {/* Swipe left to reveal Delete, or use the row menu (the
+                          keyboard route). A swipe never starts in the title
+                          field — horizontal movement there is caret/selection.
+                          docs/features/mobile-gestures-reorder-and-swipe-v0.1.md §2. */}
+                      <SwipeActionRow
+                        id={`draft-step-${item.key}`}
+                        label={item.title || `step ${index + 1}`}
+                        actionLabel="Delete"
+                        onAction={() => deleteItem(item.key)}
+                        className="rounded-lg"
                       >
-                        <Trash2 className="size-4 text-muted-foreground" />
-                      </Button>
+                        <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-2">
+                          <Input
+                            aria-label={`Step ${index + 1}`}
+                            value={item.title}
+                            onChange={(event) => editItem(item.key, event.target.value)}
+                            className="flex-1"
+                          />
+                          <div className="flex shrink-0 flex-col">
+                            <Button
+                              aria-label={`Move ${item.title || `step ${index + 1}`} up`}
+                              variant="ghost"
+                              size="icon"
+                              disabled={index === 0}
+                              onClick={() => moveDraftItem(index, "up")}
+                            >
+                              <ChevronUp className="size-4" />
+                            </Button>
+                            <Button
+                              aria-label={`Move ${item.title || `step ${index + 1}`} down`}
+                              variant="ghost"
+                              size="icon"
+                              disabled={index === draftItems.length - 1}
+                              onClick={() => moveDraftItem(index, "down")}
+                            >
+                              <ChevronDown className="size-4" />
+                            </Button>
+                          </div>
+                          <RowActionsMenu
+                            label={`More actions for ${item.title || `step ${index + 1}`}`}
+                            actions={[
+                              {
+                                label: "Delete",
+                                icon: Trash2,
+                                onSelect: () => deleteItem(item.key),
+                                destructive: true,
+                              },
+                            ]}
+                          />
+                        </div>
+                      </SwipeActionRow>
                     </li>
                   ))}
                 </ul>

@@ -105,7 +105,12 @@
     --accent: oklch(0.279 0.041 260.031);
     --accent-foreground: oklch(0.984 0.003 247.858);
     --destructive: oklch(0.704 0.191 22.216);
-    --destructive-foreground: oklch(0.984 0.003 247.858);
+    /* Dark text on dark mode's lighter red: 6.97:1. The near-white it
+       replaced measured 2.76:1, failing WCAG 1.4.3 on every destructive
+       button and swipe action (found 2026-09-25 while checking
+       SwipeActionRow's label — docs/features/
+       mobile-gestures-reorder-and-swipe-v0.1.md). */
+    --destructive-foreground: oklch(0.129 0.042 264.695);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.551 0.027 264.364);

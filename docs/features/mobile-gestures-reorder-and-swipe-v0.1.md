@@ -1,7 +1,10 @@
 # Feature: Mobile Gestures — Drag to Reorder & Swipe to Reveal Removal
 
-**Status:** Proposed, not yet approved. **Needs two decisions before
-implementation** (see "Decisions required"). Produced 2026-09-24 from a
+**Status:** §2 (swipe) implemented 2026-09-25 (tag `v-pre-swipe-removal`
+marks the state before; see "Implementation Notes (as built)"), on the
+lists that exist today (see "Scope of the first increment" below). §1
+(drag) is deferred to roadmap Phase 7 step 10, where it has something to
+reorder; D1 is still open for it. Produced 2026-09-24 from a
 prototype-sync audit of `../OneStepBeyondPrototype`'s unmerged
 `mobile-redesign` branch (`1ce3145`; gesture work in commits
 `5e39235`–`ac89c94`).
@@ -80,10 +83,11 @@ built in).
 confirmation on *every* step delete. For an open step the copy is:
 "Delete this step? Any time planned for it will be removed too." This
 app's recorded decision (`20260818-inline-work-item-management.md`
-point 4) confirms only completed steps. **Recommend keeping this app's
-decision.** Swipe-to-reveal is already a deliberate two-step gesture,
-and the app removed undo precisely to keep deletes rare and considered
-(`20260817-remove-undo-delete.md`). If product wants the prototype's
+point 4) confirms only completed steps. **Resolved 2026-09-25: keep this
+app's decision.** Swipe-to-reveal is already a deliberate two-step
+gesture, so an open step's delete doesn't need a dialog on top of it.
+(An earlier draft also cited `20260817-remove-undo-delete.md` here, but
+that decision covers only *assignment* deletes.) If product wants the prototype's
 warning when an open step has planned time, that's a narrow extension:
 confirm only when the step has planned sessions. It would amend point 4
 explicitly.
@@ -146,7 +150,15 @@ requirements):
   is mostly vertical, the swipe is abandoned and the page scrolls. The
   row uses `touch-action: pan-y`.
 - Starting a swipe on a drag handle doesn't swipe, so both gestures can
-  live on the same row.
+  live on the same row. **A swipe also never starts inside a text field**
+  (`input`, `textarea`, `select`, `contenteditable`). There, horizontal
+  movement belongs to caret placement and text selection. This matters
+  for the breakdown draft rows, whose title is an editable input.
+- A swipe that *ends* over a button inside the row (e.g. an Activities
+  day toggle) must not also click it.
+- **When a revealed action shows an inline confirmation** (Assignments),
+  the row snaps closed first, so the confirmation never renders shifted
+  sideways.
 - **Only one row is open at a time, across the whole app.** Opening one
   closes any other.
 - While a row is open, tapping the row's content **closes it and does
@@ -163,9 +175,13 @@ weakens a confirmation.
 
 **Accessibility (WCAG 2.2 SC 2.5.1, Pointer Gestures):**
 - The action button is a real `<button>` whose accessible name is
-  "{Action} {label}" (for example, "Delete Biology lab report"). It's in
-  the tab order, and **focusing it reveals it**, so keyboard users reach
-  it without a gesture. It has a visible focus ring.
+  "{Action} {label}" (for example, "Delete Biology lab report").
+  **Amended 2026-09-25: it's a pointer-only affordance.** While the row
+  is closed it's `aria-hidden` and out of the tab order; once swiped
+  open it's focusable, with a visible focus ring. Keyboard and
+  screen-reader users use the row's visible non-gesture route below
+  instead. An earlier draft put the hidden button in the tab order too,
+  which gave every row *two* destructive tab stops, announced twice.
 - **Every swipe action also has a non-gesture route at every
   breakpoint.** The prototype shows its "More actions for {label}"
   overflow menu only from `sm:` up, and turns it off entirely on several
@@ -181,20 +197,41 @@ weakens a confirmation.
 |---|---|---|---|
 | Plan existing-day view: planned sessions | Remove | Removes the session from the day, with no confirmation (unchanged) | Edit sheet → "Remove from this day" |
 | Plan Schedule step: draft rows | Remove | Drops the item from the draft (in memory) | The edit sheet or overflow menu required by §1 |
-| Week Look-Ahead: planned sessions | Remove | Removes the session, with no confirmation (unchanged) | The edit sheet or overflow menu required by §1 |
+| Week Look-Ahead: planned sessions | Remove | Removes the session, with no confirmation (unchanged) | "More actions for {title}" overflow menu → Remove, replacing today's visible ✕. §1's Earlier/Later will be added to this same menu later |
 | Assignments list | Delete | Existing assignment-delete confirmation (unchanged) | Row's "Actions for {title}" overflow menu → Delete (`mobile-app-shell-and-touch-ergonomics-v0.1.md` §4) |
-| Assignment Detail: steps | Delete | Per D2: confirmation for completed steps; immediate for open ones (unchanged) | The existing visible Delete button. The prototype hides it below `sm:`; this app keeps it at every width |
-| Guided breakdown: draft steps | Remove | Removes the draft step (unchanged) | Overflow menu |
-| Activities | Delete | Deletes the activity, with no confirmation (unchanged) | Overflow menu |
+| Assignment Detail: steps | Delete | Per D2: confirmation for completed steps; immediate for open ones (unchanged) | "More actions for {step}" row menu: Edit (open steps only) and Delete, replacing the visible pencil and trash. *(Amended 2026-09-25 at product-owner request, for consistency with every other list. An earlier version kept the visible trash button.)* |
+| Guided breakdown: draft steps | Delete | Removes the draft step (unchanged) | Overflow menu, replacing today's visible 🗑. The ↑/↓ reorder buttons stay |
+| Activities | Remove | Removes the activity, with no confirmation (unchanged) | Overflow menu, replacing today's visible 🗑 |
 | Courses | Delete | Opens `course-management-v2-proposal.md` §2's inline confirmation | Overflow menu |
 | Support: active relationships | Remove | Relationship-removal confirmation | Overflow menu. **Applies only once** `supporter-invitation-feature-spec-v0.1.md` §12 (Removing a Supporter) ships; it's currently "Not built" in this app |
 | Support: pending invitations | Cancel | Cancels the invitation | Overflow menu. **Applies only once** that spec's deferred "cancel Pending invitation" ships |
+
+Labels follow this app's existing names ("Remove {activity}", "Delete
+{draft step}"), not the prototype's, so accessible names don't change.
+
+**Friction on Activities and Look Ahead (accepted 2026-09-25).** Both
+removed in one tap with no confirmation before. They now take a swipe
+or menu, then a tap. That's two deliberate steps, but still no dialog.
+
+**Not in this table: Plan's "Already planned" list** (`AlreadyPlannedList`,
+at the top of Select). It keeps its visible Move and ✕ buttons unchanged
+until `daily-planning-and-completion-v2-proposal.md` item 10 replaces it
+with the existing-day view.
 
 Week Look-Ahead detail: on `mobile-redesign`, only `planned` sessions
 can be removed from Look Ahead. `main` also let in-progress ones be
 removed. Follow `mobile-redesign`, which is consistent with Plan:
 in-progress work is ended from Today Execution, not deleted from a
 calendar.
+
+## Scope of the first increment (2026-09-25)
+
+§2 only, on the lists that exist today: Assignments, Assignment Detail
+steps, guided breakdown draft steps, Activities, and Week Look-Ahead.
+Courses gets it with `course-management-v2-proposal.md` (roadmap step
+3), Support with the supporter spec's deferred actions, and the Plan
+rows with daily-planning items 2 and 10. §1's acceptance criteria below
+apply to that later increment.
 
 ## Acceptance Criteria
 
@@ -215,8 +252,13 @@ calendar.
   every existing confirmation. No swipe deletes anything by itself.
 - Every row in the table can reach its action without a swipe, at 320
   px and at 1280 px.
-- Tabbing onto a hidden swipe action reveals it, and its focus ring is
-  visible.
+- A closed row's swipe action is `aria-hidden` and not in the tab order.
+  Once swiped open, it's focusable with a visible focus ring.
+- A swipe that starts inside a text field never moves the row.
+- A swipe that ends over a button inside the row doesn't click it.
+- When a revealed Delete opens an inline confirmation, the row is closed.
+- Week Look-Ahead offers no remove route (swipe or menu) for in-progress
+  or done sessions.
 - With reduced motion turned on, rows open and close without animation.
 - No horizontal page overflow is introduced at 320 px.
 
@@ -254,6 +296,31 @@ event as any other reorder.
   *and* a later spec asks for it.
 - Changing any confirmation copy or cascade rule. Those stay in their
   owning specs.
+
+## Implementation Notes (as built, 2026-09-25)
+
+- **Components:** `src/lib/swipeGesture.ts` (pure thresholds and the
+  can-start rule), `src/components/SwipeActionRow.tsx`,
+  `SwipeRowProvider.tsx` + `swipeRowContext.ts` (one open row app-wide,
+  mounted in `App.tsx`), and `RowActionsMenu.tsx` (the shared visible
+  route, extracted from `AssignmentsPage`). No new dependencies.
+- **Where a swipe may start:** the "no text fields" rule applies to
+  *text-like* inputs only; a checkbox or radio (e.g. a step's status
+  checkbox) can start a swipe. Popup triggers (`aria-haspopup`) are also
+  excluded, because Radix opens menus on pointerdown.
+- **Bug found by the tests:** the click a browser sends right after a
+  swipe was first treated as a tap on an open row, which closed the row
+  the swipe had just opened. It's now swallowed without closing, and a
+  test pins it.
+- **Dark-mode contrast fix:** the action's label (`--destructive-foreground`
+  on `--destructive`) measured 2.76:1 in dark mode. That's a
+  pre-existing token problem shared by every destructive button. The
+  dark `--destructive-foreground` is now the dark background color
+  (6.97:1). Light mode was already 5.10:1.
+- **Verified in a real browser** (Chromium, touch emulation via CDP, 375
+  px): swipe reveals Delete/Remove, tap closes without navigating, a
+  vertical drag doesn't open a row, and a swipe that starts and ends on
+  Activities day toggles doesn't flip a day.
 
 ## Implementation Notes
 

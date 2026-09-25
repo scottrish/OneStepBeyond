@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import RowActionsMenu from "@/components/RowActionsMenu";
+import SwipeActionRow from "@/components/SwipeActionRow";
 import { DEFAULT_EFFORT_MINUTES, EFFORT_PRESETS, effortLabel } from "../domain/effortPresets";
 import type { WorkItem, WorkItemEdit } from "../services/workItemService";
 
@@ -140,41 +142,52 @@ export default function AssignmentDetailSteps({
                 </div>
               </li>
             ) : (
-              <li
-                key={item.id}
-                className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2"
-              >
-                <input
-                  type="checkbox"
-                  checked={item.completedAt !== null}
-                  disabled
-                  aria-label={`${item.title} ${item.completedAt ? "complete" : "not yet complete"}`}
-                  className="size-4"
-                />
-                <span
-                  className={`flex-1 text-sm ${item.completedAt ? "text-muted-foreground line-through" : ""}`}
+              <li key={item.id}>
+                {/* Swipe left as a shortcut to the same Delete the row menu
+                    runs (confirmation only for a completed step —
+                    docs/decisions/20260818-inline-work-item-management.md
+                    point 4). */}
+                <SwipeActionRow
+                  id={`step-${item.id}`}
+                  label={item.title}
+                  actionLabel="Delete"
+                  onAction={() => handleDeleteStepClick(item)}
+                  className="rounded-lg"
                 >
-                  {item.title}
-                </span>
-                <span className="text-xs text-muted-foreground">{effortLabel(item.effortMinutes)}</span>
-                {item.completedAt === null && (
-                  <Button
-                    aria-label={`Edit ${item.title}`}
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => startEditingStep(item)}
-                  >
-                    <Pencil className="size-4 text-muted-foreground" />
-                  </Button>
-                )}
-                <Button
-                  aria-label={`Delete ${item.title}`}
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleDeleteStepClick(item)}
-                >
-                  <Trash2 className="size-4 text-muted-foreground" />
-                </Button>
+                  <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={item.completedAt !== null}
+                      disabled
+                      aria-label={`${item.title} ${item.completedAt ? "complete" : "not yet complete"}`}
+                      className="size-4"
+                    />
+                    <span
+                      className={`flex-1 text-sm ${item.completedAt ? "text-muted-foreground line-through" : ""}`}
+                    >
+                      {item.title}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{effortLabel(item.effortMinutes)}</span>
+                    {/* Edit and Delete live behind one row menu, like every
+                        other list; swipe left is the shortcut to Delete.
+                        Completed steps can't be edited (docs/decisions/
+                        20260818-inline-work-item-management.md point 3). */}
+                    <RowActionsMenu
+                      label={`More actions for ${item.title}`}
+                      actions={[
+                        ...(item.completedAt === null
+                          ? [{ label: "Edit", icon: Pencil, onSelect: () => startEditingStep(item) }]
+                          : []),
+                        {
+                          label: "Delete",
+                          icon: Trash2,
+                          onSelect: () => handleDeleteStepClick(item),
+                          destructive: true,
+                        },
+                      ]}
+                    />
+                  </div>
+                </SwipeActionRow>
               </li>
             ),
           )}

@@ -29,3 +29,20 @@ if (!('ResizeObserver' in globalThis)) {
     disconnect() {}
   }
 }
+
+// jsdom has no PointerEvent, so Testing Library's fireEvent.pointer*()
+// falls back to a bare Event without clientX/clientY — enough for
+// SwipeActionRow's gesture tests (docs/features/
+// mobile-gestures-reorder-and-swipe-v0.1.md §2) to need a minimal one.
+if (!('PointerEvent' in globalThis)) {
+  class PointerEventPolyfill extends MouseEvent {
+    pointerId: number
+    pointerType: string
+    constructor(type: string, init: PointerEventInit = {}) {
+      super(type, init)
+      this.pointerId = init.pointerId ?? 1
+      this.pointerType = init.pointerType ?? 'mouse'
+    }
+  }
+  globalThis.PointerEvent = PointerEventPolyfill as unknown as typeof PointerEvent
+}

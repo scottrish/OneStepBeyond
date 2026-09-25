@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 
@@ -144,7 +144,57 @@ describe("WorkBreakdownPage", () => {
       />,
     );
 
-    await userEventInstance.click(screen.getByRole("button", { name: /delete read book/i }));
+    // The visible trash button became a row menu (the keyboard route) —
+    // docs/features/mobile-gestures-reorder-and-swipe-v0.1.md §2.
+    await userEventInstance.click(screen.getByRole("button", { name: "More actions for Read book" }));
+    await userEventInstance.click(await screen.findByRole("menuitem", { name: "Delete" }));
+
+    expect(screen.queryByDisplayValue("Read book")).not.toBeInTheDocument();
+  });
+
+  it("a swipe starting in a step's title field doesn't move the row (it's caret/selection there)", () => {
+    render(
+      <WorkBreakdownPage
+        user={user}
+        assignment={assignment}
+        confirmedItems={[
+          { id: "w1", assignmentId: "a1", title: "Read book", effortMinutes: 90, completedAt: null, position: 0 },
+        ]}
+        onCancel={vi.fn()}
+        onConfirmed={vi.fn()}
+      />,
+    );
+    const field = screen.getByDisplayValue("Read book");
+    const surface = field.closest("[data-swipe-content]") as HTMLElement;
+    const start = { clientX: 300, clientY: 100, pointerId: 1, pointerType: "touch" };
+
+    fireEvent.pointerDown(field, start);
+    for (const x of [280, 250, 220, 190]) fireEvent.pointerMove(surface, { ...start, clientX: x });
+    fireEvent.pointerUp(surface, { ...start, clientX: 190 });
+
+    expect(surface.style.transform).toBe("translateX(0px)");
+  });
+
+  it("a swipe from elsewhere on the row reveals Delete", () => {
+    render(
+      <WorkBreakdownPage
+        user={user}
+        assignment={assignment}
+        confirmedItems={[
+          { id: "w1", assignmentId: "a1", title: "Read book", effortMinutes: 90, completedAt: null, position: 0 },
+        ]}
+        onCancel={vi.fn()}
+        onConfirmed={vi.fn()}
+      />,
+    );
+    const surface = screen.getByDisplayValue("Read book").closest("[data-swipe-content]") as HTMLElement;
+    const rowBody = surface.firstElementChild!; // the row's own padding, outside the field
+    const start = { clientX: 300, clientY: 100, pointerId: 1, pointerType: "touch" };
+
+    fireEvent.pointerDown(rowBody, start);
+    for (const x of [280, 250, 220, 190]) fireEvent.pointerMove(surface, { ...start, clientX: x });
+    fireEvent.pointerUp(surface, { ...start, clientX: 190 });
+    fireEvent.click(screen.getByRole("button", { name: "Delete Read book" }));
 
     expect(screen.queryByDisplayValue("Read book")).not.toBeInTheDocument();
   });

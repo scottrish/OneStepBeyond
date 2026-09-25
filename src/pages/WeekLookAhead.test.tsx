@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("../services/workSessionService", () => ({
@@ -149,16 +149,57 @@ describe("WeekLookAhead", () => {
 
     await screen.findByText("Draft outline");
     expect(screen.getByText("Write conclusion").parentElement).toHaveClass("line-through");
-    // Only the not-done session gets a remove control.
+    // Only the planned session gets a remove route — via its row menu
+    // (docs/features/mobile-gestures-reorder-and-swipe-v0.1.md §2).
     expect(
-      screen.getByRole("button", { name: /remove draft outline/i }),
+      screen.getByRole("button", { name: "More actions for Draft outline" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /remove write conclusion/i }),
+      screen.queryByRole("button", { name: /more actions for write conclusion/i }),
     ).not.toBeInTheDocument();
 
-    await userEventInstance.click(screen.getByRole("button", { name: /remove draft outline/i }));
+    await userEventInstance.click(screen.getByRole("button", { name: "More actions for Draft outline" }));
+    await userEventInstance.click(await screen.findByRole("menuitem", { name: "Remove" }));
     expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("s1");
+  });
+
+  it("offers no remove route for an in-progress session (it's ended from Today, not deleted here)", async () => {
+    mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([
+      { id: "s3", workItemId: "w3", date: TODAY_ISO, plannedMinutes: 30, startTime: "16:00", status: "in_progress" },
+    ]);
+
+    renderWeekLookAhead({
+      workItems: [
+        { id: "w3", assignmentId: "a1", title: "Revise intro", effortMinutes: 30, completedAt: null, position: 0 },
+      ],
+    });
+
+    const title = await screen.findByText("Revise intro");
+    expect(screen.queryByRole("button", { name: /more actions for revise intro/i })).not.toBeInTheDocument();
+    expect(title.closest("[data-swipe-content]")).toBeNull();
+  });
+
+  it("swiping a planned session reveals Remove, which removes it", async () => {
+    mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([
+      { id: "s1", workItemId: "w1", date: TODAY_ISO, plannedMinutes: 30, startTime: "16:00", status: "planned" },
+    ]);
+    mockedWorkSessionService.deleteWorkSession.mockResolvedValue(undefined);
+
+    renderWeekLookAhead({
+      workItems: [
+        { id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 30, completedAt: null, position: 0 },
+      ],
+    });
+    const title = await screen.findByText("Draft outline");
+    const surface = title.closest("[data-swipe-content]")!;
+    const start = { clientX: 300, clientY: 100, pointerId: 1, pointerType: "touch" };
+    fireEvent.pointerDown(title, start);
+    for (const x of [290, 270, 250, 230, 210]) fireEvent.pointerMove(surface, { ...start, clientX: x });
+    fireEvent.pointerUp(surface, { ...start, clientX: 210 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove Draft outline from today's plan" }));
+
+    await waitFor(() => expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("s1"));
   });
 
   it("shows each scheduled task's assignment and class, not just the step title", async () => {

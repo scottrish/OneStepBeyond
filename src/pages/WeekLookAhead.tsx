@@ -1,5 +1,6 @@
 import { Check, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import RowActionsMenu from "@/components/RowActionsMenu";
+import SwipeActionRow from "@/components/SwipeActionRow";
 import ErrorBanner from "../components/ErrorBanner";
 import { effortLabel } from "../domain/effortPresets";
 import { addDaysISODate, daysBetween, longPlanDate, timeLabel } from "../domain/planningDate";
@@ -139,39 +140,66 @@ export default function WeekLookAhead({
                         ? assignments.find((a) => a.id === item.assignmentId)
                         : undefined;
                       const done = session.status === "done";
-                      return (
-                        <li key={session.id} className="flex items-center gap-2 text-sm">
-                          {done ? (
-                            <Check className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
-                          ) : (
-                            <span
-                              aria-hidden="true"
-                              className="size-1.5 shrink-0 rounded-full bg-primary"
+                      // Only planned sessions can be removed here: an
+                      // in-progress one is ended from Today Execution, not
+                      // deleted from a calendar (docs/features/
+                      // mobile-gestures-reorder-and-swipe-v0.1.md §2).
+                      const removable = session.status === "planned";
+                      const title = item?.title ?? "this session";
+                      const dayName = date === today ? "today" : longPlanDate(date);
+                      const row = (
+                        <div className="flex items-center gap-2 bg-card py-0.5 text-sm">
+                              {done ? (
+                                <Check className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+                              ) : (
+                                <span
+                                  aria-hidden="true"
+                                  className="size-1.5 shrink-0 rounded-full bg-primary"
+                                />
+                              )}
+                              <span className={`min-w-0 flex-1 ${done ? "line-through opacity-60" : ""}`}>
+                                <span className="block truncate text-foreground">
+                                  {item?.title ?? "Study session"}
+                                </span>
+                                {item && assignment && (
+                                  <span className="block truncate text-xs text-muted-foreground">
+                                    {assignment.title} · {courseName(assignment.courseId)}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                {session.startTime ? `${timeLabel(session.startTime)} · ` : ""}
+                                {effortLabel(session.plannedMinutes)}
+                              </span>
+                          {removable && (
+                            <RowActionsMenu
+                              label={`More actions for ${title}`}
+                              actions={[
+                                {
+                                  label: "Remove",
+                                  icon: X,
+                                  onSelect: () => removeSession(session.id),
+                                  destructive: true,
+                                },
+                              ]}
                             />
                           )}
-                          <span className={`min-w-0 flex-1 ${done ? "line-through opacity-60" : ""}`}>
-                            <span className="block truncate text-foreground">
-                              {item?.title ?? "Study session"}
-                            </span>
-                            {item && assignment && (
-                              <span className="block truncate text-xs text-muted-foreground">
-                                {assignment.title} · {courseName(assignment.courseId)}
-                              </span>
-                            )}
-                          </span>
-                          <span className="shrink-0 text-xs text-muted-foreground">
-                            {session.startTime ? `${timeLabel(session.startTime)} · ` : ""}
-                            {effortLabel(session.plannedMinutes)}
-                          </span>
-                          {!done && (
-                            <Button
-                              aria-label={`Remove ${item?.title ?? "this session"} from ${date === today ? "today" : longPlanDate(date)}'s plan`}
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeSession(session.id)}
+                        </div>
+                      );
+                      return (
+                        <li key={session.id}>
+                          {removable ? (
+                            <SwipeActionRow
+                              id={`lookahead-${session.id}`}
+                              label={`${title} from ${dayName}'s plan`}
+                              actionLabel="Remove"
+                              onAction={() => removeSession(session.id)}
+                              className="rounded-lg"
                             >
-                              <X className="size-3.5 text-muted-foreground" />
-                            </Button>
+                              {row}
+                            </SwipeActionRow>
+                          ) : (
+                            row
                           )}
                         </li>
                       );

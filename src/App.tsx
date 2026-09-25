@@ -15,6 +15,7 @@ import ActivitiesPage from "./pages/ActivitiesPage";
 import PreferencesPage from "./pages/PreferencesPage";
 import SupportPage from "./pages/SupportPage";
 import AppShell from "./components/AppShell";
+import SwipeRowProvider from "./components/SwipeRowProvider";
 import type { Tab } from "./components/AppShell";
 
 // Tabs whose own page owns nested internal navigation (a `view` state)
@@ -193,63 +194,67 @@ export default function App() {
   }
 
   return (
-    <AppShell
-      activeTab={activeTab}
-      onTabChange={handleTabChange}
-      onQuickAdd={() => setSecondary("capture")}
-      onOpenSettings={() => setSecondary("settings")}
-    >
-      {openAssignmentId ? (
-        <AssignmentDetailPage
-          user={user}
-          assignmentId={openAssignmentId}
-          onBack={() => setOpenAssignmentId(null)}
-          onGoToPlan={handleGoToPlanToday}
-        />
-      ) : executingToday ? (
-        <TodayExecutionPage user={user} onBack={() => setExecutingToday(false)} />
-      ) : secondary ? (
-        renderSecondary(secondary, user)
-      ) : (
-        <>
-          {activeTab === "home" && (
-            <HomePage
-              key={tabResetKeys.home}
-              user={user}
-              onStartExecution={() => setExecutingToday(true)}
-              onGoToPlan={() => handleTabChange("plan")}
-              onGoToAssignments={() => handleTabChange("assignments")}
-              onOpenAssignment={setOpenAssignmentId}
-              onOpenCapture={() => setSecondary("capture")}
-              onOpenSettings={() => setSecondary("settings")}
-              onOpenSupport={() => setSecondary("support")}
-            />
-          )}
-          {activeTab === "plan" && (
-            <PlanPage
-              key={tabResetKeys.plan}
-              user={user}
-              date={planDate}
-              step={planStep}
-              onDateChange={setPlanDate}
-              onStepChange={setPlanStep}
-              tab={planTab}
-              onTabChange={setPlanTab}
-              onStartExecution={() => setExecutingToday(true)}
-              onGoToAssignments={() => handleTabChange("assignments")}
-              onOpenAssignment={setOpenAssignmentId}
-            />
-          )}
-          {activeTab === "assignments" && (
-            <AssignmentsPage
-              key={tabResetKeys.assignments}
-              user={user}
-              onOpenCapture={() => setSecondary("capture")}
-              onOpenAssignment={setOpenAssignmentId}
-            />
-          )}
-        </>
-      )}
-    </AppShell>
+    // One swipe-open row at a time across every tab and overlay —
+    // docs/features/mobile-gestures-reorder-and-swipe-v0.1.md §2.
+    <SwipeRowProvider>
+      <AppShell
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        onQuickAdd={() => setSecondary("capture")}
+        onOpenSettings={() => setSecondary("settings")}
+      >
+        {openAssignmentId ? (
+          <AssignmentDetailPage
+            user={user}
+            assignmentId={openAssignmentId}
+            onBack={() => setOpenAssignmentId(null)}
+            onGoToPlan={handleGoToPlanToday}
+          />
+        ) : executingToday ? (
+          <TodayExecutionPage user={user} onBack={() => setExecutingToday(false)} />
+        ) : secondary ? (
+          renderSecondary(secondary, user)
+        ) : (
+          <>
+            {activeTab === "home" && (
+              <HomePage
+                key={tabResetKeys.home}
+                user={user}
+                onStartExecution={() => setExecutingToday(true)}
+                onGoToPlan={() => handleTabChange("plan")}
+                onGoToAssignments={() => handleTabChange("assignments")}
+                onOpenAssignment={setOpenAssignmentId}
+                onOpenCapture={() => setSecondary("capture")}
+                onOpenSettings={() => setSecondary("settings")}
+                onOpenSupport={() => setSecondary("support")}
+              />
+            )}
+            {activeTab === "plan" && (
+              <PlanPage
+                key={tabResetKeys.plan}
+                user={user}
+                date={planDate}
+                step={planStep}
+                onDateChange={setPlanDate}
+                onStepChange={setPlanStep}
+                tab={planTab}
+                onTabChange={setPlanTab}
+                onStartExecution={() => setExecutingToday(true)}
+                onGoToAssignments={() => handleTabChange("assignments")}
+                onOpenAssignment={setOpenAssignmentId}
+              />
+            )}
+            {activeTab === "assignments" && (
+              <AssignmentsPage
+                key={tabResetKeys.assignments}
+                user={user}
+                onOpenCapture={() => setSecondary("capture")}
+                onOpenAssignment={setOpenAssignmentId}
+              />
+            )}
+          </>
+        )}
+      </AppShell>
+    </SwipeRowProvider>
   );
 }

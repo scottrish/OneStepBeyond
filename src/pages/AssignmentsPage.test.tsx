@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 
@@ -328,5 +328,50 @@ describe("AssignmentsPage", () => {
     await waitFor(() =>
       expect(mockedAssignmentService.deleteAssignment).toHaveBeenCalledWith("a1"),
     );
+  });
+
+  // docs/features/mobile-gestures-reorder-and-swipe-v0.1.md §2.
+  describe("swipe to reveal Delete", () => {
+    function swipeLeft(from: Element) {
+      const surface = from.closest("[data-swipe-content]")!;
+      const start = { clientX: 300, clientY: 100, pointerId: 1, pointerType: "touch" };
+      fireEvent.pointerDown(from, start);
+      for (const x of [290, 270, 250, 230, 210]) fireEvent.pointerMove(surface, { ...start, clientX: x });
+      fireEvent.pointerUp(surface, { ...start, clientX: 210 });
+    }
+
+    it("reveals Delete, which opens the same inline confirmation with the row closed", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([course]);
+      mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
+      const onOpenAssignment = vi.fn();
+
+      renderAssignmentsPage({ onOpenAssignment });
+      const title = await screen.findByText("Chapter 7 problem set");
+
+      swipeLeft(title);
+      fireEvent.click(title); // the click a browser sends after the swipe
+      expect(onOpenAssignment).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Delete Chapter 7 problem set" }));
+
+      expect(await screen.findByText(/delete this assignment\?/i)).toBeInTheDocument();
+      expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
+      // The confirmation replaces the card, so no swipe surface is left shifted.
+      expect(document.querySelector("[data-swipe-content]")).toBeNull();
+    });
+
+    it("keeps the row menu as the keyboard route to Delete", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([course]);
+      mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
+
+      renderAssignmentsPage();
+      await screen.findByText("Chapter 7 problem set");
+
+      // Closed row: the swipe action isn't exposed, the menu is.
+      expect(screen.queryByRole("button", { name: "Delete Chapter 7 problem set" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Actions for Chapter 7 problem set" })).toBeInTheDocument();
+    });
   });
 });

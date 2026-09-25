@@ -159,11 +159,11 @@ callbacks. Navigation rules:
 - **Closing an overlay returns to the tab that was showing when it
   opened.** For example, quick-add from Plan, then Cancel, returns to
   Plan on its preserved day and step.
-- **Existing back routes are unchanged:** Support's Back → Settings.
-  Courses, Activities, and Study hours Back → close the overlay (they
-  always returned to Home before, and Home was always the active tab
-  then). *(Corrected during implementation: an earlier draft said
-  Settings' children returned to Settings, which the code never did.)*
+- **Back routes:** Support, Activities, and Study hours Back →
+  Settings. Courses Back → whichever screen opened it (Settings, or
+  capture via "Add a course"). *(Product-owner direction, 2026-09-25.
+  Before this increment, Courses, Activities, and Study hours returned
+  to Home.)*
 - **Tapping any tab closes every overlay** (extending `handleTabChange`,
   which already clears Detail and Today Execution). Plan's lifted
   day/step/tab state isn't affected by opening or closing an overlay.
