@@ -9,7 +9,6 @@ vi.mock("../lib/supabase", () => ({
 import { supabase } from "../lib/supabase";
 import {
   createWorkSessions,
-  deletePlannedSessionsForDate,
   deleteWorkSession,
   listWorkSessionsForDate,
   listWorkSessionsForStudent,
@@ -139,24 +138,6 @@ describe("createWorkSessions", () => {
       createWorkSessions("student-1", [
         { workItemId: "w1", date: "2026-03-16", plannedMinutes: 30, startTime: null },
       ]),
-    ).rejects.toThrow("boom");
-  });
-});
-
-describe("deletePlannedSessionsForDate", () => {
-  it("deletes only that date's planned sessions", async () => {
-    mockedFrom.mockReturnValue(mockQuery({ data: null, error: null }));
-
-    await expect(
-      deletePlannedSessionsForDate("student-1", "2026-03-16"),
-    ).resolves.toBeUndefined();
-  });
-
-  it("throws when the delete errors", async () => {
-    mockedFrom.mockReturnValue(mockQuery({ data: null, error: new Error("boom") }));
-
-    await expect(
-      deletePlannedSessionsForDate("student-1", "2026-03-16"),
     ).rejects.toThrow("boom");
   });
 });

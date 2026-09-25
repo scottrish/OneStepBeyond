@@ -143,13 +143,21 @@ All remaining work happens with the worktree as the working directory.
 
 ### 1. Analyze
 
-Read `CLAUDE.md`, then the current iteration's feature spec (the original
-spec for iteration 1, or the previous iteration's derived
-`<slug>.iNN.md` for iterations 2–3). Produce the same build-plan analysis
-`analyze-feature`'s skill produces (reuse its format directly), plus one
-explicit line this process doc requires that `analyze-feature` doesn't
-normally output: **"Scope decision: full feature" or "Scope decision:
-increment — <what's included, what's deferred>."** Do not implement yet.
+Apply the `analyze-feature` skill to the current iteration's implementation
+scope, including its progressive context-selection rules. Use the original
+feature spec for iteration 1, or the previous iteration's derived
+`<slug>.iNN.md` for iterations 2–3. Do not independently reload the full
+canonical documentation set or `CLAUDE.md` when they are already active in the
+session context.
+
+For iterations 2–3, treat the derived iteration spec and prior iteration
+evidence as the primary context. Reopen earlier feature documentation only when
+the new spec identifies an unresolved dependency, ambiguity, or conflict.
+
+Produce the same build-plan format as `analyze-feature`, plus one explicit line
+this process requires that `analyze-feature` doesn't normally output:
+**"Scope decision: full feature" or "Scope decision: increment — <what's
+included, what's deferred>."** Do not implement yet.
 
 ### 2. Tag
 

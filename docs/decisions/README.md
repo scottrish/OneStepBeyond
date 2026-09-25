@@ -36,3 +36,5 @@ directory.
 | 17 | [Page complexity reduction: audit findings and completed refactor](20260912-page-complexity-reduction-proposal.md) | 2026-09-12 |
 | 18 | [Build a PWA in two phases: installable now, offline after prototype parity](20260924-pwa-in-two-phases.md) | 2026-09-24 |
 | 19 | [Home's secondary screens become App-level overlays](20260924-secondary-screens-app-level-overlays.md) | 2026-09-24 |
+| 20 | [Plan opens on the existing day's plan when one exists](20260925-existing-day-view.md) | 2026-09-25 |
+| 21 | [Confirming a plan adds to the day; it no longer replaces it](20260925-confirm-plan-appends.md) | 2026-09-25 |

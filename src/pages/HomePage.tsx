@@ -31,6 +31,9 @@ type HomePageProps = {
   // points — see docs/decisions/20260816-today-execution-interim-entry-point.md.
   onStartExecution: () => void;
   onGoToPlan: () => void;
+  // Needs Attention's "Find time"/"Make a plan": straight to Plan's Select,
+  // skipping the day view (docs/decisions/20260925-existing-day-view.md).
+  onPlanWork: () => void;
   onGoToAssignments: () => void;
   // Assignment Detail is likewise a global overlay owned by App.tsx — see
   // docs/decisions/20260817-assignment-detail-global-overlay.md.
@@ -58,6 +61,7 @@ export default function HomePage({
   user,
   onStartExecution,
   onGoToPlan,
+  onPlanWork,
   onGoToAssignments,
   onOpenAssignment,
   onOpenCapture,
@@ -257,7 +261,7 @@ export default function HomePage({
           <NeedsAttentionCard
             attentionItems={attentionItems}
             onOpenAssignment={onOpenAssignment}
-            onGoToPlan={onGoToPlan}
+            onGoToPlan={onPlanWork}
           />
 
           <TodaysActivitiesList todaysActivities={todaysActivities} />

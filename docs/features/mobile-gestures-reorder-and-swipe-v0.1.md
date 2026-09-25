@@ -195,7 +195,7 @@ weakens a confirmation.
 
 | List | Label | Tapping the revealed action… | Non-gesture route (all widths) |
 |---|---|---|---|
-| Plan existing-day view: planned sessions | Remove | Removes the session from the day, with no confirmation (unchanged) | Edit sheet → "Remove from this day" |
+| Plan existing-day view: planned sessions | Remove | Removes the session from the day, with no confirmation (unchanged) | Edit sheet → "Remove from this day". *(Built 2026-09-25 with the day view.)* |
 | Plan Schedule step: draft rows | Remove | Drops the item from the draft (in memory) | The edit sheet or overflow menu required by §1 |
 | Week Look-Ahead: planned sessions | Remove | Removes the session, with no confirmation (unchanged) | "More actions for {title}" overflow menu → Remove, replacing today's visible ✕. §1's Earlier/Later will be added to this same menu later |
 | Assignments list | Delete | Existing assignment-delete confirmation (unchanged) | Row's "Actions for {title}" overflow menu → Delete (`mobile-app-shell-and-touch-ergonomics-v0.1.md` §4) |

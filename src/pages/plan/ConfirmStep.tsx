@@ -1,11 +1,10 @@
 import { Button } from "@/components/ui/button";
 import MobileActionBar from "@/components/MobileActionBar";
 import { effortLabel } from "../../domain/effortPresets";
-import { dayLabel, longPlanDate, timeLabel } from "../../domain/planningDate";
+import { longPlanDate, timeLabel } from "../../domain/planningDate";
 import type { PlanningCandidate } from "../../domain/planningCandidates";
 
 type ConfirmStepProps = {
-  justConfirmed: boolean;
   date: string;
   today: string;
   planned: number;
@@ -15,20 +14,20 @@ type ConfirmStepProps = {
   chosen: Record<string, number>;
   candidates: PlanningCandidate[];
   courseName: (courseId: string) => string;
-  onStartExecution: () => void;
-  onPlanAnotherDay: () => void;
+  // The day already has a plan, so this confirm *adds* to it (docs/
+  // decisions/20260925-confirm-plan-appends.md) — say so, since only the
+  // new items are listed here.
+  addingToExisting: boolean;
   onAdjust: () => void;
   onFinish: () => void;
 };
 
 // docs/decisions/20260911-architecture-refactor-proposal.md increment 5
-// — Plan's Confirm step (Step 4 of 4), split out of PlanPage.tsx. Covers
-// both its review sub-state and its post-confirm acknowledgment
-// sub-state (justConfirmed) — the same two states PlanPage itself used
-// to branch on, now folded into this one component instead of two
-// separate top-level ternary arms.
+// — Plan's Confirm step (Step 4 of 4), split out of PlanPage.tsx. Its
+// old post-confirm acknowledgment moved to the existing-day view, which
+// "Looks good" now lands on (docs/decisions/20260925-existing-day-view.md
+// point 4).
 export default function ConfirmStep({
-  justConfirmed,
   date,
   today,
   planned,
@@ -38,40 +37,18 @@ export default function ConfirmStep({
   chosen,
   candidates,
   courseName,
-  onStartExecution,
-  onPlanAnotherDay,
+  addingToExisting,
   onAdjust,
   onFinish,
 }: ConfirmStepProps) {
-  if (justConfirmed) {
-    return (
-      <section>
-        <h2 className="mb-3 text-base font-medium text-foreground">Plan confirmed.</h2>
-        <p className="text-sm text-muted-foreground">
-          {effortLabel(planned)} planned for {dayLabel(date, today)}. You can come back anytime to
-          adjust it.
-        </p>
-        {date === today && (
-          <Button size="lg" className="mt-6 w-full rounded-2xl" onClick={onStartExecution}>
-            Start today&rsquo;s plan
-          </Button>
-        )}
-        <Button
-          variant={date === today ? "outline" : "default"}
-          size="lg"
-          className="mt-3 w-full rounded-2xl"
-          onClick={onPlanAnotherDay}
-        >
-          Plan another day
-        </Button>
-      </section>
-    );
-  }
-
   return (
     <section>
       <h2 className="mb-3 text-base font-medium text-foreground">
-        {date === today ? "Today's plan" : `Your plan for ${longPlanDate(date)}`}
+        {addingToExisting
+          ? `Adding to ${date === today ? "today" : longPlanDate(date)}’s plan`
+          : date === today
+            ? "Today's plan"
+            : `Your plan for ${longPlanDate(date)}`}
       </h2>
       <ol className="flex flex-col gap-2">
         {[...chosenIds]

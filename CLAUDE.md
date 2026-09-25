@@ -7,38 +7,58 @@ One Step Beyond is a mobile-first web application that helps secondary school st
 
 # Project Documentation
 
-Read these documents if they exist:
+These documents define canonical project direction:
 
 - `docs/reference/Product-Vision.md`
 - `docs/reference/Domain-Model.md`
 - `docs/Design-Principles.md`
 - `docs/decisions/README.md`
 
+Do not automatically read every canonical document in full for every task.
+For feature analysis and implementation, use progressive context discovery:
+
+1. Read the requested feature specification, or the requested increment
+   within it, first.
+2. Use its requirements, domain touchpoints, references, acceptance criteria,
+   and out-of-scope boundaries to identify the canonical context that matters.
+3. Consult only the relevant sections of Product Vision, Domain Model, and
+   Design Principles needed to validate the feature.
+4. Read `docs/decisions/README.md` when the feature may be affected by a prior
+   decision, then read only the relevant decision records.
+5. Expand into additional documentation only when current evidence identifies
+   a specific dependency, ambiguity, or potential conflict.
+
+The goal is sufficient evidence for correctness, not exhaustive document
+loading. Do not recursively read every document referenced by a feature merely
+because it is referenced.
+
 `docs/reference/` also holds longer-term capability strategy documents,
 layered above individual feature specs the same way the Domain Model is:
 canonical direction, not any one increment's scope. When a task touches
 **work breakdown** (decomposition, breakdown coaching, scaffolding) or
-**metacognition/reflection**, also read the matching strategy doc, in
-addition to the Domain Model:
+**metacognition/reflection**, consult the relevant sections of the matching
+strategy document when needed:
 
 - `docs/reference/work-breakdown-coaching-feature-spec-v0.2.md`
 - `docs/reference/metacognition-reflection-feature-spec-v0.2.md`
 
 These describe target-state capability and a phased delivery strategy —
-most of what they describe is future-phase, not current scope. The
-current increment's own spec under `docs/features/` (e.g.
-`manual-work-breakdown-reflection-v0.1.md`) states what's actually in
-scope now and takes precedence over a strategy doc: do not pull
-later-phase functionality into the current increment merely because it's
-described in one of these.
+most of what they describe is future-phase, not current scope. The current
+increment's own spec under `docs/features/` (e.g.
+`manual-work-breakdown-reflection-v0.1.md`) states what's actually in scope
+now and takes precedence over a strategy doc: do not pull later-phase
+functionality into the current increment merely because it's described in
+one of these.
 
 Feature specifications are stored under:
 
 `docs/features/`
 
-Read **only** the feature specification referenced by the current task
-(plus the matching strategy doc above, when the feature touches work
-breakdown or metacognition/reflection).
+Read the feature specification referenced by the current task. If the user
+identifies a specific independently deliverable increment within a larger
+proposal, treat that increment as the implementation scope and read only the
+shared portions of the proposal needed to understand its intent, dependencies,
+domain touchpoints, and boundaries.
 
 Project decisions are stored under:
 
@@ -46,7 +66,7 @@ Project decisions are stored under:
 
 Before making a significant product, domain, or architectural decision:
 
-1. Review any existing decision records.
+1. Review the decision index and any relevant existing decision records.
 2. Create a new decision record when appropriate.
 3. If none exist, continue without making assumptions.
 
@@ -72,17 +92,37 @@ The prototype is built with Tailwind CSS and shadcn/ui. See
 how that interacts with this file's YAGNI guidance on introducing that
 tooling.
 
+## Prototype Evidence
+
+When a feature specification already records prototype evidence — such as
+specific routes, components, commits, screenshots, behaviors, or design
+observations — treat that evidence as the starting point. Do not automatically
+repeat the investigation.
+
+Inspect the prototype directly when:
+
+- the feature spec does not contain enough visual or behavioral detail;
+- implementation requires exact styling or interaction details not captured in
+  the spec;
+- the recorded evidence appears inconsistent with the current prototype; or
+- an ambiguity cannot otherwise be resolved.
+
+When direct prototype inspection is needed, inspect the smallest relevant set
+of files rather than broadly exploring the prototype.
+
 ---
 
 # Development Workflow
 
 Before implementing any feature:
 
-1. Read the feature specification.
-2. Verify it is consistent with `docs/reference/Product-Vision.md`.
-3. Check `../OneStepBeyondPrototype` for a matching screen — or, absent
-   one, its general visual patterns — per "Visual & Aesthetic Reference"
-   above.
+1. Read the requested feature specification or requested increment.
+2. Verify it against the relevant canonical project context using the
+   progressive context-discovery rules above; do not preload canonical
+   documents in full unless the task actually requires them.
+3. Use prototype evidence already recorded in the feature specification.
+   Inspect `../OneStepBeyondPrototype` only when additional visual or
+   behavioral evidence is required, per "Prototype Evidence" above.
 4. If requirements are ambiguous, stop and ask.
 5. Do not implement functionality outside the feature scope.
 6. Preserve existing behaviour unless requirements explicitly change it.
@@ -313,64 +353,12 @@ They are generic — none assume any specific application's data model.
 
 ## Feature Build Prompt
 
-Use this two-step prompt pattern when building a new feature from a spec.
-(`analyze-feature` above implements Step 1 directly as a skill — invoke it
-by name instead of re-typing this prompt.)
+Use the `analyze-feature` skill before implementing any non-trivial feature.
+It is the single source of truth for the read-only analysis/build-plan process,
+including progressive context selection and increment-scoped analysis.
 
-### Step 1 — Plan (read-only, no file changes)
-
-```
-Read `CLAUDE.md`.
-
-Then read the feature specification:
-
-`docs/features/<feature-name>.md`
-
-Do not modify any files.
-
-Treat this as a planning exercise only.
-
-Review the feature and produce a build plan containing the following sections:
-
-1. **Feature Summary**
-   * Summarize the feature in your own words.
-   * Identify the user value.
-
-2. **Requirements Review**
-   * Identify ambiguities, inconsistencies, or missing acceptance criteria.
-   * Suggest improvements to the feature specification.
-
-3. **Domain Review**
-   * Identify which parts of this application's domain model are involved.
-   * Identify any project-specific domain considerations.
-
-4. **Architecture Review**
-   * Describe the components, services, routes, and data model changes required.
-   * Explain how the implementation fits the existing architecture.
-
-5. **Implementation Plan**
-   * Break the work into logical implementation steps.
-   * Identify dependencies between the steps.
-   * Recommend any small refactorings that should occur first.
-
-6. **Testing Plan**
-   * Identify unit, component, and integration tests required.
-   * Map each acceptance criterion to one or more tests.
-
-7. **Risks**
-   * Identify technical risks.
-   * Identify future extensibility considerations.
-   * Recommend anything that should be deferred to a later increment.
-
-Do not implement any code.
-
-Wait for approval before making changes.
-```
-
-### Step 2 — Implement
-
-After the plan has been reviewed and the spec updated as needed, the
-trigger to proceed is:
+After the plan has been reviewed and the spec updated as needed, the trigger to
+proceed is:
 
 ```
 Implement.

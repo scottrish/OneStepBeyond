@@ -53,7 +53,6 @@ vi.mock("./services/workSessionService", () => ({
   listWorkSessionsForDate: vi.fn().mockResolvedValue([]),
   listWorkSessionsForStudent: vi.fn().mockResolvedValue([]),
   createWorkSessions: vi.fn(),
-  deletePlannedSessionsForDate: vi.fn(),
   deleteWorkSession: vi.fn(),
   updateWorkSessionStatus: vi.fn().mockResolvedValue(undefined),
 }));
@@ -154,6 +153,27 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: /^plan$/i }),
     ).toBeInTheDocument();
+  });
+
+  // docs/decisions/20260925-existing-day-view.md
+  it("the Plan tab opens on today's plan when today already has one", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(TODAY);
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: "student-1", email: "person@example.com" } as User,
+      signIn: vi.fn(),
+      signUp: vi.fn(),
+      signOut: vi.fn(),
+    });
+    mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+      { id: "s1", workItemId: "w1", date: TODAY_ISO, plannedMinutes: 30, startTime: "16:00", status: "planned" },
+    ]);
+
+    render(<App />);
+    await userEvent.click(screen.getByRole("button", { name: "Plan" }));
+
+    expect(await screen.findByRole("heading", { name: /today.s plan/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add more work/i })).toBeInTheDocument();
   });
 
   it("switches to the Assignments tab", async () => {

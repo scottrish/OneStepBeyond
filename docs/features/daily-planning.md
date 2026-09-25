@@ -130,10 +130,13 @@ reasoning and consequences.
   What Matters").
 - Candidates are open Work Items only (assignment not completed, item not
   completed), sorted by parent assignment's due date.
-- Confirming a plan replaces that day's *not-yet-started* planned sessions
-  (in-progress/done sessions are left alone) and records a Planning
-  Session (items planned, minutes planned) — a Domain Event
-  (`Plan Confirmed`), not silently mutated state.
+- Confirming a plan **adds** the chosen items to that day and records a
+  Planning Session (items and minutes added), a Domain Event (`Plan
+  Confirmed`), not silently mutated state. *(Amended 2026-09-25: this
+  used to **replace** the day's not-yet-started sessions. See
+  `docs/decisions/20260925-confirm-plan-appends.md`. The day's plan is
+  now edited per session in Plan's existing-day view:
+  `docs/decisions/20260925-existing-day-view.md`.)*
 - The student can remove an individual already-planned item without
   restarting the whole flow.
 

@@ -1,15 +1,13 @@
-import { Check } from "lucide-react";
+import { CalendarDays, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import MobileActionBar from "@/components/MobileActionBar";
 import EmptyState from "@/components/EmptyState";
 import { effortLabel } from "../../domain/effortPresets";
-import { dayLabel, dueRelativeLabel, timeLabel } from "../../domain/planningDate";
+import { dayLabel, dueRelativeLabel } from "../../domain/planningDate";
 import type { PlanningCandidate } from "../../domain/planningCandidates";
 import type { Activity } from "../../services/activityService";
 import type { Assignment } from "../../services/assignmentService";
-import type { WorkItem } from "../../services/workItemService";
-import type { WorkSession } from "../../services/workSessionService";
-import AlreadyPlannedList from "./AlreadyPlannedList";
+import DayContext from "./DayContext";
 import BreakdownNotice, { BreakdownList } from "./BreakdownNotice";
 
 type SelectStepProps = {
@@ -19,20 +17,6 @@ type SelectStepProps = {
   onOpenAssignment: (assignmentId: string) => void;
   courseName: (courseId: string) => string;
   commitments: Activity[];
-  workSessions: WorkSession[];
-  workItems: WorkItem[];
-  assignments: Assignment[];
-  movingSessionId: string | null;
-  moveTargetDate: string | null;
-  moveSubmitting: boolean;
-  moveError: string | null;
-  moveOverCapacity: boolean;
-  moveTargetCapacity: number | null;
-  onStartMove: (sessionId: string) => void;
-  onCancelMove: () => void;
-  onSetMoveTargetDate: (date: string) => void;
-  onConfirmMove: (session: WorkSession) => void;
-  onRemoveSession: (sessionId: string) => void;
   capacity: number;
   candidates: PlanningCandidate[];
   visibleCandidates: PlanningCandidate[];
@@ -45,6 +29,8 @@ type SelectStepProps = {
   chosenIds: string[];
   onToggleCandidate: (itemId: string, estimateMinutes: number) => void;
   scheduledElsewhere: Map<string, string>;
+  // workItemId -> minutes already planned (not done) on the chosen day.
+  plannedOnDay: Map<string, number>;
   showAll: boolean;
   onShowAll: () => void;
   onNext: () => void;
@@ -64,20 +50,6 @@ export default function SelectStep({
   onOpenAssignment,
   courseName,
   commitments,
-  workSessions,
-  workItems,
-  assignments,
-  movingSessionId,
-  moveTargetDate,
-  moveSubmitting,
-  moveError,
-  moveOverCapacity,
-  moveTargetCapacity,
-  onStartMove,
-  onCancelMove,
-  onSetMoveTargetDate,
-  onConfirmMove,
-  onRemoveSession,
   capacity,
   candidates,
   visibleCandidates,
@@ -90,6 +62,7 @@ export default function SelectStep({
   chosenIds,
   onToggleCandidate,
   scheduledElsewhere,
+  plannedOnDay,
   showAll,
   onShowAll,
   onNext,
@@ -100,62 +73,14 @@ export default function SelectStep({
         Let&rsquo;s plan {dayLabel(date, today)}.
       </h2>
 
-      {dueThatDay.length > 0 && (
-        <ul className="mb-3 flex flex-col gap-1">
-          {dueThatDay.map((assignment) => (
-            <li key={assignment.id}>
-              <button
-                type="button"
-                onClick={() => onOpenAssignment(assignment.id)}
-                className="inline-flex min-h-11 items-center gap-1.5 text-left text-sm text-foreground underline-offset-4 hover:underline"
-              >
-                Due: {assignment.title}{" "}
-                <span className="text-xs text-muted-foreground">
-                  {courseName(assignment.courseId)}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {commitments.length > 0 ? (
-        <ul className="flex flex-col gap-2">
-          {commitments.map((activity) => (
-            <li
-              key={activity.id}
-              className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm"
-            >
-              <span className="text-foreground">{activity.name}</span>
-              <span className="ml-auto text-muted-foreground">
-                {timeLabel(activity.startTime)}–{timeLabel(activity.finishTime)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-sm text-muted-foreground">Nothing else on that day.</p>
-      )}
-
-      <AlreadyPlannedList
-        workSessions={workSessions}
-        workItems={workItems}
-        assignments={assignments}
-        date={date}
-        today={today}
+      <DayContext
+        dueThatDay={dueThatDay}
+        commitments={commitments}
         courseName={courseName}
-        movingSessionId={movingSessionId}
-        moveTargetDate={moveTargetDate}
-        moveSubmitting={moveSubmitting}
-        moveError={moveError}
-        moveOverCapacity={moveOverCapacity}
-        moveTargetCapacity={moveTargetCapacity}
-        onStartMove={onStartMove}
-        onCancelMove={onCancelMove}
-        onSetMoveTargetDate={onSetMoveTargetDate}
-        onConfirmMove={onConfirmMove}
-        onRemoveSession={onRemoveSession}
+        onOpenAssignment={onOpenAssignment}
       />
+
+
 
       <p className="mt-4 text-sm text-muted-foreground">
         That leaves about{" "}
@@ -206,14 +131,29 @@ export default function SelectStep({
             {visibleCandidates.map(({ assignment, workItem }) => {
               const selected = workItem.id in chosen;
               const elsewhereDate = scheduledElsewhere.get(workItem.id);
+              // Already has a not-done session on this day: can't be added a
+              // second time (docs/decisions/20260925-confirm-plan-appends.md
+              // point 3; daily-planning-and-completion-v2-proposal.md 6b/6c).
+              // Shown with a dashed border and a note saying why, at full
+              // text contrast — not dimmed, since the row still carries
+              // information the student needs.
+              const minutesOnThisDay = plannedOnDay.get(workItem.id);
+              const onThisDay = minutesOnThisDay !== undefined;
+              const noteId = `planned-on-day-${workItem.id}`;
               return (
                 <li key={workItem.id}>
                   <button
                     type="button"
                     aria-pressed={selected}
+                    disabled={onThisDay}
+                    aria-describedby={onThisDay ? noteId : undefined}
                     onClick={() => onToggleCandidate(workItem.id, workItem.effortMinutes)}
-                    className={`flex min-h-11 w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors ${
-                      selected ? "border-primary bg-accent/60" : "border-border bg-card"
+                    className={`flex min-h-11 w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors disabled:cursor-not-allowed ${
+                      onThisDay
+                        ? "border-dashed border-border bg-muted/40"
+                        : selected
+                          ? "border-primary bg-accent/60"
+                          : "border-border bg-card"
                     }`}
                   >
                     <span
@@ -232,6 +172,16 @@ export default function SelectStep({
                         {assignment.title} · {courseName(assignment.courseId)} ·{" "}
                         {dueRelativeLabel(assignment.dueDate, today)}
                       </span>
+                      {onThisDay && (
+                        <span
+                          id={noteId}
+                          className="mt-1 flex items-center gap-1 text-xs font-medium text-primary"
+                        >
+                          <CalendarDays aria-hidden="true" className="size-3" />
+                          Planned {date === today ? "today" : "this day"} ·{" "}
+                          {effortLabel(minutesOnThisDay)}
+                        </span>
+                      )}
                       {elsewhereDate && (
                         <span className="mt-1 inline-block truncate rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                           Also planned for {dayLabel(elsewhereDate, today)}

@@ -88,6 +88,7 @@ function renderHomePage(overrides: Record<string, unknown> = {}) {
       user={user}
       onStartExecution={vi.fn()}
       onGoToPlan={vi.fn()}
+      onPlanWork={vi.fn()}
       onGoToAssignments={vi.fn()}
       onOpenAssignment={vi.fn()}
       onOpenCapture={vi.fn()}
@@ -618,6 +619,8 @@ describe("HomePage", () => {
       expect(screen.getByRole("button", { name: /break it down/i })).toBeInTheDocument();
     });
 
+    // Needs Attention actions mean "add work", so they go to Plan's Select
+    // rather than the day view (docs/decisions/20260925-existing-day-view.md).
     it("'Break it down' routes to Plan, the same as 'Find time'/'Make a plan', instead of opening Assignment Detail directly", async () => {
       // docs/features/home-dashboard-followthrough.md item 2 — Plan's own
       // Day step already shows every assignment needing a breakdown with
@@ -635,14 +638,14 @@ describe("HomePage", () => {
         },
       ]);
       mockedCourseService.listCourses.mockResolvedValue([course]);
-      const onGoToPlan = vi.fn();
+      const onPlanWork = vi.fn();
       const onOpenAssignment = vi.fn();
 
-      renderHomePage({ onGoToPlan, onOpenAssignment });
+      renderHomePage({ onPlanWork, onOpenAssignment });
 
       await userEvent.click(await screen.findByRole("button", { name: /break it down/i }));
 
-      expect(onGoToPlan).toHaveBeenCalledTimes(1);
+      expect(onPlanWork).toHaveBeenCalledTimes(1);
       expect(onOpenAssignment).not.toHaveBeenCalled();
     });
 
@@ -669,9 +672,9 @@ describe("HomePage", () => {
       ]);
       mockedCourseService.listCourses.mockResolvedValue([course]);
       const onOpenAssignment = vi.fn();
-      const onGoToPlan = vi.fn();
+      const onPlanWork = vi.fn();
 
-      renderHomePage({ onOpenAssignment, onGoToPlan });
+      renderHomePage({ onOpenAssignment, onPlanWork });
 
       await screen.findByText(/needs attention/i);
       // "Big project" (due first) is the primary card; "Smaller project"
@@ -686,7 +689,7 @@ describe("HomePage", () => {
       // One for the primary card, one for the secondary row.
       expect(secondaryActionButtons).toHaveLength(2);
       await userEvent.click(secondaryActionButtons[1]!);
-      expect(onGoToPlan).toHaveBeenCalledTimes(1);
+      expect(onPlanWork).toHaveBeenCalledTimes(1);
     });
 
     it("opens Assignment Detail when the Needs Attention item's title is tapped", async () => {

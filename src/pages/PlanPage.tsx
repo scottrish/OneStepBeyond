@@ -10,7 +10,7 @@ import {
 } from "../domain/planningDate";
 import { rankCandidates } from "../domain/planningCandidates";
 import { activitiesOn, availableMinutes, studySlots } from "../domain/studyCapacity";
-import type { StudySlot } from "../domain/studyCapacity";
+import { defaultStartTimes, toMinutes } from "../domain/defaultStartTimes";
 import { useActivities } from "../hooks/useActivities";
 import { useAllWorkSessions } from "../hooks/useAllWorkSessions";
 import { useAssignmentsList } from "../hooks/useAssignmentsList";
@@ -23,6 +23,8 @@ import * as workSessionService from "../services/workSessionService";
 import type { Assignment } from "../services/assignmentService";
 import type { WorkSession } from "../services/workSessionService";
 import ConfirmStep from "./plan/ConfirmStep";
+import DayView from "./plan/DayView";
+import SessionSheet from "./plan/SessionSheet";
 import EstimateStep from "./plan/EstimateStep";
 import ScheduleStep from "./plan/ScheduleStep";
 import SelectStep from "./plan/SelectStep";
@@ -38,17 +40,17 @@ import WorkBreakdownPage from "./WorkBreakdownPage";
 // just-confirmed acknowledgment) stays local: FR-2's acceptance criteria
 // only require the day/step to survive, not in-progress selections.
 //
-// There used to be a standalone "day" step before "select" — a full
-// screen (day-picker context, due-that-day, Activities, Already planned,
-// capacity) gated behind its own "Continue" tap. Removed: the day-picker
-// itself was already hoisted above this union's steps and visible on
-// every one of them, so "day" wasn't where a day got chosen — it was
-// only ever a mandatory look-before-you-select screen for whichever date
-// was already selected (today, by default, for the dominant case). See
-// docs/decisions/20260818-plan-day-step-removed.md. Its content now
-// renders as Select's own header, unconditionally, with no gate in front
-// of it.
-export type Step = "select" | "estimate" | "schedule" | "confirm";
+// "day" is the chosen day's *landing* view, not a numbered wizard step:
+// it renders the existing-day view when the day already has unfinished
+// work, and Select otherwise (docs/decisions/20260925-existing-day-view.md).
+// Picking a day, confirming, and fresh entries set "day"; entries that
+// mean "add work" (the day view's own Add more work, Assignment Detail's
+// "Plan work for today", Home's Needs Attention actions) set "select"
+// directly. Deciding at render time, rather than redirecting after the
+// day's sessions load, means no flash of the wrong view. (The old,
+// always-shown "day" gate removed by 20260818-plan-day-step-removed.md is
+// not coming back: an empty day still lands straight on Select.)
+export type Step = "day" | "select" | "estimate" | "schedule" | "confirm";
 // Which of Plan's two top-level tabs is showing — the wizard, or
 // week-lookahead.md's own "Look ahead" view. Controlled/lifted for the
 // same reason date/step are (see PlanPageProps.tab below).
@@ -101,7 +103,7 @@ type PlanPageProps = {
 // selections already have.
 type View = { name: "wizard" } | { name: "breakdown"; assignmentId: string };
 
-const STEP_LABEL: Record<Step, string> = {
+const STEP_LABEL: Record<Exclude<Step, "day">, string> = {
   select: "Step 1 of 4",
   estimate: "Step 2 of 4",
   schedule: "Step 3 of 4",
@@ -113,36 +115,6 @@ const STEP_LABEL: Record<Step, string> = {
 // mentions, week-lookahead.md's own separate 7-day view).
 const DAY_STRIP_LENGTH = 5;
 
-
-/** Default each chosen item into the first open slot with room, in order. */
-function assignDefaultTimes(
-  chosenIds: string[],
-  chosen: Record<string, number>,
-  slots: StudySlot[],
-): Record<string, string> {
-  const next: Record<string, string> = {};
-  let slotIndex = 0;
-  let cursor = slots[0]?.start;
-
-  for (const id of chosenIds) {
-    const slot = slots[slotIndex];
-    next[id] = cursor ?? slot?.start ?? "16:00";
-    const minutes = chosen[id] ?? 0;
-    if (slot) {
-      const [h, m] = (cursor ?? slot.start).split(":").map(Number);
-      const end = (h ?? 0) * 60 + (m ?? 0) + minutes;
-      const [fh, fm] = slot.finish.split(":").map(Number);
-      if (end >= (fh ?? 0) * 60 + (fm ?? 0) && slotIndex < slots.length - 1) {
-        slotIndex += 1;
-        cursor = slots[slotIndex]?.start;
-      } else {
-        cursor = `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
-      }
-    }
-  }
-
-  return next;
-}
 
 export default function PlanPage({
   user,
@@ -164,6 +136,11 @@ export default function PlanPage({
   const [times, setTimes] = useState<Record<string, string>>({});
   const [showAll, setShowAll] = useState(false);
   const [justConfirmed, setJustConfirmed] = useState(false);
+  // Keeps the day view showing after the student removes the day's last
+  // session from it ("Nothing planned for this day yet."), instead of the
+  // screen switching to Select underneath them. Cleared by leaving the
+  // day (another day picked, Add more work, Done).
+  const [stayOnDayViewFor, setStayOnDayViewFor] = useState<string | null>(null);
   const [planningAssignmentId, setPlanningAssignmentId] = useState<string | null>(null);
   const [planDirectlyError, setPlanDirectlyError] = useState<string | null>(null);
   const [movingSessionId, setMovingSessionId] = useState<string | null>(null);
@@ -257,6 +234,21 @@ export default function PlanPage({
     return map;
   }, [allSessions, date]);
 
+  // Work items that already have a not-done session on the chosen day,
+  // with their total minutes — Select marks these "Planned today" and
+  // won't let them be added again (items 6b/6c of
+  // docs/features/daily-planning-and-completion-v2-proposal.md; needed now
+  // that confirming appends — docs/decisions/20260925-confirm-plan-appends.md).
+  const plannedOnDay = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const session of workSessions) {
+      if (session.date === date && session.status !== "done") {
+        map.set(session.workItemId, (map.get(session.workItemId) ?? 0) + session.plannedMinutes);
+      }
+    }
+    return map;
+  }, [workSessions, date]);
+
   const capacity = availableMinutes(activities, workSessions, date, preferences);
   const commitments = activitiesOn(activities, date);
   const dueThatDay = assignments.filter(
@@ -294,16 +286,48 @@ export default function PlanPage({
   // Estimate, Schedule, or Confirm screen.
   const safeStep: Step =
     (step === "estimate" || step === "schedule" || step === "confirm") && chosenIds.length === 0
-      ? "select"
+      ? "day"
       : step;
+
+  // The day's landing view: its plan if it has unfinished work (or the
+  // student just emptied it from the day view), otherwise Select.
+  const dayHasPlan = workSessions.some(
+    (session) => session.date === date && session.status !== "done",
+  );
+  const showDayView = safeStep === "day" && (dayHasPlan || stayOnDayViewFor === date);
+  const wizardStep: Exclude<Step, "day"> = safeStep === "day" ? "select" : safeStep;
 
   function pickDay(nextDate: string) {
     onDateChange(nextDate);
-    onStepChange("select");
+    onStepChange("day");
     setChosen({});
     setTimes({});
     setShowAll(false);
     setJustConfirmed(false);
+    setStayOnDayViewFor(null);
+    cancelMove();
+  }
+
+  // The day view's "Add more work": the wizard for the same day. Confirming
+  // adds to what's already there (docs/decisions/20260925-confirm-plan-appends.md).
+  function addMoreWork() {
+    setChosen({});
+    setTimes({});
+    setShowAll(false);
+    setJustConfirmed(false);
+    setStayOnDayViewFor(null);
+    onStepChange("select");
+  }
+
+  // Removing from the day view (its edit sheet, or a swipe). Pins the day
+  // view so removing the last session doesn't swap the screen for Select.
+  async function removeFromDay(session: WorkSession) {
+    setStayOnDayViewFor(date);
+    const removed = await removeSession(session.id);
+    if (removed) {
+      cancelMove();
+      refetchAllSessions();
+    }
   }
 
   // The alternative to "Break down ..." offered by BreakdownList/Notice:
@@ -358,6 +382,9 @@ export default function PlanPage({
 
   async function confirmMove(session: WorkSession) {
     if (!moveTargetDate) return;
+    // Moving the day's last session away shouldn't swap the day view for
+    // Select underneath the student (same as removeFromDay).
+    setStayOnDayViewFor(date);
     setMoveSubmitting(true);
     setMoveError(null);
     try {
@@ -400,8 +427,32 @@ export default function PlanPage({
     setChosen((prev) => ({ ...prev, [itemId]: Math.max(5, (prev[itemId] ?? 0) + delta) }));
   }
 
+  // Confirming *adds* to the day (docs/decisions/
+  // 20260925-confirm-plan-appends.md), so new work defaults after what's
+  // already there: the day's existing sessions and its activities
+  // (with travel), not just the study windows.
   function enterSchedule() {
-    setTimes(assignDefaultTimes(chosenIds, chosen, slots));
+    const existing = workSessions
+      .filter((session) => session.date === date && session.startTime)
+      .map((session) => {
+        const start = toMinutes(session.startTime!);
+        return { start, end: start + session.plannedMinutes };
+      });
+    const busy = [
+      ...existing,
+      ...commitments.map((activity) => ({
+        start: toMinutes(activity.startTime) - activity.travelToMinutes,
+        end: toMinutes(activity.finishTime) + activity.travelFromMinutes,
+      })),
+    ];
+    setTimes(
+      defaultStartTimes(
+        chosenIds.map((id) => ({ id, minutes: chosen[id] ?? 0 })),
+        slots,
+        busy,
+        Math.max(0, ...existing.map((block) => block.end)),
+      ),
+    );
     onStepChange("schedule");
   }
 
@@ -418,7 +469,13 @@ export default function PlanPage({
     // features) — show an inline success acknowledgment instead. See
     // docs/decisions/20260816-daily-planning-confirm-write-order.md.
     if (succeeded) {
+      // Land on the day's plan, now including what was just added, with a
+      // short "Plan confirmed." note (docs/decisions/
+      // 20260925-existing-day-view.md point 4).
+      setChosen({});
+      setTimes({});
       setJustConfirmed(true);
+      onStepChange("day");
       // Otherwise scheduledElsewhere wouldn't know about this session
       // until a fresh page load — see FINDING-DP-003.
       refetchAllSessions();
@@ -457,9 +514,9 @@ export default function PlanPage({
           its own line above the step, saving vertical space on phones. */}
       <div className="mb-1 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
         <h1 className="text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">Plan</h1>
-        {tab !== "lookahead" && !loading && !loadError && (
+        {tab !== "lookahead" && !loading && !loadError && !showDayView && (
           <span className="mt-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
-            {STEP_LABEL[safeStep]}
+            {STEP_LABEL[wizardStep]}
           </span>
         )}
       </div>
@@ -550,7 +607,26 @@ export default function PlanPage({
 
           {!loading && !loadError && (
             <>
-              {safeStep === "select" ? (
+              {showDayView ? (
+            <DayView
+              date={date}
+              today={today}
+              capacity={capacity}
+              dueThatDay={dueThatDay}
+              commitments={commitments}
+              workSessions={workSessions}
+              workItems={workItems}
+              assignments={assignments}
+              courseName={courseName}
+              justConfirmed={justConfirmed}
+              onOpenAssignment={onOpenAssignment}
+              onEditSession={startMove}
+              onRemoveSession={removeFromDay}
+              onStartExecution={onStartExecution}
+              onAddMore={addMoreWork}
+              onDone={() => onTabChange("lookahead")}
+            />
+          ) : wizardStep === "select" ? (
             <SelectStep
               date={date}
               today={today}
@@ -558,20 +634,6 @@ export default function PlanPage({
               onOpenAssignment={onOpenAssignment}
               courseName={courseName}
               commitments={commitments}
-              workSessions={workSessions}
-              workItems={workItems}
-              assignments={assignments}
-              movingSessionId={movingSessionId}
-              moveTargetDate={moveTargetDate}
-              moveSubmitting={moveSubmitting}
-              moveError={moveError}
-              moveOverCapacity={moveOverCapacity}
-              moveTargetCapacity={moveTargetCapacity}
-              onStartMove={startMove}
-              onCancelMove={cancelMove}
-              onSetMoveTargetDate={setMoveTargetDate}
-              onConfirmMove={confirmMove}
-              onRemoveSession={removeSession}
               capacity={capacity}
               candidates={candidates}
               visibleCandidates={visibleCandidates}
@@ -584,11 +646,12 @@ export default function PlanPage({
               chosenIds={chosenIds}
               onToggleCandidate={toggleCandidate}
               scheduledElsewhere={scheduledElsewhere}
+              plannedOnDay={plannedOnDay}
               showAll={showAll}
               onShowAll={() => setShowAll(true)}
               onNext={() => onStepChange("estimate")}
             />
-          ) : safeStep === "estimate" ? (
+          ) : wizardStep === "estimate" ? (
             <EstimateStep
               chosenIds={chosenIds}
               candidates={candidates}
@@ -602,7 +665,7 @@ export default function PlanPage({
               onBack={() => onStepChange("select")}
               onNext={enterSchedule}
             />
-          ) : safeStep === "schedule" ? (
+          ) : wizardStep === "schedule" ? (
             <ScheduleStep
               chosenIds={chosenIds}
               candidates={candidates}
@@ -616,7 +679,6 @@ export default function PlanPage({
             />
           ) : (
             <ConfirmStep
-              justConfirmed={justConfirmed}
               date={date}
               today={today}
               planned={planned}
@@ -626,8 +688,7 @@ export default function PlanPage({
               chosen={chosen}
               candidates={candidates}
               courseName={courseName}
-              onStartExecution={onStartExecution}
-              onPlanAnotherDay={() => pickDay(date)}
+              addingToExisting={dayHasPlan}
               onAdjust={() => onStepChange("select")}
               onFinish={finish}
             />
@@ -636,6 +697,24 @@ export default function PlanPage({
           )}
         </>
       )}
+
+      <SessionSheet
+        session={movingSession}
+        title={
+          workItems.find((item) => item.id === movingSession?.workItemId)?.title ?? "Study session"
+        }
+        date={date}
+        today={today}
+        moveTargetDate={moveTargetDate}
+        moveSubmitting={moveSubmitting}
+        moveError={moveError}
+        moveOverCapacity={moveOverCapacity}
+        moveTargetCapacity={moveTargetCapacity}
+        onSetMoveTargetDate={setMoveTargetDate}
+        onConfirmMove={confirmMove}
+        onRemove={removeFromDay}
+        onClose={cancelMove}
+      />
     </div>
   );
 }

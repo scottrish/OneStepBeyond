@@ -1,6 +1,11 @@
 # Feature: Daily Planning & Completion — Prototype Sync (v2 proposal)
 
-**Status:** Proposed, not yet approved. Produced from a prototype-sync
+**Status:** Partly implemented. **Item 10** (existing-day view) and
+**items 6b/6c** (Select's "Planned today" note and same-day disable) were
+built 2026-09-25 as roadmap Phase 7 step 9, together with append-only
+confirm (`docs/decisions/20260925-existing-day-view.md`,
+`20260925-confirm-plan-appends.md`). Everything else is still proposed,
+not yet approved. Produced from a prototype-sync
 audit of `../OneStepBeyondPrototype` (baseline commit `834368f`, the
 prototype's state when this app's specs were last synced from it on
 2026-08-18/20; `main` HEAD `744026a` as of 2026-09-24 — roughly five
@@ -399,6 +404,12 @@ needs to track separately at most schools.
 
 ### 6. Select: full list, "Planned today" note, and same-day items disabled — two explicit decisions
 
+> **6b and 6c implemented 2026-09-25** with item 10: they became
+> prerequisites once confirm appends. The disabled row keeps full text
+> contrast (a dashed border and the note, not the prototype's 60%
+> opacity), and the note is the row's `aria-describedby`. **6a** (drop the
+> three-candidate cap) is still undecided.
+
 Three related changes to how Select handles work that's already on the
 chosen day. Two of them reverse an existing criterion or the
 prototype's own earlier stance, so they're flagged for decision rather
@@ -528,6 +539,28 @@ to at least 44 px. Both are specified in
 so references to items 10+ stay stable.
 
 ### 10. Existing-day view: Plan opens on the day's plan when one exists
+
+> **Implemented 2026-09-25** (tag `v-pre-existing-day-view` marks the
+> state before). As built, the spec below is refined by the two decision
+> records above:
+> - **Confirm appends** rather than replaces (the blocking finding in
+>   analysis: replace would have deleted the existing plan on "Add more
+>   work"), and new work's default times start *after* the day's last
+>   session, skipping activities.
+> - **"Looks good" lands on the day view** with "Plan confirmed." and,
+>   for today, a **Start today's plan** button at the top of the view.
+>   It isn't in the action bar, which holds Add more work / Done and
+>   would overflow at 320 px.
+> - **Landing is decided at render time:** `Step` gained `"day"`,
+>   meaning the chosen day's landing view. Picking a day, confirming,
+>   and fresh entries use it. Add more work, Assignment Detail's "Plan
+>   work for today", and Home's Needs Attention actions go straight to
+>   Select.
+> - **The edit sheet** holds Move to another day and Remove for now.
+>   Retime and Earlier/Later arrive with item 2 (roadmap step 10).
+>   Started sessions are read-only in the day view, like done ones.
+> - **Removing or moving the day's last session** keeps the (now empty)
+>   day view, rather than switching to Select underneath the student.
 
 **Partly reopens `docs/decisions/20260818-plan-day-step-removed.md`.
 Needs product sign-off.** Source:

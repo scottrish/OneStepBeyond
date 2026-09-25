@@ -48,8 +48,11 @@ export function useDailyPlanning(studentId: string, date: string) {
   async function confirmPlan(items: PlanItem[]): Promise<boolean> {
     setActionError(null);
     try {
-      await workSessionService.deletePlannedSessionsForDate(studentId, date);
-
+      // Append-only: confirming adds this pass's items to the day and never
+      // deletes what's already planned — docs/decisions/
+      // 20260925-confirm-plan-appends.md (superseding the delete-then-insert
+      // replace of 20260816-daily-planning-confirm-write-order.md point 1).
+      // The plan itself is edited per session in Plan's day view.
       const created = await workSessionService.createWorkSessions(
         studentId,
         items.map((item) => ({
@@ -66,15 +69,13 @@ export function useDailyPlanning(studentId: string, date: string) {
         minutesPlanned: items.reduce((sum, item) => sum + item.plannedMinutes, 0),
       });
 
-      setWorkSessions((prev) => [
-        ...prev.filter((session) => session.status !== "planned"),
-        ...created,
-      ]);
+      setWorkSessions((prev) => [...prev, ...created]);
       return true;
     } catch (error) {
       setActionError(errorMessage(error));
-      // State may now disagree with the server (e.g. delete succeeded
-      // but insert failed) — reload rather than trust local state.
+      // State may now disagree with the server (e.g. the insert succeeded
+      // but recording the planning session failed) — reload rather than
+      // trust local state.
       refetchSessions();
       return false;
     }

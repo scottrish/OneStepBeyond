@@ -98,23 +98,6 @@ export async function createWorkSessions(
   return (data ?? []).map(toWorkSession);
 }
 
-// Confirming a plan replaces that date's *not-yet-started* sessions only
-// — in-progress/done sessions are left alone
-// (docs/features/daily-planning.md's functional requirements).
-export async function deletePlannedSessionsForDate(
-  studentId: string,
-  date: string,
-): Promise<void> {
-  const { error } = await supabase
-    .from("work_sessions")
-    .delete()
-    .eq("student_id", studentId)
-    .eq("date", date)
-    .eq("status", "planned");
-
-  if (error) throw error;
-}
-
 // The Day step's "remove" affordance for a single already-planned item,
 // and Today Execution's "I'm stuck" -> "Move to tomorrow" defer action
 // (docs/features/today-execution.md: deferred sessions "drop out of

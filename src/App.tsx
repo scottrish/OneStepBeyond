@@ -54,7 +54,9 @@ export default function App() {
   // holds effortful multi-step progress worth preserving even across a
   // re-tap.
   const [planDate, setPlanDate] = useState(() => todayISODate());
-  const [planStep, setPlanStep] = useState<Step>("select");
+  // "day" = the chosen day's landing view: its existing plan if it has one,
+  // otherwise Select (docs/decisions/20260925-existing-day-view.md).
+  const [planStep, setPlanStep] = useState<Step>("day");
   // Which of Plan's two top-level tabs (the wizard, or week-lookahead.md's
   // "Look ahead" view) is showing — lifted for the same reason as
   // planDate/planStep above: discovered live while testing the Assignment
@@ -117,6 +119,14 @@ export default function App() {
   // async load).
   function handleGoToPlanToday() {
     setPlanDate(todayISODate());
+    setPlanStep("select");
+    handleTabChange("plan");
+  }
+
+  // Home's Needs Attention actions ("Find time", "Make a plan") mean "add
+  // work", so they skip the day view and open Select on whatever day Plan
+  // is showing (docs/decisions/20260925-existing-day-view.md point 3).
+  function handleGoToPlanToAddWork() {
     setPlanStep("select");
     handleTabChange("plan");
   }
@@ -222,6 +232,7 @@ export default function App() {
                 user={user}
                 onStartExecution={() => setExecutingToday(true)}
                 onGoToPlan={() => handleTabChange("plan")}
+                onPlanWork={handleGoToPlanToAddWork}
                 onGoToAssignments={() => handleTabChange("assignments")}
                 onOpenAssignment={setOpenAssignmentId}
                 onOpenCapture={() => setSecondary("capture")}

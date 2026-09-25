@@ -34,7 +34,6 @@ vi.mock("../services/workSessionService", () => ({
   listWorkSessionsForDate: vi.fn(),
   listWorkSessionsForStudent: vi.fn(),
   createWorkSessions: vi.fn(),
-  deletePlannedSessionsForDate: vi.fn(),
   deleteWorkSession: vi.fn(),
 }));
 vi.mock("../services/planningSessionService", () => ({
@@ -78,7 +77,6 @@ const mockedWorkSessionService = workSessionService as unknown as {
   listWorkSessionsForDate: ReturnType<typeof vi.fn>;
   listWorkSessionsForStudent: ReturnType<typeof vi.fn>;
   createWorkSessions: ReturnType<typeof vi.fn>;
-  deletePlannedSessionsForDate: ReturnType<typeof vi.fn>;
   deleteWorkSession: ReturnType<typeof vi.fn>;
 };
 const mockedPlanningSessionService = planningSessionService as unknown as {
@@ -109,14 +107,18 @@ function ControlledPlanPage({
   onStartExecution = vi.fn(),
   onGoToAssignments = vi.fn(),
   onOpenAssignment = vi.fn(),
+  initialStep = "day",
 }: {
   user: User;
   onStartExecution?: () => void;
   onGoToAssignments?: () => void;
   onOpenAssignment?: (assignmentId: string) => void;
+  // Matches App.tsx's default: the chosen day's landing view
+  // (docs/decisions/20260925-existing-day-view.md).
+  initialStep?: Step;
 }) {
   const [date, setDate] = useState(TODAY_ISO);
-  const [step, setStep] = useState<Step>("select");
+  const [step, setStep] = useState<Step>(initialStep);
   const [tab, setTab] = useState<PlanTab>("wizard");
   return (
     <PlanPage
@@ -323,22 +325,23 @@ describe("PlanPage", () => {
 
     render(<ControlledPlanPage user={user} />);
 
-    // Scoped to the "Already planned" list specifically — the same work
-    // item is also a real, still-selectable candidate further down this
-    // same merged screen (docs/decisions/20260818-plan-day-step-removed.md),
-    // so its title/course legitimately appear twice on the page now.
-    const alreadyPlannedHeading = await screen.findByText(/already planned/i);
-    const alreadyPlannedList = alreadyPlannedHeading.nextElementSibling as HTMLElement;
-    expect(within(alreadyPlannedList).getByText("Draft outline")).toBeInTheDocument();
-    expect(within(alreadyPlannedList).getByText(/essay · biology/i)).toBeInTheDocument();
+    // A day with a plan opens on its existing-day view (docs/decisions/
+    // 20260925-existing-day-view.md), listing each session with its
+    // assignment and course; removing goes through its edit sheet.
+    expect(await screen.findByRole("heading", { name: /today.s plan/i })).toBeInTheDocument();
+    expect(screen.getByText("Draft outline")).toBeInTheDocument();
+    expect(screen.getByText(/essay · biology/i)).toBeInTheDocument();
 
+    await userEventInstance.click(screen.getByRole("button", { name: "Edit Draft outline" }));
     await userEventInstance.click(
-      screen.getByRole("button", { name: /remove draft outline/i }),
+      await screen.findByRole("button", { name: /remove from this day/i }),
     );
 
     await waitFor(() =>
       expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("session-1"),
     );
+    // Removing the day's last session stays on the day view, now empty.
+    expect(await screen.findByText(/nothing planned for this day yet/i)).toBeInTheDocument();
   });
 
   // docs/features/iterations/daily-planning/daily-planning.i04.md FR-3
@@ -372,11 +375,10 @@ describe("PlanPage", () => {
       });
 
       render(<ControlledPlanPage user={user} />);
-      expect(await screen.findByText(/already planned/i)).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: /today.s plan/i })).toBeInTheDocument();
 
-      await userEventInstance.click(
-        screen.getByRole("button", { name: /move draft outline to another day/i }),
-      );
+      // Moving now lives in the session's edit sheet, opened from the day view.
+      await userEventInstance.click(screen.getByRole("button", { name: "Edit Draft outline" }));
 
       const movePicker = screen.getByRole("radiogroup", {
         name: /choose a day to move draft outline to/i,
@@ -398,8 +400,12 @@ describe("PlanPage", () => {
       await waitFor(() =>
         expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("session-1"),
       );
-      // The move panel closes once the move succeeds.
-      expect(screen.queryByRole("button", { name: /move here/i })).not.toBeInTheDocument();
+      // The sheet closes once the move succeeds, and the day view stays
+      // (now empty) rather than switching to Select underneath.
+      await waitFor(() =>
+        expect(screen.queryByRole("button", { name: /move here/i })).not.toBeInTheDocument(),
+      );
+      expect(screen.getByText(/nothing planned for this day yet/i)).toBeInTheDocument();
     });
 
     it("shows a calm, non-blocking over-capacity notice for the target day before confirming a move", async () => {
@@ -424,11 +430,10 @@ describe("PlanPage", () => {
       });
 
       render(<ControlledPlanPage user={user} />);
-      expect(await screen.findByText(/already planned/i)).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: /today.s plan/i })).toBeInTheDocument();
 
-      await userEventInstance.click(
-        screen.getByRole("button", { name: /move draft outline to another day/i }),
-      );
+      // Moving now lives in the session's edit sheet, opened from the day view.
+      await userEventInstance.click(screen.getByRole("button", { name: "Edit Draft outline" }));
       const movePicker = screen.getByRole("radiogroup", {
         name: /choose a day to move draft outline to/i,
       });
@@ -439,7 +444,7 @@ describe("PlanPage", () => {
       expect(screen.getByRole("button", { name: /move here/i })).toBeEnabled();
     });
 
-    it("cancel closes the move panel without touching the server", async () => {
+    it("closing the sheet cancels the move without touching the server", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
       mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
       mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
@@ -457,16 +462,17 @@ describe("PlanPage", () => {
       });
 
       render(<ControlledPlanPage user={user} />);
-      expect(await screen.findByText(/already planned/i)).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: /today.s plan/i })).toBeInTheDocument();
 
-      await userEventInstance.click(
-        screen.getByRole("button", { name: /move draft outline to another day/i }),
+      // Moving now lives in the session's edit sheet, opened from the day view.
+      await userEventInstance.click(screen.getByRole("button", { name: "Edit Draft outline" }));
+      expect(await screen.findByRole("button", { name: /move here/i })).toBeInTheDocument();
+
+      await userEventInstance.keyboard("{Escape}");
+
+      await waitFor(() =>
+        expect(screen.queryByRole("button", { name: /move here/i })).not.toBeInTheDocument(),
       );
-      expect(screen.getByRole("button", { name: /move here/i })).toBeInTheDocument();
-
-      await userEventInstance.click(screen.getByRole("button", { name: /^cancel$/i }));
-
-      expect(screen.queryByRole("button", { name: /move here/i })).not.toBeInTheDocument();
       expect(mockedWorkSessionService.createWorkSessions).not.toHaveBeenCalled();
       expect(mockedWorkSessionService.deleteWorkSession).not.toHaveBeenCalled();
     });
@@ -509,7 +515,6 @@ describe("PlanPage", () => {
     mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
       workItem({ id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 20 }),
     ]);
-    mockedWorkSessionService.deletePlannedSessionsForDate.mockResolvedValue(undefined);
     mockedWorkSessionService.createWorkSessions.mockResolvedValue([
       {
         id: "session-1",
@@ -548,15 +553,13 @@ describe("PlanPage", () => {
 
     await userEventInstance.click(screen.getByRole("button", { name: /looks good/i }));
 
+    // Append-only confirm (docs/decisions/20260925-confirm-plan-appends.md):
+    // inserts the new items and never deletes the day's existing plan.
     await waitFor(() =>
-      expect(mockedWorkSessionService.deletePlannedSessionsForDate).toHaveBeenCalledWith(
-        "student-1",
-        "2026-03-16",
-      ),
+      expect(mockedWorkSessionService.createWorkSessions).toHaveBeenCalledWith("student-1", [
+        { workItemId: "w1", date: "2026-03-16", plannedMinutes: 25, startTime: "15:15" },
+      ]),
     );
-    expect(mockedWorkSessionService.createWorkSessions).toHaveBeenCalledWith("student-1", [
-      { workItemId: "w1", date: "2026-03-16", plannedMinutes: 25, startTime: "15:15" },
-    ]);
     expect(mockedPlanningSessionService.recordPlanningSession).toHaveBeenCalledWith(
       "student-1",
       { date: "2026-03-16", itemsPlanned: 1, minutesPlanned: 25 },
@@ -981,8 +984,7 @@ describe("PlanPage", () => {
       mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
         workItem({ id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 20 }),
       ]);
-      mockedWorkSessionService.deletePlannedSessionsForDate.mockResolvedValue(undefined);
-      const createdSession = {
+        const createdSession = {
         id: "session-1",
         workItemId: "w1",
         date: "2026-03-16",
@@ -1149,8 +1151,7 @@ describe("PlanPage", () => {
       mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
         workItem({ id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 20 }),
       ]);
-      mockedWorkSessionService.deletePlannedSessionsForDate.mockResolvedValue(undefined);
-      mockedWorkSessionService.createWorkSessions.mockResolvedValue([
+        mockedWorkSessionService.createWorkSessions.mockResolvedValue([
         {
           id: "session-1",
           workItemId: "w1",
@@ -1240,6 +1241,172 @@ describe("PlanPage", () => {
 
       await userEventInstance.click(await screen.findByRole("button", { name: /due: essay/i }));
       expect(onOpenAssignment).toHaveBeenCalledWith("a1");
+    });
+  });
+
+  // docs/decisions/20260925-existing-day-view.md and
+  // docs/decisions/20260925-confirm-plan-appends.md
+  describe("existing-day view", () => {
+    const planned = {
+      id: "session-1",
+      workItemId: "w1",
+      date: TODAY_ISO,
+      plannedMinutes: 30,
+      startTime: "16:00",
+      status: "planned" as const,
+    };
+
+    function twoItems() {
+      mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        workItem(),
+        workItem({ id: "w2", title: "Write intro", effortMinutes: 20, position: 1 }),
+      ]);
+    }
+
+    it("an empty day lands on Select (Step 1 of 4), not the day view", async () => {
+      twoItems();
+      render(<ControlledPlanPage user={user} />);
+
+      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: /today.s plan/i })).not.toBeInTheDocument();
+    });
+
+    it("a day with a plan lands on the day view, with no step label and the session's time over its length", async () => {
+      twoItems();
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([planned]);
+      render(<ControlledPlanPage user={user} />);
+
+      expect(await screen.findByRole("heading", { name: /today.s plan/i })).toBeInTheDocument();
+      expect(screen.queryByText(/step \d of 4/i)).not.toBeInTheDocument();
+      expect(screen.getByText("4:00 PM")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Start today’s plan" })).toBeInTheDocument();
+    });
+
+    it("a day with only done sessions lands on Select", async () => {
+      twoItems();
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        { ...planned, status: "done" as const },
+      ]);
+      render(<ControlledPlanPage user={user} />);
+
+      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
+    });
+
+    it("done and started sessions are read-only in the day view", async () => {
+      twoItems();
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        { ...planned, status: "in_progress" as const },
+        { ...planned, id: "session-2", workItemId: "w2", startTime: "17:00", status: "done" as const },
+      ]);
+      render(<ControlledPlanPage user={user} />);
+
+      await screen.findByRole("heading", { name: /today.s plan/i });
+      expect(screen.queryByRole("button", { name: /^edit /i })).not.toBeInTheDocument();
+      expect(document.querySelector("[data-swipe-content]")).toBeNull();
+    });
+
+    it("Add more work opens Select for the same day, where the already-planned task is marked and can't be picked again", async () => {
+      twoItems();
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([planned]);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<ControlledPlanPage user={user} />);
+
+      await userEventInstance.click(await screen.findByRole("button", { name: /add more work/i }));
+
+      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
+      const plannedRow = screen.getByRole("button", { name: /draft outline/i });
+      expect(plannedRow).toBeDisabled();
+      expect(plannedRow).toHaveAccessibleDescription(/planned today · 30m/i);
+      expect(screen.getByRole("button", { name: /write intro/i })).toBeEnabled();
+    });
+
+    it("confirming added work appends it after the existing plan and lands back on the day view", async () => {
+      twoItems();
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([planned]);
+      const added = {
+        id: "session-2",
+        workItemId: "w2",
+        date: TODAY_ISO,
+        plannedMinutes: 20,
+        startTime: "16:30",
+        status: "planned" as const,
+      };
+      mockedWorkSessionService.createWorkSessions.mockResolvedValue([added]);
+      mockedPlanningSessionService.recordPlanningSession.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<ControlledPlanPage user={user} />);
+
+      await userEventInstance.click(await screen.findByRole("button", { name: /add more work/i }));
+      await userEventInstance.click(await screen.findByRole("button", { name: /write intro/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: /next: estimate time/i }));
+      await userEventInstance.click(await screen.findByRole("button", { name: /next: when/i }));
+      await userEventInstance.click(await screen.findByRole("button", { name: /next: review/i }));
+
+      // Only the new item is listed, so the heading says it's being added.
+      expect(await screen.findByRole("heading", { name: /adding to today.s plan/i })).toBeInTheDocument();
+      await userEventInstance.click(screen.getByRole("button", { name: /looks good/i }));
+
+      // Default time goes after the existing 4:00–4:30 session.
+      await waitFor(() =>
+        expect(mockedWorkSessionService.createWorkSessions).toHaveBeenCalledWith("student-1", [
+          { workItemId: "w2", date: TODAY_ISO, plannedMinutes: 20, startTime: "16:30" },
+        ]),
+      );
+      expect(mockedWorkSessionService.deleteWorkSession).not.toHaveBeenCalled();
+
+      expect(await screen.findByRole("status")).toHaveTextContent(/plan confirmed/i);
+      expect(screen.getByRole("heading", { name: /today.s plan/i })).toBeInTheDocument();
+      expect(screen.getByText("Draft outline")).toBeInTheDocument();
+      expect(screen.getByText("Write intro")).toBeInTheDocument();
+    });
+
+    it("swiping a planned session reveals Remove", async () => {
+      twoItems();
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([planned]);
+      mockedWorkSessionService.deleteWorkSession.mockResolvedValue(undefined);
+      render(<ControlledPlanPage user={user} />);
+
+      const title = await screen.findByText("Draft outline");
+      const surface = title.closest("[data-swipe-content]")!;
+      const start = { clientX: 300, clientY: 100, pointerId: 1, pointerType: "touch" };
+      fireEvent.pointerDown(title, start);
+      for (const x of [290, 270, 250, 230, 210]) fireEvent.pointerMove(surface, { ...start, clientX: x });
+      fireEvent.pointerUp(surface, { ...start, clientX: 210 });
+      fireEvent.click(screen.getByRole("button", { name: "Remove Draft outline from today's plan" }));
+
+      await waitFor(() =>
+        expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("session-1"),
+      );
+    });
+
+    it("Done goes to Look ahead", async () => {
+      twoItems();
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([planned]);
+      mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([planned]);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<ControlledPlanPage user={user} />);
+
+      await userEventInstance.click(await screen.findByRole("button", { name: /^done$/i }));
+
+      expect(screen.getByRole("tab", { name: /look ahead/i })).toHaveAttribute("aria-selected", "true");
+    });
+
+    it("picking an empty day lands on Select, and picking the planned day again shows its plan", async () => {
+      twoItems();
+      mockedWorkSessionService.listWorkSessionsForDate.mockImplementation(async (_student: string, day: string) =>
+        day === TODAY_ISO ? [planned] : [],
+      );
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<ControlledPlanPage user={user} />);
+      await screen.findByRole("heading", { name: /today.s plan/i });
+
+      const days = screen.getByRole("radiogroup", { name: /choose a day to plan/i });
+      await userEventInstance.click(within(days).getAllByRole("radio")[1]!);
+      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
+
+      await userEventInstance.click(within(days).getAllByRole("radio")[0]!);
+      expect(await screen.findByRole("heading", { name: /today.s plan/i })).toBeInTheDocument();
     });
   });
 });
