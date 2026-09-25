@@ -92,6 +92,11 @@ export default function App() {
   // back on Plan with its lifted day/step intact). See
   // docs/decisions/20260924-secondary-screens-app-level-overlays.md.
   const [secondary, setSecondary] = useState<SecondaryScreen | null>(null);
+  // Courses is reachable from two places: Settings, and capture's "Add a
+  // course" (a student with no courses yet). Its Back returns to whichever
+  // opened it — returning to Settings from the capture path would strand
+  // the student away from the assignment they were adding.
+  const [coursesOpenedFrom, setCoursesOpenedFrom] = useState<"settings" | "capture">("settings");
 
   if (!user) {
     return <LoginPage signIn={signIn} signUp={signUp} />;
@@ -150,7 +155,10 @@ export default function App() {
           <AssignmentCapturePage
             user={signedInUser}
             onCancel={close}
-            onGoToCourses={() => setSecondary("courses")}
+            onGoToCourses={() => {
+              setCoursesOpenedFrom("capture");
+              setSecondary("courses");
+            }}
             onSaved={(assignmentId) => {
               setSecondary(null);
               setOpenAssignmentId(assignmentId);
@@ -162,23 +170,25 @@ export default function App() {
           <SettingsPage
             onBack={close}
             onGoToActivities={() => setSecondary("activities")}
-            onGoToCourses={() => setSecondary("courses")}
+            onGoToCourses={() => {
+              setCoursesOpenedFrom("settings");
+              setSecondary("courses");
+            }}
             onGoToPreferences={() => setSecondary("preferences")}
             onGoToSupport={() => setSecondary("support")}
             signOut={signOut}
           />
         );
-      // Back routes are preserved exactly from when these were HomePage
-      // sub-views: Support returns to Settings; Courses, Activities, and
-      // Study hours close back to the tab (previously always Home).
+      // Settings' own destinations return to Settings. Courses returns to
+      // whichever screen opened it (see coursesOpenedFrom above).
       case "support":
         return <SupportPage user={signedInUser} onBack={() => setSecondary("settings")} />;
       case "courses":
-        return <CoursesPage user={signedInUser} onBack={close} />;
+        return <CoursesPage user={signedInUser} onBack={() => setSecondary(coursesOpenedFrom)} />;
       case "activities":
-        return <ActivitiesPage user={signedInUser} onBack={close} />;
+        return <ActivitiesPage user={signedInUser} onBack={() => setSecondary("settings")} />;
       case "preferences":
-        return <PreferencesPage user={signedInUser} onBack={close} />;
+        return <PreferencesPage user={signedInUser} onBack={() => setSecondary("settings")} />;
     }
   }
 

@@ -669,7 +669,7 @@ describe("App", () => {
       expect(tabBar().getByRole("button", { name: "Plan" })).toHaveAttribute("aria-current", "page");
     });
 
-    it("capture's 'Add a course' goes to Courses, whose Back returns to the originating tab", async () => {
+    it("capture's 'Add a course' goes to Courses, whose Back returns to capture (not Settings)", async () => {
       signIn();
       render(<App />);
 
@@ -680,8 +680,9 @@ describe("App", () => {
 
       await userEvent.click(screen.getByRole("button", { name: /back/i }));
       expect(
-        await screen.findByRole("heading", { name: /^assignments$/i }),
+        await screen.findByRole("heading", { name: /new assignment/i }),
       ).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: /^settings$/i })).not.toBeInTheDocument();
     });
 
     it("the tab bar's Settings opens Settings from any tab, and Back returns to that tab", async () => {
@@ -714,7 +715,7 @@ describe("App", () => {
       expect(await screen.findByRole("heading", { name: /^support$/i })).toBeInTheDocument();
     });
 
-    it("navigates from Settings to Courses, Activities, and Study hours, each closing back to the tab", async () => {
+    it("navigates from Settings to Courses, Activities, and Study hours, each returning to Settings", async () => {
       signIn();
       render(<App />);
 
@@ -728,8 +729,31 @@ describe("App", () => {
         expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
 
         await userEvent.click(screen.getByRole("button", { name: /back/i }));
+        expect(await screen.findByRole("heading", { name: /^settings$/i })).toBeInTheDocument();
+
+        // Settings' own Back then closes to the tab.
+        await userEvent.click(screen.getByRole("button", { name: /back/i }));
         expect(await screen.findByRole("heading", { name: /hi person\./i })).toBeInTheDocument();
       }
+    });
+
+    it("Courses opened from Settings returns to Settings even after an earlier visit from capture", async () => {
+      signIn();
+      render(<App />);
+
+      // First via capture…
+      await userEvent.click(tabBar().getByRole("button", { name: "Add assignment" }));
+      await userEvent.click(await screen.findByRole("button", { name: /add a course/i }));
+      await userEvent.click(screen.getByRole("button", { name: /back/i }));
+      await screen.findByRole("heading", { name: /new assignment/i });
+
+      // …then via Settings: Back must go to Settings, not capture.
+      await userEvent.click(tabBar().getByRole("button", { name: "Settings" }));
+      await userEvent.click(screen.getByRole("button", { name: /courses/i }));
+      await screen.findByRole("heading", { name: /^courses$/i });
+      await userEvent.click(screen.getByRole("button", { name: /back/i }));
+
+      expect(await screen.findByRole("heading", { name: /^settings$/i })).toBeInTheDocument();
     });
 
     it("Support's Back returns to Settings (preserved back route)", async () => {
