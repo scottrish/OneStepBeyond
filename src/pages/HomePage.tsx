@@ -1,7 +1,13 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { User } from "@supabase/supabase-js";
-import { Plus, Settings2 } from "lucide-react";
+import { MoreHorizontal, Plus, Settings2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import ErrorBanner from "../components/ErrorBanner";
 import { longPlanDate, todayISODate } from "../domain/planningDate";
 import { assignmentsNeedingAttention } from "../domain/riskDetection";
@@ -14,20 +20,13 @@ import { useCourses } from "../hooks/useCourses";
 import { useDailyPlanning } from "../hooks/useDailyPlanning";
 import { usePreferences } from "../hooks/usePreferences";
 import * as workSessionService from "../services/workSessionService";
-import ActivitiesPage from "./ActivitiesPage";
-import AssignmentCapturePage from "./AssignmentCapturePage";
-import CoursesPage from "./CoursesPage";
 import ComingUpList from "./home/ComingUpList";
 import NeedsAttentionCard from "./home/NeedsAttentionCard";
 import NextCard from "./home/NextCard";
 import TodaysActivitiesList from "./home/TodaysActivitiesList";
-import PreferencesPage from "./PreferencesPage";
-import SettingsPage from "./SettingsPage";
-import SupportPage from "./SupportPage";
 
 type HomePageProps = {
   user: User;
-  signOut: () => Promise<void>;
   // Today Execution is owned by App.tsx, shared with Plan's own entry
   // points — see docs/decisions/20260816-today-execution-interim-entry-point.md.
   onStartExecution: () => void;
@@ -36,16 +35,13 @@ type HomePageProps = {
   // Assignment Detail is likewise a global overlay owned by App.tsx — see
   // docs/decisions/20260817-assignment-detail-global-overlay.md.
   onOpenAssignment: (assignmentId: string) => void;
+  // Capture, Settings, and Support (and Settings' own sub-screens) are
+  // App-level overlays, reachable from any tab — see
+  // docs/decisions/20260924-secondary-screens-app-level-overlays.md.
+  onOpenCapture: () => void;
+  onOpenSettings: () => void;
+  onOpenSupport: () => void;
 };
-
-type View =
-  | { name: "home" }
-  | { name: "settings" }
-  | { name: "support" }
-  | { name: "activities" }
-  | { name: "courses" }
-  | { name: "preferences" }
-  | { name: "capture-assignment" };
 
 // No name field exists anywhere in this app's signup/profile data (only
 // email) — Domain-Model.md's Student "Profile" is explicitly future work
@@ -60,13 +56,14 @@ function displayNameFromEmail(email: string | undefined): string {
 
 export default function HomePage({
   user,
-  signOut,
   onStartExecution,
   onGoToPlan,
   onGoToAssignments,
   onOpenAssignment,
+  onOpenCapture,
+  onOpenSettings,
+  onOpenSupport,
 }: HomePageProps) {
-  const [view, setView] = useState<View>({ name: "home" });
   const studentId = user.id;
   const today = useMemo(() => todayISODate(), []);
 
@@ -198,76 +195,44 @@ export default function HomePage({
     onStartExecution();
   }
 
-  if (view.name === "settings") {
-    return (
-      <SettingsPage
-        onBack={() => setView({ name: "home" })}
-        onGoToActivities={() => setView({ name: "activities" })}
-        onGoToCourses={() => setView({ name: "courses" })}
-        onGoToPreferences={() => setView({ name: "preferences" })}
-        onGoToSupport={() => setView({ name: "support" })}
-        signOut={signOut}
-      />
-    );
-  }
-
-  if (view.name === "support") {
-    return <SupportPage user={user} onBack={() => setView({ name: "settings" })} />;
-  }
-
-  if (view.name === "activities") {
-    return (
-      <ActivitiesPage user={user} onBack={() => setView({ name: "home" })} />
-    );
-  }
-
-  if (view.name === "courses") {
-    return (
-      <CoursesPage user={user} onBack={() => setView({ name: "home" })} />
-    );
-  }
-
-  if (view.name === "preferences") {
-    return (
-      <PreferencesPage user={user} onBack={() => setView({ name: "home" })} />
-    );
-  }
-
-  if (view.name === "capture-assignment") {
-    return (
-      <AssignmentCapturePage
-        user={user}
-        onCancel={() => setView({ name: "home" })}
-        onGoToCourses={() => setView({ name: "courses" })}
-        onSaved={(assignmentId) => onOpenAssignment(assignmentId)}
-      />
-    );
-  }
-
   return (
-    <main className="p-8">
-      <header className="flex items-center justify-between gap-1">
-        <div>
+    <div>
+      {/* docs/features/mobile-app-shell-and-touch-ergonomics-v0.1.md §2. A
+          minmax(0,1fr) grid so a long greeting truncates rather than pushing
+          the buttons off-screen. The + is hidden below sm: because the tab
+          bar's quick-add replaces it there. Settings and Support live
+          behind one overflow menu; Sign out deliberately stays in Settings
+          only, so a stray tap on Home can't sign a student out. */}
+      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+        <div className="min-w-0">
           <p className="text-sm text-muted-foreground">{longPlanDate(today)}</p>
-          <h1 className="text-3xl">Hi {displayNameFromEmail(user.email)}.</h1>
+          <h1 className="truncate text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">Hi {displayNameFromEmail(user.email)}.</h1>
         </div>
         <div className="flex items-center gap-1">
           <Button
-            aria-label="New assignment"
+            aria-label="Add assignment"
             variant="ghost"
             size="icon"
-            onClick={() => setView({ name: "capture-assignment" })}
+            className="hidden rounded-full sm:inline-flex"
+            onClick={onOpenCapture}
           >
             <Plus className="size-5" />
           </Button>
-          <Button
-            aria-label="Settings"
-            variant="ghost"
-            size="icon"
-            onClick={() => setView({ name: "settings" })}
-          >
-            <Settings2 className="size-5" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button aria-label="More options" variant="ghost" size="icon" className="rounded-full">
+                <MoreHorizontal className="size-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60 rounded-xl p-1">
+              <DropdownMenuItem className="min-h-11 rounded-lg" onSelect={onOpenSupport}>
+                <Users className="size-4" /> People who support you
+              </DropdownMenuItem>
+              <DropdownMenuItem className="min-h-11 rounded-lg" onSelect={onOpenSettings}>
+                <Settings2 className="size-4" /> Settings
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
@@ -304,10 +269,10 @@ export default function HomePage({
             courseName={courseName}
             onOpenAssignment={onOpenAssignment}
             onGoToAssignments={onGoToAssignments}
-            onAddAssignment={() => setView({ name: "capture-assignment" })}
+            onAddAssignment={onOpenCapture}
           />
         </>
       )}
-    </main>
+    </div>
   );
 }

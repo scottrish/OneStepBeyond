@@ -1,5 +1,6 @@
 import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import MobileActionBar from "@/components/MobileActionBar";
 import { effortLabel } from "../../domain/effortPresets";
 import type { PlanningCandidate } from "../../domain/planningCandidates";
 
@@ -103,14 +104,14 @@ export default function EstimateStep({
         </div>
       )}
 
-      <div className="mt-6 flex gap-2">
+      <MobileActionBar>
         <Button variant="ghost" className="rounded-2xl" onClick={onBack}>
           Back
         </Button>
         <Button size="lg" className="flex-1 rounded-2xl" onClick={onNext}>
           Next: when
         </Button>
-      </div>
+      </MobileActionBar>
     </section>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
+import MobileActionBar from "@/components/MobileActionBar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,12 +54,12 @@ export default function AssignmentCapturePage({
   }
 
   return (
-    <main className="mx-auto w-full max-w-[420px] p-8">
+    <div>
       <Button variant="ghost" onClick={onCancel} className="mb-3 -ml-3 px-3">
         ← Cancel
       </Button>
 
-      <h1 className="mb-4 text-3xl">New Assignment</h1>
+      <h1 className="mb-4 text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">New Assignment</h1>
 
       {loadError && <ErrorBanner message="Couldn’t load your courses." onRetry={retry} />}
 
@@ -157,11 +158,16 @@ export default function AssignmentCapturePage({
 
           {actionError && <ErrorBanner message={actionError} />}
 
-          <Button type="submit" disabled={!canSave || saving}>
-            {saving ? "Saving…" : "Save"}
-          </Button>
+          {/* Sticky above the tab bar so Save stays reachable while the
+              phone keyboard or a long form pushes content down —
+              docs/features/mobile-app-shell-and-touch-ergonomics-v0.1.md §4. */}
+          <MobileActionBar>
+            <Button type="submit" size="lg" className="w-full" disabled={!canSave || saving}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </MobileActionBar>
         </form>
       )}
-    </main>
+    </div>
   );
 }

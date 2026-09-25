@@ -35,7 +35,7 @@ function DayToggle({
             variant={on ? "default" : "outline"}
             aria-pressed={on}
             onClick={() => onToggle(day)}
-            className="h-8 rounded-full px-3 text-xs"
+            className="min-h-11 min-w-11 rounded-full px-3 text-xs"
           >
             {label}
           </Button>
@@ -91,12 +91,12 @@ export default function ActivitiesPage({ user, onBack }: ActivitiesPageProps) {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[420px] p-8">
+    <div>
       <Button variant="ghost" onClick={onBack} className="mb-3 -ml-3 px-3">
         ← Back
       </Button>
 
-      <h1 className="mb-4 text-3xl">Activities</h1>
+      <h1 className="mb-4 text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">Activities</h1>
 
       {loadError && <ErrorBanner message="Couldn’t load your activities." onRetry={retry} />}
 
@@ -227,6 +227,6 @@ export default function ActivitiesPage({ user, onBack }: ActivitiesPageProps) {
           Add activity
         </Button>
       </form>
-    </main>
+    </div>
   );
 }

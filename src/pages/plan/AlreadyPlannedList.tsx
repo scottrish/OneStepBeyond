@@ -94,7 +94,7 @@ export default function AlreadyPlannedList({
                       aria-label={`Move ${itemLabel} to another day`}
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 shrink-0"
+                      className="shrink-0"
                       onClick={() => (moving ? onCancelMove() : onStartMove(session.id))}
                     >
                       <ArrowRightLeft className="size-3.5 text-muted-foreground" />
@@ -103,7 +103,7 @@ export default function AlreadyPlannedList({
                       aria-label={`Remove ${itemLabel} from ${dayLabel(date, today)}'s plan`}
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 shrink-0"
+                      className="shrink-0"
                       onClick={() => onRemoveSession(session.id)}
                     >
                       <X className="size-3.5 text-muted-foreground" />

@@ -96,7 +96,7 @@ export default function WorkBreakdownPage({
   const totalMinutes = draftItems.reduce((sum, item) => sum + item.effortMinutes, 0);
 
   return (
-    <main className="mx-auto w-full max-w-[420px] p-8">
+    <div>
       <Button variant="ghost" onClick={onCancel} className="mb-3 -ml-3 px-3">
         ← Cancel
       </Button>
@@ -350,6 +350,6 @@ export default function WorkBreakdownPage({
           </div>
         </>
       )}
-    </main>
+    </div>
   );
 }

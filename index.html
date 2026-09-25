@@ -2,9 +2,25 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>OneStepBeyond</title>
+    <!--
+      PWA phase 1 (installable, standalone; no service worker) —
+      docs/decisions/20260924-pwa-in-two-phases.md and
+      docs/features/mobile-app-shell-and-touch-ergonomics-v0.1.md §7.
+      theme-color values are the resolved --background token for each
+      color scheme in src/index.css; the manifest (one value only) uses
+      the light ones.
+    -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#fbf9f3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#020618" media="(prefers-color-scheme: dark)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="OneStep" />
     <!-- Fonts match ../OneStepBeyondPrototype/src/routes/__root.tsx exactly. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

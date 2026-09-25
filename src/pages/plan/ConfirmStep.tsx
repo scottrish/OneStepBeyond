@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import MobileActionBar from "@/components/MobileActionBar";
 import { effortLabel } from "../../domain/effortPresets";
 import { dayLabel, longPlanDate, timeLabel } from "../../domain/planningDate";
 import type { PlanningCandidate } from "../../domain/planningCandidates";
@@ -105,14 +106,14 @@ export default function ConfirmStep({
       <p className="mt-4 text-sm text-muted-foreground">
         {effortLabel(planned)} planned of {effortLabel(Math.max(0, capacity))} available.
       </p>
-      <div className="mt-6 flex gap-2">
+      <MobileActionBar>
         <Button variant="ghost" className="rounded-2xl" onClick={onAdjust}>
           Adjust
         </Button>
         <Button size="lg" className="flex-1 rounded-2xl" onClick={onFinish}>
           Looks good
         </Button>
-      </div>
+      </MobileActionBar>
     </section>
   );
 }

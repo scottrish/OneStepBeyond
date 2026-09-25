@@ -19,6 +19,7 @@ vi.mock("./services/courseService", () => ({
 }));
 vi.mock("./services/assignmentService", () => ({
   listAssignments: vi.fn().mockResolvedValue([]),
+  createAssignment: vi.fn(),
   getAssignment: vi.fn(),
   updateAssignment: vi.fn(),
   deleteAssignment: vi.fn(),
@@ -55,6 +56,13 @@ vi.mock("./services/workSessionService", () => ({
   deletePlannedSessionsForDate: vi.fn(),
   deleteWorkSession: vi.fn(),
   updateWorkSessionStatus: vi.fn().mockResolvedValue(undefined),
+}));
+// Support is an App-level overlay now (docs/decisions/
+// 20260924-secondary-screens-app-level-overlays.md), reachable from the
+// overlay navigation tests at the bottom of this file.
+vi.mock("./services/supportRelationshipService", () => ({
+  listRelationshipsForStudent: vi.fn().mockResolvedValue([]),
+  createInvitation: vi.fn(),
 }));
 vi.mock("./services/planningSessionService", () => ({
   recordPlanningSession: vi.fn(),
@@ -175,8 +183,10 @@ describe("App", () => {
 
     render(<App />);
 
-    // Navigate into a nested view within Home (Settings), without ever
-    // leaving the "home" tab — this is what FINDING-AM-001 exercised via
+    // Open a screen on top of the "home" tab (Settings — an App-level
+    // overlay since docs/decisions/20260924-secondary-screens-app-level-overlays.md,
+    // reached here from the tab bar's Settings slot), without ever leaving
+    // the "home" tab — this is what FINDING-AM-001 exercised via
     // Assignment Detail, reproduced here without extra service mocking.
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.getByRole("heading", { name: /^settings$/i })).toBeInTheDocument();
@@ -614,6 +624,148 @@ describe("App", () => {
         screen.getByRole("heading", { name: "Chapter 7 problem set" }),
       ).toBeInTheDocument();
       expect(mockedAssignmentService.deleteAssignment).not.toHaveBeenCalled();
+    });
+  });
+
+  // docs/features/mobile-app-shell-and-touch-ergonomics-v0.1.md §1 and
+  // docs/decisions/20260924-secondary-screens-app-level-overlays.md.
+  // jsdom doesn't apply Tailwind's responsive classes, so the tab bar's
+  // phone-only quick-add and sm:-only Settings are both in the DOM here.
+  describe("secondary screens as App-level overlays", () => {
+    function signIn(signOut = vi.fn()) {
+      vi.mocked(useAuth).mockReturnValue({
+        user: { id: "student-1", email: "person@example.com" } as User,
+        signIn: vi.fn(),
+        signUp: vi.fn(),
+        signOut,
+      });
+    }
+
+    function tabBar() {
+      return within(screen.getByRole("navigation", { name: "Primary" }));
+    }
+
+    it("renders exactly one main landmark", () => {
+      signIn();
+      render(<App />);
+
+      expect(screen.getAllByRole("main")).toHaveLength(1);
+    });
+
+    it("quick-add opens capture from Plan, and Cancel returns to Plan", async () => {
+      signIn();
+      render(<App />);
+
+      await userEvent.click(tabBar().getByRole("button", { name: "Plan" }));
+      expect(await screen.findByRole("heading", { name: /^plan$/i })).toBeInTheDocument();
+
+      await userEvent.click(tabBar().getByRole("button", { name: "Add assignment" }));
+      expect(
+        await screen.findByRole("heading", { name: /new assignment/i }),
+      ).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: /cancel/i }));
+      expect(await screen.findByRole("heading", { name: /^plan$/i })).toBeInTheDocument();
+      expect(tabBar().getByRole("button", { name: "Plan" })).toHaveAttribute("aria-current", "page");
+    });
+
+    it("capture's 'Add a course' goes to Courses, whose Back returns to the originating tab", async () => {
+      signIn();
+      render(<App />);
+
+      await userEvent.click(tabBar().getByRole("button", { name: "Assignments" }));
+      await userEvent.click(tabBar().getByRole("button", { name: "Add assignment" }));
+      await userEvent.click(await screen.findByRole("button", { name: /add a course/i }));
+      expect(await screen.findByRole("heading", { name: /^courses$/i })).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: /back/i }));
+      expect(
+        await screen.findByRole("heading", { name: /^assignments$/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("the tab bar's Settings opens Settings from any tab, and Back returns to that tab", async () => {
+      signIn();
+      render(<App />);
+
+      await userEvent.click(tabBar().getByRole("button", { name: "Assignments" }));
+      await userEvent.click(tabBar().getByRole("button", { name: "Settings" }));
+      expect(screen.getByRole("heading", { name: /^settings$/i })).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: /back/i }));
+      expect(
+        await screen.findByRole("heading", { name: /^assignments$/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("Home's More options menu opens Settings and Support", async () => {
+      signIn();
+      render(<App />);
+
+      await userEvent.click(screen.getByRole("button", { name: "More options" }));
+      await userEvent.click(await screen.findByRole("menuitem", { name: /settings/i }));
+      expect(screen.getByRole("heading", { name: /^settings$/i })).toBeInTheDocument();
+
+      await userEvent.click(tabBar().getByRole("button", { name: "Home" }));
+      await userEvent.click(screen.getByRole("button", { name: "More options" }));
+      await userEvent.click(
+        await screen.findByRole("menuitem", { name: /people who support you/i }),
+      );
+      expect(await screen.findByRole("heading", { name: /^support$/i })).toBeInTheDocument();
+    });
+
+    it("navigates from Settings to Courses, Activities, and Study hours, each closing back to the tab", async () => {
+      signIn();
+      render(<App />);
+
+      for (const [entry, heading] of [
+        [/courses/i, /^courses$/i],
+        [/activities/i, /^activities$/i],
+        [/study hours/i, /^study hours$/i],
+      ] as const) {
+        await userEvent.click(tabBar().getByRole("button", { name: "Settings" }));
+        await userEvent.click(screen.getByRole("button", { name: entry }));
+        expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole("button", { name: /back/i }));
+        expect(await screen.findByRole("heading", { name: /hi person\./i })).toBeInTheDocument();
+      }
+    });
+
+    it("Support's Back returns to Settings (preserved back route)", async () => {
+      signIn();
+      render(<App />);
+
+      await userEvent.click(tabBar().getByRole("button", { name: "Settings" }));
+      await userEvent.click(screen.getByRole("button", { name: /support/i }));
+      expect(await screen.findByRole("heading", { name: /^support$/i })).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: /back/i }));
+      expect(screen.getByRole("heading", { name: /^settings$/i })).toBeInTheDocument();
+    });
+
+    it("signs out from Settings", async () => {
+      const signOut = vi.fn();
+      signIn(signOut);
+      render(<App />);
+
+      await userEvent.click(tabBar().getByRole("button", { name: "Settings" }));
+      await userEvent.click(screen.getByRole("button", { name: /sign out/i }));
+
+      expect(signOut).toHaveBeenCalledTimes(1);
+    });
+
+    it("tapping a tab closes an open overlay, even a nested one", async () => {
+      signIn();
+      render(<App />);
+
+      await userEvent.click(tabBar().getByRole("button", { name: "Settings" }));
+      await userEvent.click(screen.getByRole("button", { name: /support/i }));
+      await screen.findByRole("heading", { name: /^support$/i });
+
+      await userEvent.click(tabBar().getByRole("button", { name: "Plan" }));
+      expect(await screen.findByRole("heading", { name: /^plan$/i })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: /^support$/i })).not.toBeInTheDocument();
     });
   });
 });

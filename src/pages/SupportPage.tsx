@@ -112,7 +112,7 @@ export default function SupportPage({ user, onBack }: SupportPageProps) {
 
   if (step === "choose-role") {
     return (
-      <main className="mx-auto w-full max-w-[420px] p-8">
+      <div>
         <Button variant="ghost" onClick={() => setStep("list")} className="mb-3 -ml-3 px-3">
           ← Cancel
         </Button>
@@ -129,13 +129,13 @@ export default function SupportPage({ user, onBack }: SupportPageProps) {
             </Button>
           ))}
         </div>
-      </main>
+      </div>
     );
   }
 
   if (step === "enter-email") {
     return (
-      <main className="mx-auto w-full max-w-[420px] p-8">
+      <div>
         <Button variant="ghost" onClick={() => setStep("choose-role")} className="mb-3 -ml-3 px-3">
           ← Back
         </Button>
@@ -157,13 +157,13 @@ export default function SupportPage({ user, onBack }: SupportPageProps) {
             Continue
           </Button>
         </form>
-      </main>
+      </div>
     );
   }
 
   if (step === "explain" && chosenRole) {
     return (
-      <main className="mx-auto w-full max-w-[420px] p-8">
+      <div>
         <Button variant="ghost" onClick={() => setStep("enter-email")} className="mb-3 -ml-3 px-3">
           ← Back
         </Button>
@@ -178,13 +178,13 @@ export default function SupportPage({ user, onBack }: SupportPageProps) {
         <Button onClick={handleSend} disabled={sending}>
           Send invite
         </Button>
-      </main>
+      </div>
     );
   }
 
   if (step === "link" && inviteLink && chosenLabel) {
     return (
-      <main className="mx-auto w-full max-w-[420px] p-8">
+      <div>
         <h1 className="mb-4 text-2xl">Invite ready</h1>
         <p className="mb-4 text-muted-foreground">
           Send this link to {email} yourself — text, email, however works. It&rsquo;s just for{" "}
@@ -204,7 +204,7 @@ export default function SupportPage({ user, onBack }: SupportPageProps) {
         >
           Done
         </Button>
-      </main>
+      </div>
     );
   }
 
@@ -212,11 +212,11 @@ export default function SupportPage({ user, onBack }: SupportPageProps) {
   const active = relationships.filter((r) => r.status === "active");
 
   return (
-    <main className="mx-auto w-full max-w-[420px] p-8">
+    <div>
       <Button variant="ghost" onClick={onBack} className="mb-3 -ml-3 px-3">
         ← Back
       </Button>
-      <h1 className="mb-4 text-3xl">Support</h1>
+      <h1 className="mb-4 text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">Support</h1>
 
       {loadError && <ErrorBanner message="Couldn’t load your supporters." onRetry={retry} />}
 
@@ -269,6 +269,6 @@ export default function SupportPage({ user, onBack }: SupportPageProps) {
           <Button onClick={startInvite}>Add someone who supports you</Button>
         </>
       )}
-    </main>
+    </div>
   );
 }

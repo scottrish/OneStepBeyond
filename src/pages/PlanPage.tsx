@@ -451,8 +451,18 @@ export default function PlanPage({
   }
 
   return (
-    <main className="mx-auto w-full max-w-[420px] p-6">
-      <h1 className="mb-1 text-3xl">Plan</h1>
+    <div>
+      {/* docs/features/mobile-app-shell-and-touch-ergonomics-v0.1.md §4: the
+          "Step N of 4" label sits in a pill beside the title rather than on
+          its own line above the step, saving vertical space on phones. */}
+      <div className="mb-1 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+        <h1 className="text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">Plan</h1>
+        {tab !== "lookahead" && !loading && !loadError && (
+          <span className="mt-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
+            {STEP_LABEL[safeStep]}
+          </span>
+        )}
+      </div>
       <p className="mb-4 text-sm text-muted-foreground">{longPlanDate(date)}</p>
 
       <div role="tablist" aria-label="Plan view" className="mb-4 flex gap-2">
@@ -520,7 +530,7 @@ export default function PlanPage({
                   role="radio"
                   aria-checked={active}
                   onClick={() => pickDay(d)}
-                  className={`min-h-11 shrink-0 rounded-2xl border px-3 py-2 text-xs font-medium transition-colors ${
+                  className={`min-h-11 min-w-11 shrink-0 rounded-2xl border px-3 py-2 text-xs font-medium transition-colors ${
                     active
                       ? "border-primary bg-accent/60 text-foreground"
                       : "border-border bg-card text-muted-foreground"
@@ -540,10 +550,6 @@ export default function PlanPage({
 
           {!loading && !loadError && (
             <>
-              <p className="mb-6 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                {STEP_LABEL[safeStep]}
-              </p>
-
               {safeStep === "select" ? (
             <SelectStep
               date={date}
@@ -630,6 +636,6 @@ export default function PlanPage({
           )}
         </>
       )}
-    </main>
+    </div>
   );
 }

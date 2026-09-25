@@ -86,11 +86,13 @@ function renderHomePage(overrides: Record<string, unknown> = {}) {
   return render(
     <HomePage
       user={user}
-      signOut={vi.fn()}
       onStartExecution={vi.fn()}
       onGoToPlan={vi.fn()}
       onGoToAssignments={vi.fn()}
       onOpenAssignment={vi.fn()}
+      onOpenCapture={vi.fn()}
+      onOpenSettings={vi.fn()}
+      onOpenSupport={vi.fn()}
       {...overrides}
     />,
   );
@@ -125,65 +127,52 @@ describe("HomePage", () => {
     expect(screen.queryByText(/person@example\.com/)).not.toBeInTheDocument();
   });
 
-  it("navigates to Settings when the settings button is clicked", async () => {
-    renderHomePage();
+  // Settings, Support, and capture are App-level overlays now
+  // (docs/decisions/20260924-secondary-screens-app-level-overlays.md) —
+  // Home only requests them. The navigation itself (Settings → Courses,
+  // Support → Settings, Sign out, …) is covered in App.test.tsx.
+  it("opens Settings from the More options menu", async () => {
+    const onOpenSettings = vi.fn();
+    renderHomePage({ onOpenSettings });
 
-    await userEvent.click(screen.getByRole("button", { name: /settings/i }));
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /settings/i }));
 
-    expect(
-      await screen.findByRole("heading", { name: /settings/i }),
-    ).toBeInTheDocument();
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
 
-  it("navigates to Courses from Settings", async () => {
-    renderHomePage();
+  it("opens Support from the More options menu", async () => {
+    const onOpenSupport = vi.fn();
+    renderHomePage({ onOpenSupport });
 
-    await userEvent.click(screen.getByRole("button", { name: /settings/i }));
-    await userEvent.click(screen.getByRole("button", { name: /courses/i }));
-
-    expect(await screen.findByRole("heading", { name: /courses/i })).toBeInTheDocument();
-  });
-
-  it("navigates to Activities from Settings", async () => {
-    renderHomePage();
-
-    await userEvent.click(screen.getByRole("button", { name: /settings/i }));
-    await userEvent.click(screen.getByRole("button", { name: /activities/i }));
-
-    expect(
-      await screen.findByRole("heading", { name: /activities/i }),
-    ).toBeInTheDocument();
-  });
-
-  it("navigates to Support from Settings", async () => {
-    renderHomePage();
-
-    await userEvent.click(screen.getByRole("button", { name: /settings/i }));
-    await userEvent.click(screen.getByRole("button", { name: /support/i }));
-
-    expect(await screen.findByRole("heading", { name: /^support$/i })).toBeInTheDocument();
-  });
-
-  it("calls signOut from Settings", async () => {
-    const signOut = vi.fn();
-    renderHomePage({ signOut });
-
-    await userEvent.click(screen.getByRole("button", { name: /settings/i }));
-    await userEvent.click(screen.getByRole("button", { name: /sign out/i }));
-
-    expect(signOut).toHaveBeenCalledTimes(1);
-  });
-
-  it("navigates to New Assignment when the + button is clicked", async () => {
-    renderHomePage();
-
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
     await userEvent.click(
-      screen.getByRole("button", { name: /new assignment/i }),
+      await screen.findByRole("menuitem", { name: /people who support you/i }),
     );
 
-    expect(
-      await screen.findByRole("heading", { name: /new assignment/i }),
-    ).toBeInTheDocument();
+    expect(onOpenSupport).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not offer Sign out from the More options menu", async () => {
+    renderHomePage();
+
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
+    await screen.findByRole("menuitem", { name: /settings/i });
+
+    expect(screen.queryByRole("menuitem", { name: /sign out/i })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
+  });
+
+  it("opens capture from the header's Add assignment button (shown from sm: up)", async () => {
+    const onOpenCapture = vi.fn();
+    renderHomePage({ onOpenCapture });
+
+    const add = screen.getByRole("button", { name: "Add assignment" });
+    // Hidden below sm:, where the tab bar's quick-add replaces it (§2).
+    expect(add).toHaveClass("hidden", "sm:inline-flex");
+    await userEvent.click(add);
+
+    expect(onOpenCapture).toHaveBeenCalledTimes(1);
   });
 
   describe("Next card", () => {

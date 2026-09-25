@@ -67,11 +67,22 @@ const doneAssignment = {
 // docs/decisions/20260817-assignment-detail-global-overlay.md) — this
 // page just requests it open. Round-trip behavior (opening Detail) is
 // covered by App.test.tsx instead.
+// Row actions live behind one "Actions for {title}" overflow menu —
+// docs/features/mobile-app-shell-and-touch-ergonomics-v0.1.md §4.
+async function chooseRowAction(
+  userEventInstance: ReturnType<typeof userEvent.setup>,
+  title: string,
+  action: "Edit" | "Delete",
+) {
+  await userEventInstance.click(screen.getByRole("button", { name: `Actions for ${title}` }));
+  await userEventInstance.click(await screen.findByRole("menuitem", { name: action }));
+}
+
 function renderAssignmentsPage(overrides: Record<string, unknown> = {}) {
   return render(
     <AssignmentsPage
       user={user}
-      onGoToHome={vi.fn()}
+      onOpenCapture={vi.fn()}
       onOpenAssignment={vi.fn()}
       {...overrides}
     />,
@@ -83,21 +94,65 @@ beforeEach(() => {
 });
 
 describe("AssignmentsPage", () => {
-  it("shows the empty state with a way back to Home when there are no assignments", async () => {
+  it("shows the empty state with an Add assignment action (and no separate add button) when there are no assignments", async () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
     mockedAssignmentService.listAssignments.mockResolvedValue([]);
     mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
-    const onGoToHome = vi.fn();
+    const onOpenCapture = vi.fn();
     const userEventInstance = userEvent.setup();
 
-    renderAssignmentsPage({ onGoToHome });
+    renderAssignmentsPage({ onOpenCapture });
 
     expect(await screen.findByText(/no assignments yet/i)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /add assignment/i })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: /go to home/i })).not.toBeInTheDocument();
+
+    await userEventInstance.click(screen.getByRole("button", { name: /add assignment/i }));
+    expect(onOpenCapture).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows an Add assignment button below a non-empty list", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([course]);
+    mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
+    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
+    const onOpenCapture = vi.fn();
+    const userEventInstance = userEvent.setup();
+
+    renderAssignmentsPage({ onOpenCapture });
+    await screen.findByText("Chapter 7 problem set");
+
+    await userEventInstance.click(screen.getByRole("button", { name: /add assignment/i }));
+    expect(onOpenCapture).toHaveBeenCalledTimes(1);
+  });
+
+  it("still offers Add assignment when only finished assignments exist", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([course]);
+    mockedAssignmentService.listAssignments.mockResolvedValue([doneAssignment]);
+    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
+
+    renderAssignmentsPage();
+    await screen.findByText(doneAssignment.title);
+
+    expect(screen.getByRole("button", { name: /add assignment/i })).toBeInTheDocument();
+  });
+
+  it("puts Edit and Delete behind one row actions menu", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([course]);
+    mockedAssignmentService.listAssignments.mockResolvedValue([openAssignment]);
+    mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
+    const userEventInstance = userEvent.setup();
+
+    renderAssignmentsPage();
+    await screen.findByText("Chapter 7 problem set");
+
+    expect(screen.queryByRole("button", { name: /^edit chapter 7/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^delete chapter 7/i })).not.toBeInTheDocument();
 
     await userEventInstance.click(
-      screen.getByRole("button", { name: /go to home/i }),
+      screen.getByRole("button", { name: "Actions for Chapter 7 problem set" }),
     );
-    expect(onGoToHome).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("menuitem", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
   });
 
   it("lists open assignments with remaining-effort text and no progress bar when unstructured", async () => {
@@ -193,9 +248,7 @@ describe("AssignmentsPage", () => {
     renderAssignmentsPage();
     await screen.findByText("Chapter 7 problem set");
 
-    await userEventInstance.click(
-      screen.getByRole("button", { name: /edit chapter 7 problem set/i }),
-    );
+    await chooseRowAction(userEventInstance, "Chapter 7 problem set", "Edit");
     const titleInput = screen.getByLabelText(/what is it\?/i);
     await userEventInstance.clear(titleInput);
     await userEventInstance.type(titleInput, "Chapter 8 problem set");
@@ -220,9 +273,7 @@ describe("AssignmentsPage", () => {
     renderAssignmentsPage();
     await screen.findByText("Chapter 7 problem set");
 
-    await userEventInstance.click(
-      screen.getByRole("button", { name: /delete chapter 7 problem set/i }),
-    );
+    await chooseRowAction(userEventInstance, "Chapter 7 problem set", "Delete");
 
     expect(await screen.findByText(/delete this assignment\?/i)).toBeInTheDocument();
     // No completed steps — the "erase that progress" warning doesn't apply.
@@ -245,9 +296,7 @@ describe("AssignmentsPage", () => {
     renderAssignmentsPage();
     await screen.findByText("Chapter 7 problem set");
 
-    await userEventInstance.click(
-      screen.getByRole("button", { name: /delete chapter 7 problem set/i }),
-    );
+    await chooseRowAction(userEventInstance, "Chapter 7 problem set", "Delete");
     await screen.findByText(/delete this assignment\?/i);
     await userEventInstance.click(screen.getByRole("button", { name: /^cancel$/i }));
 
@@ -267,9 +316,7 @@ describe("AssignmentsPage", () => {
     renderAssignmentsPage();
     await screen.findByText("Chapter 7 problem set");
 
-    await userEventInstance.click(
-      screen.getByRole("button", { name: /delete chapter 7 problem set/i }),
-    );
+    await chooseRowAction(userEventInstance, "Chapter 7 problem set", "Delete");
 
     expect(
       await screen.findByText(/delete this assignment\?/i),

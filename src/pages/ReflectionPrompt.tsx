@@ -90,7 +90,7 @@ export default function ReflectionPrompt({
   }
 
   return (
-    <main className="mx-auto w-full max-w-[420px] p-8">
+    <div>
       {(stage === "primary" || stage === "primary-free-text") && (
         <>
           <h1 className="mb-6 text-2xl">Did the way you broke this down work?</h1>
@@ -188,6 +188,6 @@ export default function ReflectionPrompt({
           {actionError}
         </p>
       )}
-    </main>
+    </div>
   );
 }

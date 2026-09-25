@@ -120,7 +120,7 @@ export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageP
 
   if (reflectingSession) {
     return (
-      <main className="mx-auto w-full max-w-[420px] p-8">
+      <div>
         <h1 className="mb-6 text-2xl">Did this take longer than you expected?</h1>
         <div
           role="radiogroup"
@@ -149,13 +149,13 @@ export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageP
           Skip this question
         </Button>
         {reflectionError && <ErrorBanner message={reflectionError} />}
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="mx-auto w-full max-w-[420px] p-6">
-      <h1 className="mb-1 text-3xl">Today</h1>
+    <div>
+      <h1 className="mb-1 text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">Today</h1>
 
       {loadError && <ErrorBanner message="Couldn’t load today’s plan." onRetry={retry} />}
 
@@ -294,6 +294,6 @@ export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageP
           ) : null}
         </>
       )}
-    </main>
+    </div>
   );
 }

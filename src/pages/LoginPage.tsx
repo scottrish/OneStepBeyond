@@ -15,8 +15,8 @@ export default function LoginPage({ signIn, signUp }: LoginPageProps) {
   const isValid = email.trim() !== "" && password.trim() !== "";
 
   return (
-    <main className="mx-auto w-full max-w-[420px] p-8">
-      <h1 className="mb-6 text-3xl">Login</h1>
+    <main className="mx-auto w-full max-w-md px-5 pt-[calc(2rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8">
+      <h1 className="mb-6 text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">Login</h1>
 
       <div className="mb-4 flex flex-col gap-1.5">
         <Label htmlFor="email">Email</Label>

@@ -1,8 +1,14 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
-import { Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,7 +26,10 @@ import type { Course } from "../services/courseService";
 
 type AssignmentsPageProps = {
   user: User;
-  onGoToHome: () => void;
+  // Capture is an App-level overlay (docs/decisions/
+  // 20260924-secondary-screens-app-level-overlays.md), so this list can
+  // open it directly rather than sending the student to Home first.
+  onOpenCapture: () => void;
   // Assignment Detail is a global overlay owned by App.tsx (see
   // docs/decisions/20260817-assignment-detail-global-overlay.md), not a
   // local view here — tapping a card just requests it open.
@@ -198,24 +207,32 @@ function AssignmentCard({
             </div>
           )}
         </button>
-        <div className="flex shrink-0 flex-col gap-1">
-          <Button
-            aria-label={`Edit ${assignment.title}`}
-            variant="ghost"
-            size="icon"
-            onClick={() => setEditing(true)}
-          >
-            <Pencil className="size-3.5 text-muted-foreground" />
-          </Button>
-          <Button
-            aria-label={`Delete ${assignment.title}`}
-            variant="ghost"
-            size="icon"
-            onClick={handleDeleteClick}
-          >
-            <Trash2 className="size-3.5 text-muted-foreground" />
-          </Button>
-        </div>
+        {/* docs/features/mobile-app-shell-and-touch-ergonomics-v0.1.md §4:
+            one overflow menu instead of two stacked icon buttons. Delete
+            still goes through the in-card confirmation above. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              aria-label={`Actions for ${assignment.title}`}
+              variant="ghost"
+              size="icon"
+              className="-mr-2 shrink-0 rounded-full"
+            >
+              <MoreHorizontal className="size-5 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44 rounded-xl p-1">
+            <DropdownMenuItem className="min-h-11 rounded-lg" onSelect={() => setEditing(true)}>
+              <Pencil className="size-4" /> Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="min-h-11 rounded-lg text-destructive focus:text-destructive"
+              onSelect={handleDeleteClick}
+            >
+              <Trash2 className="size-4" /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
@@ -223,7 +240,7 @@ function AssignmentCard({
 
 export default function AssignmentsPage({
   user,
-  onGoToHome,
+  onOpenCapture,
   onOpenAssignment,
 }: AssignmentsPageProps) {
   const {
@@ -244,8 +261,8 @@ export default function AssignmentsPage({
   const done = assignments.filter((a) => a.completedAt);
 
   return (
-    <main className="p-8">
-      <h1 className="mb-4 text-3xl">Assignments</h1>
+    <div>
+      <h1 className="mb-4 text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">Assignments</h1>
 
       {loadError && <ErrorBanner message="Couldn’t load your assignments." onRetry={retry} />}
 
@@ -254,8 +271,8 @@ export default function AssignmentsPage({
       {!loading && !loadError && open.length === 0 && done.length === 0 && (
         <EmptyState
           title="No assignments yet."
-          hint="Tap + on Home to add your first one."
-          action={<Button onClick={onGoToHome}>Go to Home</Button>}
+          hint="Add your first one to get started."
+          action={<Button onClick={onOpenCapture}>Add assignment</Button>}
         />
       )}
 
@@ -294,6 +311,15 @@ export default function AssignmentsPage({
           </ul>
         </section>
       )}
-    </main>
+
+      {/* Shown whenever the list has anything in it (the empty state has its
+          own action). Needed from sm: up in particular, where the tab bar
+          shows Settings instead of quick-add. */}
+      {!loading && !loadError && assignments.length > 0 && (
+        <Button size="lg" className="mt-8 w-full" onClick={onOpenCapture}>
+          <Plus className="size-4" /> Add assignment
+        </Button>
+      )}
+    </div>
   );
 }

@@ -46,7 +46,7 @@ export default function InviteAcceptPage() {
 
   if (!token) {
     return (
-      <main className="mx-auto w-full max-w-[420px] p-8">
+      <main className="mx-auto w-full max-w-md px-5 pt-[calc(2rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8">
         <h1 className="mb-4 text-2xl">This link isn&rsquo;t valid</h1>
         <p className="text-muted-foreground">Check that you copied the whole link.</p>
       </main>
@@ -87,7 +87,7 @@ export default function InviteAcceptPage() {
 
   if (outcome === "accepted") {
     return (
-      <main className="mx-auto w-full max-w-[420px] p-8">
+      <main className="mx-auto w-full max-w-md px-5 pt-[calc(2rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8">
         <h1 className="mb-4 text-2xl">You&rsquo;re connected</h1>
         <p className="mb-6 text-muted-foreground">
           You can see this student&rsquo;s dashboard whenever you sign in.
@@ -99,7 +99,7 @@ export default function InviteAcceptPage() {
 
   if (outcome === "declined") {
     return (
-      <main className="mx-auto w-full max-w-[420px] p-8">
+      <main className="mx-auto w-full max-w-md px-5 pt-[calc(2rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8">
         <h1 className="mb-4 text-2xl">Invitation declined</h1>
         <p className="text-muted-foreground">You won&rsquo;t be connected to this student.</p>
       </main>
@@ -108,7 +108,7 @@ export default function InviteAcceptPage() {
 
   if (loadError) {
     return (
-      <main className="mx-auto w-full max-w-[420px] p-8">
+      <main className="mx-auto w-full max-w-md px-5 pt-[calc(2rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8">
         <p role="alert" className="text-sm text-destructive">
           Couldn&rsquo;t check this invitation.
         </p>
@@ -118,7 +118,7 @@ export default function InviteAcceptPage() {
 
   if (invitation === undefined) {
     return (
-      <main className="mx-auto w-full max-w-[420px] p-8">
+      <main className="mx-auto w-full max-w-md px-5 pt-[calc(2rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8">
         <p className="text-muted-foreground">Loading…</p>
       </main>
     );
@@ -126,7 +126,7 @@ export default function InviteAcceptPage() {
 
   if (invitation === null) {
     return (
-      <main className="mx-auto w-full max-w-[420px] p-8">
+      <main className="mx-auto w-full max-w-md px-5 pt-[calc(2rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8">
         <h1 className="mb-4 text-2xl">This invitation isn&rsquo;t available</h1>
         <p className="mb-4 text-muted-foreground">
           It may have expired, already been used, or been sent to a different email address than
@@ -140,7 +140,7 @@ export default function InviteAcceptPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[420px] p-8">
+    <main className="mx-auto w-full max-w-md px-5 pt-[calc(2rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8">
       <h1 className="mb-4 text-2xl">You&rsquo;ve been invited to support a student</h1>
       <p className="mb-6 text-muted-foreground">
         You&rsquo;ll be connected as their {ROLE_LABEL[invitation.role]}. You&rsquo;ll be able to

@@ -93,12 +93,12 @@ export default function PreferencesPage({ user, onBack }: PreferencesPageProps) 
   );
 
   return (
-    <main className="mx-auto w-full max-w-[420px] p-8">
+    <div>
       <Button variant="ghost" onClick={onBack} className="mb-3 -ml-3 px-3">
         ← Back
       </Button>
 
-      <h1 className="mb-1 text-3xl">Study hours</h1>
+      <h1 className="mb-1 text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">Study hours</h1>
       <p className="mb-6 text-sm text-muted-foreground">
         This is what &ldquo;how much time do I have&rdquo; is based on.
       </p>
@@ -108,6 +108,6 @@ export default function PreferencesPage({ user, onBack }: PreferencesPageProps) 
       {!loading && !loadError && (
         <PreferencesForm initial={preferences} actionError={actionError} onSave={savePreferences} />
       )}
-    </main>
+    </div>
   );
 }

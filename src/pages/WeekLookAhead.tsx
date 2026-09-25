@@ -92,7 +92,7 @@ export default function WeekLookAhead({
                   <button
                     type="button"
                     onClick={() => onPickDay(date)}
-                    className="text-left text-sm font-semibold text-foreground underline-offset-4 hover:underline"
+                    className="inline-flex min-h-11 min-w-11 items-center text-left text-sm font-semibold text-foreground underline-offset-4 hover:underline"
                   >
                     {date === today ? "Today" : longPlanDate(date)}
                   </button>
@@ -108,7 +108,7 @@ export default function WeekLookAhead({
                         <button
                           type="button"
                           onClick={() => onOpenAssignment(assignment.id)}
-                          className="text-left text-sm text-foreground underline-offset-4 hover:underline"
+                          className="inline-flex min-h-11 items-center gap-1.5 text-left text-sm text-foreground underline-offset-4 hover:underline"
                         >
                           Due: {assignment.title}{" "}
                           <span className="text-xs text-muted-foreground">

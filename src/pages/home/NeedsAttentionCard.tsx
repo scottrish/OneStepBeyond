@@ -32,6 +32,9 @@ export default function NeedsAttentionCard({
         <button
           type="button"
           onClick={() => onOpenAssignment(needsAttention.assignment.id)}
+          // An inline link inside the "{title}: {message}" sentence — WCAG
+          // 2.5.5's inline exception, so deliberately not forced to a 44px
+          // box, which would break the sentence's line spacing.
           className="underline-offset-4 hover:underline"
         >
           {needsAttention.assignment.title}
@@ -56,7 +59,7 @@ export default function NeedsAttentionCard({
               <button
                 type="button"
                 onClick={() => onOpenAssignment(item.assignment.id)}
-                className="min-w-0 flex-1 truncate text-left text-sm text-foreground underline-offset-4 hover:underline"
+                className="flex min-h-11 min-w-0 flex-1 items-center truncate text-left text-sm text-foreground underline-offset-4 hover:underline"
               >
                 {item.assignment.title}
               </button>

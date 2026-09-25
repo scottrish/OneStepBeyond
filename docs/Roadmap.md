@@ -327,6 +327,94 @@ which screen the client renders.
 
 ---
 
+# Phase 7 — Prototype parity: mobile-first redesign + planning, completion & coaching
+
+**Status: in progress. Step 1 done (2026-09-24); steps 2–13 proposed.**
+
+**Why this, why now:** `../OneStepBeyondPrototype` (this app's visual and
+behavioral source of truth, per CLAUDE.md) has moved on a lot since
+this app's specs were last synced from it (2026-08-18/20). There are
+about 280 commits on its `main` (`744026a`), plus a 44-commit
+`mobile-redesign` branch (`1ce3145`, not yet merged there) that reworks
+the student app for phones. A prototype-sync audit (2026-09-24) turned
+that gap into the six specs below. Together they bring this app to
+parity. The same audit also recorded the decision to build a PWA in two
+phases (`docs/decisions/20260924-pwa-in-two-phases.md`). Phase 1 ships
+inside step 1 below; Phase 2 waits until after parity.
+
+**How it's sequenced:** by dependency first, then by readiness. Almost
+every later step reuses step 1's shared primitives (bottom sheet,
+sticky action bar, overflow menu, touch-target sizes). Plan's capacity
+and study windows (step 4) feed the planning work. Daily planning's own
+items build on each other in the order shown. Execution coaching comes
+last because it needs pieces from steps 1, 6, and 10. **Each step lists
+the open product decision that must be settled before it starts.**
+Settling decisions just in time keeps work moving. The ones at steps 3
+and 4 are needed soonest, because they unblock Phase B while step 1 is
+being built.
+
+Each numbered step is one `analyze-feature` → "Implement" cycle, with the
+normal Definition of Done and tag proposals.
+
+## Phase A — Foundation
+
+| # | Step | Spec | Decision needed first | Notes |
+|---|---|---|---|---|
+| 1 | ✅ **Done 2026-09-24.** Mobile shell & touch ergonomics, **plus PWA phase 1** (manifest, icons, meta tags, no service worker) | [mobile-app-shell-and-touch-ergonomics-v0.1.md](features/mobile-app-shell-and-touch-ergonomics-v0.1.md) | Approve the app-icon mark (drafts in `public/icons/`). A decision record for lifting capture and Settings into `App.tsx` overlays | Touches every student screen. Tag `v-pre-mobile-shell`. Adds shadcn `Sheet` + `DropdownMenu` |
+| 2 | Swipe-to-reveal removal (existing lists only: Assignments, Activities, Courses, steps) | [mobile-gestures-reorder-and-swipe-v0.1.md](features/mobile-gestures-reorder-and-swipe-v0.1.md) §2 | **D2**: the step-delete confirmation rule | Needs step 1's overflow menu. Drag (§1) waits for step 10 |
+
+## Phase B — Independent setup features (any order)
+
+| # | Step | Spec | Decision needed first | Notes |
+|---|---|---|---|---|
+| 3 | Course color, cascading course delete, "add your courses first" Home state | [course-management-v2-proposal.md](features/course-management-v2-proposal.md) | Reopen `course-setup.md`'s two 2026-08-14 resolutions (color non-editable, deletion deferred) | Delete uses step 2's swipe/menu pattern |
+| 4 | Separate Saturday / Sunday study hours | [study-hours-v2-proposal.md](features/study-hours-v2-proposal.md) | Does `PROTECTED_MINUTES` (90 min) survive? (§3, options a/b) | **Schema migration**: tag, and run `schema-migration-reviewer`. Must land before Phase C |
+
+## Phase C — Daily planning & completion
+
+All items are from [daily-planning-and-completion-v2-proposal.md](features/daily-planning-and-completion-v2-proposal.md).
+
+| # | Step | Items | Decision needed first | Notes |
+|---|---|---|---|---|
+| 5 | "Find time" / "Make a plan" pass the assignment through to Plan | 1 (implements `home-dashboard-followthrough.md` item 4) | — | Everything else in Plan builds on this |
+| 6 | "No steps yet" / "All steps done" rows; the shared finishable-assignment rule; Detail's all-done card; turned-in reminder; return-to-Plan context | 4, 5 | — | Step 12 reuses the finishable rule and the reminder |
+| 7 | "Plan it as one piece" moves to Assignment Detail | 3 | Decision record moving it off Plan (supersedes part of `20260816-plan-directly-without-breakdown.md`) | Needs step 5's single-item pre-select |
+| 8 | Select: full list, "Planned today" note, same-day items disabled | 6a–6c | **6a** (drop the three-candidate cap?) and **6c** (disable same-day items?) | 6a replaces a `daily-planning.md` acceptance criterion |
+| 9 | Existing-day view | 10 | Decision record partly reopening `20260818-plan-day-step-removed.md` | Moves "Move to another day" into the edit sheet |
+| 10 | Reorder, re-chain, and retime (edit sheet), **plus drag** | 2 + gestures spec §1 | **D1** (`@dnd-kit` drag vs. Earlier/Later buttons only); how to re-chain on weekends (item 2, a vs. b) | Needs step 9's view and edit sheet. Covers the Schedule step, the day view, and Look Ahead |
+| 11 | Next card "Working on" and late start; per-assignment Look Ahead warning | 7, 8 | — | Small and independent. Can fill any gap in Phases B–C |
+
+## Phase D — Coaching
+
+| # | Step | Spec | Decision needed first | Notes |
+|---|---|---|---|---|
+| 12 | Execution coaching: friction picker, interventions, repair flow, completion checks, automatic elapsed time, revised estimates | [execution-coaching-v0.1.md](features/execution-coaching-v0.1.md) | — (the spec already resolves its own open point by omitting the Assignment-Brief action) | Largest step. **New table + work-session changes**: tag, and run migration review. Needs steps 1, 6, and Plan. After it ships: add a friction-panel addendum to `coach-parent-dashboard-feature-spec-v0.1.md` |
+
+## After parity
+
+| # | Step | Spec |
+|---|---|---|
+| 13 | PWA phase 2: service worker, offline, background sync, push | Not written yet. Needs its own spec + decision record (`docs/decisions/20260924-pwa-in-two-phases.md` lists what it must answer) |
+
+**Critical path:** step 1 → steps 4–6 → step 9 → step 10 → step 12.
+Steps 3 and 11 are off the critical path and can happen while a decision
+is pending elsewhere.
+
+**If the prototype's `mobile-redesign` branch changes before it merges**,
+re-check daily planning items 2, 6, and 10 first. Those are where it most
+recently diverged from the prototype's `main`.
+
+**Demoable at the end of this phase:**
+- A student can install the app to their phone's home screen and run
+  the full plan → execute → finish loop there, with thumb-reachable
+  controls, familiar gestures, and non-gesture alternatives.
+- Planning surfaces every open assignment honestly, including
+  never-broken-down and finished-but-not-closed ones.
+- A student who gets stuck mid-session can say why and get one calm,
+  concrete suggestion or a real reschedule.
+
+---
+
 # Backlog — known, not yet scheduled
 
 Everything below is either explicitly deferred by an existing decision
@@ -429,16 +517,24 @@ built — schedule it as one piece of work, not two.
   names Assignment Detail as a consumer, but nothing there calls it yet —
   worth folding into this same reconsideration rather than wiring it in
   separately ahead of the CTA-hierarchy decision.
-- Course Setup: deleting a course (and whatever in-use protection that
-  needs), manual color selection, and archiving a course at the end of a
-  term/year — all deferred by the 2026-08-14 resolution in
-  `course-setup.md`, worth revisiting once real students have used the
-  create/rename/list-only version from Phase 1.
+- Course Setup: archiving a course at the end of a term/year — deferred
+  by the 2026-08-14 resolution in `course-setup.md`. (Deleting a course
+  and manual color selection, deferred by that same resolution, are now
+  scheduled in Phase 7, step 3.)
 - A true calendar grid/month view (`week-lookahead.md` explicitly scopes
   out anything beyond the 7-day list).
-- Cross-day drag-and-drop rescheduling (`daily-planning.md`).
+- Cross-day drag-and-drop rescheduling (`daily-planning.md`). Phase 7's
+  drag-to-reorder is same-day only. Cross-day moves stay a tap-based
+  action in the edit sheet.
 - A running timer/time-tracking UI for Today Execution (deliberately
   excluded per Design-Principles.md's "no elapsed-time pressure").
+  Phase 7, step 12 records elapsed time silently at completion and
+  never shows a timer, so this exclusion stands.
+- Supporter Invitation's deferred resend / cancel / Remove Supporter
+  actions (Phase 6). When they're built, their Support rows use the
+  swipe/overflow pattern from `mobile-gestures-reorder-and-swipe-v0.1.md`.
+- PWA phase 2 (offline, background sync, push) — see Phase 7's "After
+  parity".
 - One-off exceptions to a recurring Activity (`activities.md`) — e.g. "no
   practice this Friday."
 - Home Dashboard's Ownership note (UX Flow item 7) — deferred

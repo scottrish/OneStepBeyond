@@ -59,12 +59,12 @@ export default function CoursesPage({ user, onBack }: CoursesPageProps) {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[420px] p-8">
+    <div>
       <Button variant="ghost" onClick={onBack} className="mb-3 -ml-3 px-3">
         ← Back
       </Button>
 
-      <h1 className="mb-4 text-3xl">Courses</h1>
+      <h1 className="mb-4 text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">Courses</h1>
 
       {loadError && <ErrorBanner message="Couldn’t load your courses." onRetry={retry} />}
 
@@ -129,6 +129,6 @@ export default function CoursesPage({ user, onBack }: CoursesPageProps) {
           Add course
         </Button>
       </form>
-    </main>
+    </div>
   );
 }

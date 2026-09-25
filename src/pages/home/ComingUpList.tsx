@@ -71,7 +71,7 @@ export default function ComingUpList({
         <button
           type="button"
           onClick={onGoToAssignments}
-          className="mt-2 text-sm text-primary underline underline-offset-4"
+          className="mt-2 inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-4"
         >
           See all assignments
         </button>

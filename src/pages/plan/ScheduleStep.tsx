@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import MobileActionBar from "@/components/MobileActionBar";
 import { effortLabel } from "../../domain/effortPresets";
 import { timeLabel } from "../../domain/planningDate";
 import type { PlanningCandidate } from "../../domain/planningCandidates";
@@ -60,16 +61,19 @@ export default function ScheduleStep({
                   aria-label={`Time for ${entry.workItem.title}`}
                   value={times[id] ?? ""}
                   onChange={(e) => onTimeChange(id, e.target.value)}
-                  className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm text-foreground"
+                  className="h-12 w-full rounded-2xl border border-border bg-background px-3 text-base text-foreground sm:h-11"
                 />
                 {slots.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
+                  // One horizontally scrollable row instead of wrapping, so a
+                  // long list of suggestions doesn't push the next item off
+                  // screen — docs/features/mobile-app-shell-and-touch-ergonomics-v0.1.md §4.
+                  <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
                     {slots.map((slot) => (
                       <button
                         key={slot.start}
                         type="button"
                         onClick={() => onTimeChange(id, slot.start)}
-                        className="min-h-11 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/40"
+                        className="min-h-11 shrink-0 whitespace-nowrap rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/40"
                       >
                         {slot.label} · {timeLabel(slot.start)}
                       </button>
@@ -81,14 +85,14 @@ export default function ScheduleStep({
           );
         })}
       </ul>
-      <div className="mt-6 flex gap-2">
+      <MobileActionBar>
         <Button variant="ghost" className="rounded-2xl" onClick={onBack}>
           Back
         </Button>
         <Button size="lg" className="flex-1 rounded-2xl" onClick={onNext}>
           Next: review
         </Button>
-      </div>
+      </MobileActionBar>
     </section>
   );
 }

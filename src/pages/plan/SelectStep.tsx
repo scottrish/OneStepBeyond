@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import MobileActionBar from "@/components/MobileActionBar";
 import EmptyState from "@/components/EmptyState";
 import { effortLabel } from "../../domain/effortPresets";
 import { dayLabel, dueRelativeLabel, timeLabel } from "../../domain/planningDate";
@@ -106,7 +107,7 @@ export default function SelectStep({
               <button
                 type="button"
                 onClick={() => onOpenAssignment(assignment.id)}
-                className="text-left text-sm text-foreground underline-offset-4 hover:underline"
+                className="inline-flex min-h-11 items-center gap-1.5 text-left text-sm text-foreground underline-offset-4 hover:underline"
               >
                 Due: {assignment.title}{" "}
                 <span className="text-xs text-muted-foreground">
@@ -249,19 +250,21 @@ export default function SelectStep({
             <button
               type="button"
               onClick={onShowAll}
-              className="mt-3 text-sm text-primary underline underline-offset-4"
+              className="mt-3 inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-4"
             >
               Show more assignments
             </button>
           )}
-          <Button
-            size="lg"
-            className="mt-6 w-full rounded-2xl"
-            disabled={chosenIds.length === 0}
-            onClick={onNext}
-          >
-            Next: estimate time
-          </Button>
+          <MobileActionBar>
+            <Button
+              size="lg"
+              className="w-full rounded-2xl"
+              disabled={chosenIds.length === 0}
+              onClick={onNext}
+            >
+              Next: estimate time
+            </Button>
+          </MobileActionBar>
         </div>
       )}
     </section>

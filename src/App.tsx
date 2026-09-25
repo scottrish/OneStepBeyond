@@ -8,6 +8,12 @@ import type { PlanTab, Step } from "./pages/PlanPage";
 import AssignmentsPage from "./pages/AssignmentsPage";
 import AssignmentDetailPage from "./pages/AssignmentDetailPage";
 import TodayExecutionPage from "./pages/TodayExecutionPage";
+import AssignmentCapturePage from "./pages/AssignmentCapturePage";
+import SettingsPage from "./pages/SettingsPage";
+import CoursesPage from "./pages/CoursesPage";
+import ActivitiesPage from "./pages/ActivitiesPage";
+import PreferencesPage from "./pages/PreferencesPage";
+import SupportPage from "./pages/SupportPage";
 import AppShell from "./components/AppShell";
 import type { Tab } from "./components/AppShell";
 
@@ -19,6 +25,12 @@ import type { Tab } from "./components/AppShell";
 // deliberately NOT part of what gets reset on re-tap; see planDate/
 // planStep below.
 type ResettableTab = "home" | "assignments" | "plan";
+
+// Screens that used to be HomePage sub-views and are now reachable from
+// any tab (the tab bar's quick-add/Settings slot, Home's "More options",
+// Assignments' "Add assignment") — see
+// docs/decisions/20260924-secondary-screens-app-level-overlays.md.
+type SecondaryScreen = "capture" | "settings" | "courses" | "activities" | "preferences" | "support";
 
 export default function App() {
   const { user, signUp, signIn, signOut } = useAuth();
@@ -73,6 +85,14 @@ export default function App() {
   // See docs/decisions/20260817-assignment-detail-global-overlay.md.
   const [openAssignmentId, setOpenAssignmentId] = useState<string | null>(null);
 
+  // Capture, Settings, and Settings' own sub-screens — the same
+  // render-in-place-of-the-tab pattern as openAssignmentId/executingToday
+  // above. Opening one never changes activeTab, so closing it returns to
+  // whichever tab was showing (e.g. quick-add from Plan, then Cancel, is
+  // back on Plan with its lifted day/step intact). See
+  // docs/decisions/20260924-secondary-screens-app-level-overlays.md.
+  const [secondary, setSecondary] = useState<SecondaryScreen | null>(null);
+
   if (!user) {
     return <LoginPage signIn={signIn} signUp={signUp} />;
   }
@@ -119,10 +139,56 @@ export default function App() {
     // top of it, leaving its own back action as the only way out.
     setExecutingToday(false);
     setOpenAssignmentId(null);
+    setSecondary(null);
+  }
+
+  function renderSecondary(screen: SecondaryScreen, signedInUser: NonNullable<typeof user>) {
+    const close = () => setSecondary(null);
+    switch (screen) {
+      case "capture":
+        return (
+          <AssignmentCapturePage
+            user={signedInUser}
+            onCancel={close}
+            onGoToCourses={() => setSecondary("courses")}
+            onSaved={(assignmentId) => {
+              setSecondary(null);
+              setOpenAssignmentId(assignmentId);
+            }}
+          />
+        );
+      case "settings":
+        return (
+          <SettingsPage
+            onBack={close}
+            onGoToActivities={() => setSecondary("activities")}
+            onGoToCourses={() => setSecondary("courses")}
+            onGoToPreferences={() => setSecondary("preferences")}
+            onGoToSupport={() => setSecondary("support")}
+            signOut={signOut}
+          />
+        );
+      // Back routes are preserved exactly from when these were HomePage
+      // sub-views: Support returns to Settings; Courses, Activities, and
+      // Study hours close back to the tab (previously always Home).
+      case "support":
+        return <SupportPage user={signedInUser} onBack={() => setSecondary("settings")} />;
+      case "courses":
+        return <CoursesPage user={signedInUser} onBack={close} />;
+      case "activities":
+        return <ActivitiesPage user={signedInUser} onBack={close} />;
+      case "preferences":
+        return <PreferencesPage user={signedInUser} onBack={close} />;
+    }
   }
 
   return (
-    <AppShell activeTab={activeTab} onTabChange={handleTabChange}>
+    <AppShell
+      activeTab={activeTab}
+      onTabChange={handleTabChange}
+      onQuickAdd={() => setSecondary("capture")}
+      onOpenSettings={() => setSecondary("settings")}
+    >
       {openAssignmentId ? (
         <AssignmentDetailPage
           user={user}
@@ -132,17 +198,21 @@ export default function App() {
         />
       ) : executingToday ? (
         <TodayExecutionPage user={user} onBack={() => setExecutingToday(false)} />
+      ) : secondary ? (
+        renderSecondary(secondary, user)
       ) : (
         <>
           {activeTab === "home" && (
             <HomePage
               key={tabResetKeys.home}
               user={user}
-              signOut={signOut}
               onStartExecution={() => setExecutingToday(true)}
               onGoToPlan={() => handleTabChange("plan")}
               onGoToAssignments={() => handleTabChange("assignments")}
               onOpenAssignment={setOpenAssignmentId}
+              onOpenCapture={() => setSecondary("capture")}
+              onOpenSettings={() => setSecondary("settings")}
+              onOpenSupport={() => setSecondary("support")}
             />
           )}
           {activeTab === "plan" && (
@@ -164,7 +234,7 @@ export default function App() {
             <AssignmentsPage
               key={tabResetKeys.assignments}
               user={user}
-              onGoToHome={() => handleTabChange("home")}
+              onOpenCapture={() => setSecondary("capture")}
               onOpenAssignment={setOpenAssignmentId}
             />
           )}

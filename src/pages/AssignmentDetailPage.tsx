@@ -147,7 +147,7 @@ export default function AssignmentDetailPage({
   }
 
   return (
-    <main className="mx-auto w-full max-w-[420px] p-8">
+    <div>
       <Button variant="ghost" onClick={onBack} className="mb-3 -ml-3 px-3">
         ← Back
       </Button>
@@ -206,7 +206,7 @@ export default function AssignmentDetailPage({
             </div>
           </div>
 
-          <h1 className="mb-4 text-3xl">{assignment.title}</h1>
+          <h1 className="mb-4 text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">{assignment.title}</h1>
 
           <dl className="mb-4 flex flex-col gap-3">
             <div>
@@ -281,6 +281,6 @@ export default function AssignmentDetailPage({
           </div>
         </>
       )}
-    </main>
+    </div>
   );
 }

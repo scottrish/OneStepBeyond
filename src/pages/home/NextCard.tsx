@@ -42,7 +42,7 @@ export default function NextCard({
   return (
     <>
       {next ? (
-        <div className="mt-6 rounded-3xl bg-primary p-6 text-primary-foreground">
+        <div className="mt-6 rounded-2xl bg-primary px-5 py-6 text-primary-foreground sm:px-6 sm:py-7">
           <p className="text-sm opacity-80">Next</p>
           <p className="mt-1 text-xl font-medium">
             {workItems.find((w) => w.id === next.workItemId)?.title ?? "Study session"}
@@ -55,7 +55,7 @@ export default function NextCard({
                 <button
                   type="button"
                   onClick={() => onOpenAssignment(assignment.id)}
-                  className="mt-1 block text-left text-sm opacity-80 underline-offset-4 hover:underline"
+                  className="mt-1 flex min-h-11 items-center text-left text-sm opacity-80 underline-offset-4 hover:underline"
                 >
                   {assignment.title} · {courseName(assignment.courseId)}
                 </button>
@@ -72,7 +72,7 @@ export default function NextCard({
         // confirmation, reused here rather than falling through to the
         // "no plan yet" empty state, which would wrongly imply nothing
         // was ever planned.
-        <div className="mt-6 rounded-3xl bg-primary p-6 text-primary-foreground">
+        <div className="mt-6 rounded-2xl bg-primary px-5 py-6 text-primary-foreground sm:px-6 sm:py-7">
           <p className="text-xl font-medium">That&rsquo;s everything for today.</p>
           <p className="mt-1 text-sm opacity-80">
             You did what you said you would. The evening is yours.
