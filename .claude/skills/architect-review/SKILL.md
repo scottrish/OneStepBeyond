@@ -8,7 +8,7 @@ description: Act as an expert software architect to audit codebase complexity, c
 Use this skill when the user asks for a code quality / architecture audit,
 a complexity or "code smell" review, a SOLID review, or wants a
 refactoring strategy proposed for this codebase (or a subset of it, e.g.
-"just `src/rag`").
+"just the planning wizard" or a single top-level directory).
 
 This skill has two hard-gated phases. Phase 1 is read-only. Phase 2 (tag +
 refactor) may only begin after the user has explicitly approved the Phase
@@ -18,13 +18,21 @@ scope looks small.
 ## Phase 1 — Audit (read-only)
 
 1. Read `CLAUDE.md` in full if not already in context, especially the
-   **Architecture Principles**, **Implementation Philosophy**, and **You
-   Aren't Going to Need It** sections — the bar for "bad smell" in this
-   repo is set by those, not by generic textbook rules. A pattern that
-   looks like a violation in isolation (e.g. business logic in
-   `src/experiment`) may be an explicitly named anti-pattern to avoid; a
-   pattern that looks like missing abstraction (e.g. only one scaffold
-   ladder implemented) may be deliberate YAGNI.
+   **Architecture Principles** section's two subsections — **General
+   Principles** (portable, apply regardless of project) and
+   **Project-Specific Architecture** (this app's actual conventions:
+   `src/services/`, `src/domain/`, the shared `useAsyncData`/
+   `ErrorBanner` patterns, page-subfolder composition) — plus
+   **Implementation Philosophy** and **You Aren't Going to Need It**.
+   The bar for "bad smell" in this repo is set by those, not by generic
+   textbook rules: judge General Principles findings against any
+   project's normal standard, but judge Project-Specific Architecture
+   findings against what's actually named there, not an assumption
+   carried in from a different codebase. A pattern that looks like a
+   violation in isolation (e.g. a component reaching past `src/services/`
+   straight into Supabase) may be an explicitly named anti-pattern to
+   avoid; a pattern that looks like missing abstraction may be deliberate
+   YAGNI.
 2. Read `docs/decisions/README.md` and any decision records touching the
    area under review — don't flag as a "violation" something that was
    already a deliberate, documented trade-off. Cite the decision record
@@ -33,35 +41,42 @@ scope looks small.
    unclear, ask.
 4. Do not modify any files in this phase. Do not run `git tag`. Do not
    run codemods "just to check the diff."
-5. Analyze the scope for:
+5. Analyze the scope for, using this repo's own module boundaries — as
+   named in CLAUDE.md's **Project-Specific Architecture** subsection and
+   as actually found in the directory structure under review — not a
+   layering assumed from a different codebase:
    - **Complexity**: oversized files/functions, deep nesting, high
      branching/cyclomatic complexity, parameter-list bloat, duplicated
-     logic across `src/corpus` / `src/rag` / `src/app` / `src/eval` /
-     `src/experiment`.
+     logic across this repo's own layers/modules.
    - **Code smells**: god objects/modules, feature envy, shotgun surgery,
      long parameter lists, primitive obsession, speculative generality,
-     dead code, inappropriate intimacy between pipeline stages.
+     dead code, inappropriate intimacy between layers that are meant to
+     stay independent (e.g. this app's data-fetching/domain/presentation
+     split).
    - **SOLID violations**, read against this repo's actual module
      boundaries:
-     - **SRP** — a module or function doing more than one of:
-       validation, retrieval, ranking, scaffolding, ambiguity resolution,
-       generation, orchestration.
-     - **OCP** — logic that requires editing an existing pipeline stage
-       (rather than extending it) to support a new case.
+     - **SRP** — a module or function combining more than one distinct
+       responsibility (e.g. data access, business-rule computation,
+       presentation, orchestration) — use this repo's own boundaries
+       (`src/services/`, `src/domain/`, `src/pages/`/`src/components/`,
+       `src/hooks/`) as the reference, not a generic list.
+     - **OCP** — logic that requires editing an existing module (rather
+       than extending it) to support a new case.
      - **LSP** — implementations of a shared interface/type that violate
        its contract's expectations.
      - **ISP** — call sites forced to depend on parts of an interface
        they don't use.
-     - **DIP** — business logic (`src/corpus`, `src/rag`) reaching into
-       process-global state, live API clients, or orchestration
-       (`src/app`, `src/experiment`) instead of receiving dependencies —
-       note the model-config/API-key gap is already a known, accepted
-       exception per `CLAUDE.md`; don't re-flag that specific gap unless
-       the task is about it.
-   - Stage-boundary violations specifically: retrieval, ranking,
-     scaffolding, ambiguity resolution, and response generation must stay
-     independently callable/testable — flag anything that collapses two
-     stages together.
+     - **DIP** — business/domain logic (`src/domain/`) reaching into
+       process-global state, live external clients, or UI/orchestration
+       code instead of receiving dependencies — Supabase access is meant
+       to stay centralized in `src/services/`, not called directly from
+       components or hooks (per CLAUDE.md's Project-Specific
+       Architecture).
+   - Layer-boundary violations specifically: this app's distinct layers
+     (data-fetching hooks, domain/business-rule modules, presentational
+     components, page-level orchestration) must stay independently
+     callable/testable — flag anything that collapses two of them
+     together.
 6. For each finding, capture: file:line, what it is, why it matters
    *concretely* (a failure scenario, not just a label), and severity.
    Skip findings that are stylistic-only with no maintainability or
@@ -132,9 +147,9 @@ Present, in this order:
    shippable increments (per `CLAUDE.md`'s "prefer incremental,
    independently-testable steps over large rewrites"). For each
    increment: what changes, which files, expected risk/blast radius,
-   which existing tests / `eval:*` scripts / `validate:corpus` must pass
-   after it, and which finding(s)/metric(s) from step 2 it's meant to
-   move.
+   which existing tests must pass after it (per CLAUDE.md's Definition
+   of Done: `npm run lint`, `npm run test:run`, `npm run build`), and
+   which finding(s)/metric(s) from step 2 it's meant to move.
 4. **Explicitly out of scope** — anything that looked tempting but fails
    the YAGNI test in `CLAUDE.md` (no concrete acceptance criteria needs
    it) — name it and don't do it.
@@ -173,15 +188,18 @@ approved subset.
 2. Implement the approved increments one at a time, in the agreed order.
    For each increment:
    - Preserve existing behavior — this is a refactor, not a rewrite;
-     public behavior and pipeline stage contracts must not change unless
-     the user explicitly approved a behavior change.
+     public behavior and layer contracts must not change unless the user
+     explicitly approved a behavior change.
    - Keep the change scoped to what was approved; do not fold in
      additional cleanup that wasn't part of the proposal.
-   - Run `npm test` and `npm run validate:corpus`.
-   - Run whichever `eval:*` scripts are relevant to the touched stage,
-     and compare against existing baselines in `eval-results/` /
-     `evaluation/baselines/` — a refactor must not change eval outcomes;
-     if it does, stop and report before continuing to the next increment.
+   - Run CLAUDE.md's Definition of Done: `npm run lint`, `npm run
+     test:run`, `npm run build`.
+   - If this repo defines validation beyond that (a synthetic persona
+     assessment, a benchmark/eval script, a recorded baseline), run
+     whichever of those are relevant to the touched area and compare
+     against its existing baseline — a refactor must not change
+     externally-observable behavior; if it does, stop and report before
+     continuing to the next increment.
 3. If any increment's actual diff turns out larger or riskier than
    proposed, pause and re-confirm with the user before continuing —
    don't let scope grow silently mid-execution.
