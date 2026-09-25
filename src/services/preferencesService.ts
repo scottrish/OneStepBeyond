@@ -2,41 +2,50 @@ import { supabase } from "../lib/supabase";
 
 export type Preferences = {
   weekdayFinishTime: string;
-  weekendHours: number;
+  saturdayHours: number;
+  sundayHours: number;
 };
 
-export type PreferencesInput = {
-  weekdayFinishTime: string;
-  weekendHours: number;
-};
+export type PreferencesInput = Preferences;
 
-// Matches src/domain/studyCapacity.ts's current hardcoded
-// WEEKDAY_WINDOW.finish / WEEKEND_WINDOW span exactly — a student who
-// has never opened Study Hours sees the same capacity numbers as before
-// this feature existed (docs/features/student-preferences.md's own
-// "no regression" acceptance criterion).
+// For a student who has never saved study hours (no row yet). Matches
+// the columns' own defaults. Saturday and Sunday are 2 hours each — not
+// the prototype's 2 and 3 — per docs/decisions/
+// 20260925-split-weekend-study-hours.md (S2).
 export const DEFAULT_PREFERENCES: Preferences = {
   weekdayFinishTime: "21:00",
-  weekendHours: 10,
+  saturdayHours: 2,
+  sundayHours: 2,
 };
 
+const SELECT_COLUMNS = "weekday_finish_time, saturday_hours, sunday_hours";
+
+function toPreferences(row: {
+  weekday_finish_time: string;
+  saturday_hours: number | string;
+  sunday_hours: number | string;
+}): Preferences {
+  return {
+    weekdayFinishTime: row.weekday_finish_time,
+    // numeric columns: coerce, in case PostgREST returns them as strings.
+    saturdayHours: Number(row.saturday_hours),
+    sundayHours: Number(row.sunday_hours),
+  };
+}
+
 // No row yet is a valid, expected state — not an error — so this
-// returns the defaults rather than throwing, the same way
-// studyCapacity.ts's constants apply to every student today.
+// returns the defaults rather than throwing.
 export async function getPreferences(studentId: string): Promise<Preferences> {
   const { data, error } = await supabase
     .from("student_preferences")
-    .select("weekday_finish_time, weekend_hours")
+    .select(SELECT_COLUMNS)
     .eq("student_id", studentId)
     .maybeSingle();
 
   if (error) throw error;
   if (!data) return DEFAULT_PREFERENCES;
 
-  return {
-    weekdayFinishTime: data.weekday_finish_time,
-    weekendHours: data.weekend_hours,
-  };
+  return toPreferences(data);
 }
 
 // student_id is the table's own primary key, so this targets it as the
@@ -51,15 +60,13 @@ export async function upsertPreferences(
     .upsert({
       student_id: studentId,
       weekday_finish_time: input.weekdayFinishTime,
-      weekend_hours: input.weekendHours,
+      saturday_hours: input.saturdayHours,
+      sunday_hours: input.sundayHours,
     })
-    .select("weekday_finish_time, weekend_hours")
+    .select(SELECT_COLUMNS)
     .single();
 
   if (error) throw error;
 
-  return {
-    weekdayFinishTime: data.weekday_finish_time,
-    weekendHours: data.weekend_hours,
-  };
+  return toPreferences(data);
 }

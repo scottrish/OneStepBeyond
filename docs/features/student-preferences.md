@@ -59,11 +59,15 @@ each.
 - **Weekday start time stays fixed**, not configurable — students aren't
   expected to use pre-school time for work, so there's nothing real to
   configure there. Only the weekday *finish* time is a preference.
+- *Amended 2026-09-25: Saturday and Sunday now have separate budgets
+  (`study-hours-v2-proposal.md`; `docs/decisions/
+  20260925-split-weekend-study-hours.md`). Each is still a budget, not a
+  window.*
 - **Weekend is an hours budget, not a time window.** Students won't
   realistically hold to a fixed weekend time slot the way a school day's
   "after school" anchor holds. Concretely, this means weekend has no
   start/finish time at all — just a single "hours available" number.
-- *Superseded 2026-09-25: `PROTECTED_MINUTES` is being retired (`study-hours-v2-proposal.md` §3, option b).*
+- *Superseded 2026-09-25: `PROTECTED_MINUTES` is retired (`study-hours-v2-proposal.md` §3, option b).*
 - **The weekend budget is subtracted from the same way a weekday window
   is** — Activities/travel and the fixed `PROTECTED_MINUTES` block still
   come out of it, exactly like weekday's window span. It is not treated
@@ -152,7 +156,7 @@ each.
 
 ## Explicitly Out of Scope (this increment)
 
-- *Superseded 2026-09-25: `PROTECTED_MINUTES` is being retired (`study-hours-v2-proposal.md` §3, option b).*
+- *Superseded 2026-09-25: `PROTECTED_MINUTES` is retired (`study-hours-v2-proposal.md` §3, option b).*
 - The fixed protected/downtime block (`PROTECTED_MINUTES`, currently a
   flat 90-minute constant subtracted after the window and Activities) —
   not raised in this request; stays a fixed constant unless a future

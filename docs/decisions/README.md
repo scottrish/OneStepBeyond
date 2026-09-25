@@ -39,3 +39,4 @@ directory.
 | 20 | [Plan opens on the existing day's plan when one exists](20260925-existing-day-view.md) | 2026-09-25 |
 | 21 | [Confirming a plan adds to the day; it no longer replaces it](20260925-confirm-plan-appends.md) | 2026-09-25 |
 | 22 | [Reordering planned sessions: drag, re-chaining, and retiming](20260925-session-reorder-and-drag.md) | 2026-09-25 |
+| 23 | [Separate Saturday and Sunday study hours, and no protected buffer](20260925-split-weekend-study-hours.md) | 2026-09-25 |

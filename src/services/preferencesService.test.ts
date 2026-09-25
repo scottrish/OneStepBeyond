@@ -34,7 +34,7 @@ describe("getPreferences", () => {
   it("maps an existing row into Preferences", async () => {
     mockedFrom.mockReturnValue(
       mockQuery({
-        data: { weekday_finish_time: "20:30", weekend_hours: 6 },
+        data: { weekday_finish_time: "20:30", saturday_hours: 6, sunday_hours: "1.5" },
         error: null,
       }),
     );
@@ -42,13 +42,19 @@ describe("getPreferences", () => {
     const preferences = await getPreferences("student-1");
 
     expect(mockedFrom).toHaveBeenCalledWith("student_preferences");
-    expect(preferences).toEqual({ weekdayFinishTime: "20:30", weekendHours: 6 });
+    // numeric columns are coerced, even if returned as strings.
+    expect(preferences).toEqual({ weekdayFinishTime: "20:30", saturdayHours: 6, sundayHours: 1.5 });
   });
 
-  it("returns DEFAULT_PREFERENCES when the student has no row yet", async () => {
+  it("defaults a student with no row to 2 hours each on Saturday and Sunday", async () => {
     mockedFrom.mockReturnValue(mockQuery({ data: null, error: null }));
 
     expect(await getPreferences("student-1")).toEqual(DEFAULT_PREFERENCES);
+    expect(DEFAULT_PREFERENCES).toEqual({
+      weekdayFinishTime: "21:00",
+      saturdayHours: 2,
+      sundayHours: 2,
+    });
   });
 
   it("throws when the query errors", async () => {
@@ -64,17 +70,18 @@ describe("upsertPreferences", () => {
   it("upserts and returns the saved preferences", async () => {
     mockedFrom.mockReturnValue(
       mockQuery({
-        data: { weekday_finish_time: "19:00", weekend_hours: 4 },
+        data: { weekday_finish_time: "19:00", saturday_hours: 4, sunday_hours: 3 },
         error: null,
       }),
     );
 
     const preferences = await upsertPreferences("student-1", {
       weekdayFinishTime: "19:00",
-      weekendHours: 4,
+      saturdayHours: 4,
+      sundayHours: 3,
     });
 
-    expect(preferences).toEqual({ weekdayFinishTime: "19:00", weekendHours: 4 });
+    expect(preferences).toEqual({ weekdayFinishTime: "19:00", saturdayHours: 4, sundayHours: 3 });
   });
 
   it("throws when the upsert errors", async () => {
@@ -83,7 +90,7 @@ describe("upsertPreferences", () => {
     );
 
     await expect(
-      upsertPreferences("student-1", { weekdayFinishTime: "19:00", weekendHours: 4 }),
+      upsertPreferences("student-1", { weekdayFinishTime: "19:00", saturdayHours: 4, sundayHours: 3 }),
     ).rejects.toThrow("boom");
   });
 });

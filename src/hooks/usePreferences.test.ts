@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 vi.mock("../services/preferencesService", () => ({
   getPreferences: vi.fn(),
   upsertPreferences: vi.fn(),
-  DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", weekendHours: 10 },
+  DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", saturdayHours: 2, sundayHours: 2 },
 }));
 
 import * as preferencesService from "../services/preferencesService";
@@ -15,7 +15,8 @@ const mockedService = preferencesService as unknown as {
   upsertPreferences: ReturnType<typeof vi.fn>;
 };
 
-const saved = { weekdayFinishTime: "19:30", weekendHours: 5 };
+const saved = { weekdayFinishTime: "19:30", saturdayHours: 5, sundayHours: 3 };
+const defaults = { weekdayFinishTime: "21:00", saturdayHours: 2, sundayHours: 2 };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -26,7 +27,7 @@ describe("usePreferences", () => {
     mockedService.getPreferences.mockResolvedValue(saved);
 
     const { result } = renderHook(() => usePreferences("student-1"));
-    expect(result.current.preferences).toEqual({ weekdayFinishTime: "21:00", weekendHours: 10 });
+    expect(result.current.preferences).toEqual(defaults);
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(mockedService.getPreferences).toHaveBeenCalledWith("student-1");
@@ -43,7 +44,7 @@ describe("usePreferences", () => {
   });
 
   it("savePreferences upserts and updates local state", async () => {
-    mockedService.getPreferences.mockResolvedValue({ weekdayFinishTime: "21:00", weekendHours: 10 });
+    mockedService.getPreferences.mockResolvedValue(defaults);
     mockedService.upsertPreferences.mockResolvedValue(saved);
 
     const { result } = renderHook(() => usePreferences("student-1"));
@@ -57,12 +58,12 @@ describe("usePreferences", () => {
     expect(succeeded).toBe(true);
     expect(mockedService.upsertPreferences).toHaveBeenCalledWith("student-1", saved);
     expect(result.current.preferences).toEqual(saved);
+    expect(result.current.saveStatus).toBe("saved");
   });
 
-  it("sets actionError and keeps prior preferences when saving fails", async () => {
-    const initial = { weekdayFinishTime: "21:00", weekendHours: 10 };
-    mockedService.getPreferences.mockResolvedValue(initial);
-    mockedService.upsertPreferences.mockRejectedValue({ message: "boom" });
+  it("when saving fails, reports the error, keeps the unsaved value on screen, and retrySave sends it again", async () => {
+    mockedService.getPreferences.mockResolvedValue(defaults);
+    mockedService.upsertPreferences.mockRejectedValueOnce({ message: "boom" });
 
     const { result } = renderHook(() => usePreferences("student-1"));
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -74,6 +75,51 @@ describe("usePreferences", () => {
 
     expect(succeeded).toBe(false);
     expect(result.current.actionError).toBe("boom");
-    expect(result.current.preferences).toEqual(initial);
+    expect(result.current.preferences).toEqual(saved);
+
+    mockedService.upsertPreferences.mockResolvedValue(saved);
+    await act(async () => {
+      result.current.retrySave();
+    });
+
+    await waitFor(() => expect(result.current.saveStatus).toBe("saved"));
+    expect(result.current.actionError).toBeNull();
+    expect(mockedService.upsertPreferences).toHaveBeenLastCalledWith("student-1", saved);
+  });
+
+  it("sends one save at a time, and only the newest change made while one was in flight", async () => {
+    mockedService.getPreferences.mockResolvedValue(defaults);
+    let finishFirst: () => void = () => {};
+    mockedService.upsertPreferences
+      .mockImplementationOnce(() => new Promise<void>((resolve) => (finishFirst = resolve)))
+      .mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => usePreferences("student-1"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const tap = (saturdayHours: number) => ({ ...defaults, saturdayHours });
+    let first: Promise<boolean> = Promise.resolve(false);
+    act(() => {
+      first = result.current.savePreferences(tap(2.5));
+    });
+    act(() => {
+      void result.current.savePreferences(tap(3));
+    });
+    act(() => {
+      void result.current.savePreferences(tap(3.5));
+    });
+    expect(result.current.preferences).toEqual(tap(3.5));
+    expect(result.current.saveStatus).toBe("saving");
+    expect(mockedService.upsertPreferences).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      finishFirst();
+      await first;
+    });
+
+    expect(mockedService.upsertPreferences).toHaveBeenCalledTimes(2);
+    expect(mockedService.upsertPreferences).toHaveBeenLastCalledWith("student-1", tap(3.5));
+    expect(result.current.preferences).toEqual(tap(3.5));
+    expect(result.current.saveStatus).toBe("saved");
   });
 });

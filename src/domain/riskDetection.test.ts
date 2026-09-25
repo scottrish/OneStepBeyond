@@ -7,8 +7,9 @@ import type { Activity } from "../services/activityService";
 import type { Preferences } from "../services/preferencesService";
 
 // 2026-03-16 is a Monday — every date used below stays on weekdays so
-// the weekday study window (15:15-21:00, 345 min, minus 90 protected =
-// 255 min/day with no Activities and nothing else planned) is constant
+// the weekday study window (15:15-21:00 = 345 min/day with no Activities
+// and nothing else planned; no protected buffer since docs/decisions/
+// 20260925-split-weekend-study-hours.md) is constant
 // across every test, making the arithmetic in each scenario predictable.
 const TODAY = "2026-03-16";
 const NOT_ENOUGH_TIME_MESSAGE =
@@ -53,7 +54,7 @@ function workSession(overrides: Partial<WorkSession> = {}): WorkSession {
 }
 
 const noActivities: Activity[] = [];
-const preferences: Preferences = { weekdayFinishTime: "21:00", weekendHours: 10 };
+const preferences: Preferences = { weekdayFinishTime: "21:00", saturdayHours: 10, sundayHours: 10 };
 
 describe("assignmentsNeedingAttention", () => {
   it("stays silent when there's a breakdown, enough capacity, and a session already scheduled", () => {
@@ -72,9 +73,9 @@ describe("assignmentsNeedingAttention", () => {
   it("flags rule 1 (not enough time) for an assignment with no Work Items, due far enough out that scheduling isn't 'soon'", () => {
     // Due in 4 days, 2026-03-20 — a Friday, so every day from today
     // through the due date stays a weekday (not "due soon" either,
-    // rule 2's own <=2-day window): capacity = 255 * 5 weekdays = 1275.
+    // rule 2's own <=2-day window): capacity = 345 * 5 weekdays = 1725.
     const results = assignmentsNeedingAttention(
-      [assignment({ dueDate: "2026-03-20", effortMinutes: 1300 })],
+      [assignment({ dueDate: "2026-03-20", effortMinutes: 1800 })],
       [],
       [],
       noActivities,
@@ -84,7 +85,7 @@ describe("assignmentsNeedingAttention", () => {
 
     expect(results).toEqual([
       {
-        assignment: assignment({ dueDate: "2026-03-20", effortMinutes: 1300 }),
+        assignment: assignment({ dueDate: "2026-03-20", effortMinutes: 1800 }),
         message: NOT_ENOUGH_TIME_MESSAGE,
         action: "break-it-down",
       },
@@ -132,7 +133,7 @@ describe("assignmentsNeedingAttention", () => {
   it("action is 'make-a-plan' when rule 1 fires and a breakdown already exists", () => {
     const results = assignmentsNeedingAttention(
       [assignment({ dueDate: "2026-03-20" })], // Friday, still all-weekday
-      [workItem({ effortMinutes: 1300 })],
+      [workItem({ effortMinutes: 1800 })],
       [],
       noActivities,
       TODAY,
@@ -247,7 +248,7 @@ describe("assignmentsNeedingAttention", () => {
   it("sorts flagged assignments soonest-due-first", () => {
     const results = assignmentsNeedingAttention(
       [
-        assignment({ id: "later", dueDate: "2026-03-20", effortMinutes: 1300 }),
+        assignment({ id: "later", dueDate: "2026-03-20", effortMinutes: 1800 }),
         assignment({ id: "sooner", dueDate: "2026-03-17", effortMinutes: 30 }),
       ],
       [],

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 
 vi.mock("../services/preferencesService", () => ({
   getPreferences: vi.fn(),
   upsertPreferences: vi.fn(),
-  DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", weekendHours: 10 },
+  DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", saturdayHours: 2, sundayHours: 2 },
 }));
 
 import * as preferencesService from "../services/preferencesService";
@@ -18,66 +18,109 @@ const mockedService = preferencesService as unknown as {
 };
 
 const user = { id: "student-1", email: "person@example.com" } as User;
+const stored = { weekdayFinishTime: "20:30", saturdayHours: 4.5, sundayHours: 1 };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockedService.getPreferences.mockResolvedValue({
-    weekdayFinishTime: "21:00",
-    weekendHours: 10,
-  });
+  mockedService.getPreferences.mockResolvedValue(stored);
+  mockedService.upsertPreferences.mockImplementation(async (_id: string, input: unknown) => input);
 });
 
+async function renderLoaded() {
+  render(<PreferencesPage user={user} onBack={vi.fn()} />);
+  await waitFor(() => expect(screen.getByLabelText(/study should be done by/i)).toHaveValue("20:30"));
+}
+
 describe("PreferencesPage", () => {
-  it("pre-fills the form with the student's saved preferences", async () => {
+  it("shows the saved done-by time and each weekend day's own hours", async () => {
+    await renderLoaded();
+
+    expect(screen.getByText("4.5 hours")).toBeInTheDocument();
+    expect(screen.getByText("1 hour")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^save$/i })).not.toBeInTheDocument();
+  });
+
+  it("changing Saturday saves straight away, leaving Sunday and the weekday alone", async () => {
+    const userEventInstance = userEvent.setup();
+    await renderLoaded();
+
+    await userEventInstance.click(screen.getByRole("button", { name: "More time on Saturday" }));
+
+    expect(mockedService.upsertPreferences).toHaveBeenCalledWith("student-1", {
+      weekdayFinishTime: "20:30",
+      saturdayHours: 5,
+      sundayHours: 1,
+    });
+    expect(screen.getByText("5 hours")).toBeInTheDocument();
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
+  });
+
+  it("changing Sunday saves only Sunday's new value", async () => {
+    const userEventInstance = userEvent.setup();
+    await renderLoaded();
+
+    await userEventInstance.click(screen.getByRole("button", { name: "Less time on Sunday" }));
+
+    expect(mockedService.upsertPreferences).toHaveBeenCalledWith("student-1", {
+      weekdayFinishTime: "20:30",
+      saturdayHours: 4.5,
+      sundayHours: 0.5,
+    });
+  });
+
+  it("each stepper button has a distinct name; − is disabled at 0 and + at 8", async () => {
     mockedService.getPreferences.mockResolvedValue({
       weekdayFinishTime: "20:30",
-      weekendHours: 6,
+      saturdayHours: 0,
+      sundayHours: 8,
     });
+    await renderLoaded();
 
-    render(<PreferencesPage user={user} onBack={vi.fn()} />);
-
-    const weekdayInput = await screen.findByLabelText(/done studying by/i);
-    await waitFor(() => expect(weekdayInput).toHaveValue("20:30"));
-    expect(screen.getByLabelText(/hours available on a weekend day/i)).toHaveValue("6");
+    expect(screen.getByRole("button", { name: "Less time on Saturday" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "More time on Saturday" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "More time on Sunday" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Less time on Sunday" })).toBeEnabled();
+    expect(screen.getByText("No study time")).toBeInTheDocument();
   });
 
-  it("saves the entered values", async () => {
-    mockedService.upsertPreferences.mockResolvedValue({
+  it("announces each change in a polite live region", async () => {
+    const userEventInstance = userEvent.setup();
+    await renderLoaded();
+
+    await userEventInstance.click(screen.getByRole("button", { name: "Less time on Sunday" }));
+
+    expect(screen.getByText("0.5 hours")).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("changing the done-by time saves it straight away; a half-typed (empty) time isn't saved", async () => {
+    await renderLoaded();
+    const input = screen.getByLabelText(/study should be done by/i);
+
+    fireEvent.change(input, { target: { value: "" } });
+    expect(mockedService.upsertPreferences).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: "19:00" } });
+    expect(mockedService.upsertPreferences).toHaveBeenCalledWith("student-1", {
+      ...stored,
       weekdayFinishTime: "19:00",
-      weekendHours: 4,
     });
-    const userEventInstance = userEvent.setup();
-
-    render(<PreferencesPage user={user} onBack={vi.fn()} />);
-    const weekdayInput = await screen.findByLabelText(/done studying by/i);
-
-    await userEventInstance.clear(weekdayInput);
-    await userEventInstance.type(weekdayInput, "19:00");
-    const weekendInput = screen.getByLabelText(/hours available on a weekend day/i);
-    await userEventInstance.clear(weekendInput);
-    await userEventInstance.type(weekendInput, "4");
-
-    await userEventInstance.click(screen.getByRole("button", { name: /^save$/i }));
-
-    await waitFor(() =>
-      expect(mockedService.upsertPreferences).toHaveBeenCalledWith("student-1", {
-        weekdayFinishTime: "19:00",
-        weekendHours: 4,
-      }),
-    );
-    expect(await screen.findByRole("button", { name: /^saved$/i })).toBeInTheDocument();
+    expect(screen.getByText(/planning counts study time up to 7:00 PM/i)).toBeInTheDocument();
   });
 
-  it("disables Save when weekend hours is not a valid non-negative number", async () => {
+  it("says when a save fails and can try again, keeping the change on screen", async () => {
+    mockedService.upsertPreferences.mockRejectedValueOnce(new Error("network down"));
     const userEventInstance = userEvent.setup();
+    await renderLoaded();
 
-    render(<PreferencesPage user={user} onBack={vi.fn()} />);
-    const weekendInput = await screen.findByLabelText(/hours available on a weekend day/i);
+    await userEventInstance.click(screen.getByRole("button", { name: "More time on Saturday" }));
 
-    await userEventInstance.clear(weekendInput);
-    await userEventInstance.type(weekendInput, "-3");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/couldn’t save your study hours/i);
+    expect(screen.getByText("5 hours")).toBeInTheDocument();
 
-    expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
+    await userEventInstance.click(screen.getByRole("button", { name: /try again/i }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(mockedService.upsertPreferences).toHaveBeenCalledTimes(2);
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
   });
 
   it("calls onBack when the back button is clicked", async () => {
@@ -85,7 +128,7 @@ describe("PreferencesPage", () => {
     const userEventInstance = userEvent.setup();
 
     render(<PreferencesPage user={user} onBack={onBack} />);
-    await screen.findByLabelText(/done studying by/i);
+    await screen.findByLabelText(/study should be done by/i);
 
     await userEventInstance.click(screen.getByRole("button", { name: /back/i }));
     expect(onBack).toHaveBeenCalledTimes(1);

@@ -36,7 +36,7 @@ vi.mock("../services/workSessionService", () => ({
 vi.mock("../services/preferencesService", () => ({
   getPreferences: vi.fn(),
   upsertPreferences: vi.fn(),
-  DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", weekendHours: 10 },
+  DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", saturdayHours: 10, sundayHours: 10 },
 }));
 
 vi.mock("../services/supportRelationshipService", () => ({
@@ -112,7 +112,7 @@ beforeEach(() => {
   mockedWorkSessionService.updateWorkSessionStatus.mockResolvedValue(undefined);
   mockedPreferencesService.getPreferences.mockResolvedValue({
     weekdayFinishTime: "21:00",
-    weekendHours: 10,
+    saturdayHours: 10, sundayHours: 10,
   });
 });
 

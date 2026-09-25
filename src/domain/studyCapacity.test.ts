@@ -1,23 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
-  PROTECTED_MINUTES,
   activitiesOn,
   availableMinutes,
   capacityPhrase,
   minutesBetween,
+  stepWeekendHours,
   studySlots,
+  weekendHoursLabel,
 } from "./studyCapacity";
 import type { Activity } from "../services/activityService";
 import type { Preferences } from "../services/preferencesService";
 
-// 2026-03-16 is a Monday (weekday); 2026-03-15 is a Sunday (weekend).
+// 2026-03-16 is a Monday (weekday); 2026-03-15 is a Sunday and
+// 2026-03-14 a Saturday.
 const WEEKDAY = "2026-03-16";
 const WEEKEND = "2026-03-15";
+const SATURDAY = "2026-03-14";
 
-// Matches today's pre-preferences hardcoded constants exactly, so every
-// existing expectation below (345 min weekday, 600 min/10h weekend)
-// still holds unless a test explicitly overrides one.
-const preferences: Preferences = { weekdayFinishTime: "21:00", weekendHours: 10 };
+// 345 min on a weekday (15:15-21:00); Saturday 4h, Sunday 10h, so the
+// two weekend days are distinguishable in every expectation below.
+const preferences: Preferences = { weekdayFinishTime: "21:00", saturdayHours: 4, sundayHours: 10 };
 
 function activity(overrides: Partial<Activity> = {}): Activity {
   return {
@@ -48,43 +50,52 @@ describe("activitiesOn", () => {
 });
 
 describe("availableMinutes", () => {
-  it("uses the fixed 15:15 start through the configured weekday finish time (345 min) minus the protected block when there are no activities", () => {
-    expect(availableMinutes([], [], WEEKDAY, preferences)).toBe(345 - PROTECTED_MINUTES);
+  it("uses the fixed 15:15 start through the configured weekday finish time (345 min) when there are no activities, with no protected buffer", () => {
+    expect(availableMinutes([], [], WEEKDAY, preferences)).toBe(345);
   });
 
-  it("uses the configured weekend hours budget (10h = 600 min) minus the protected block when there are no activities", () => {
-    expect(availableMinutes([], [], WEEKEND, preferences)).toBe(600 - PROTECTED_MINUTES);
+  it("uses Sunday's own budget on a Sunday (10h = 600 min), with no protected buffer", () => {
+    expect(availableMinutes([], [], WEEKEND, preferences)).toBe(600);
+  });
+
+  it("uses Saturday's own budget on a Saturday (4h = 240 min), never Sunday's", () => {
+    expect(availableMinutes([], [], SATURDAY, preferences)).toBe(240);
+  });
+
+  it("a weekend day set to 0 hours has no study time", () => {
+    expect(availableMinutes([], [], SATURDAY, { ...preferences, saturdayHours: 0 })).toBe(0);
   });
 
   it("a custom weekday finish time changes the total directly", () => {
     // Fixed 15:15 start through a 19:00 finish = 225 min.
     const shorterEvening: Preferences = { ...preferences, weekdayFinishTime: "19:00" };
-    expect(availableMinutes([], [], WEEKDAY, shorterEvening)).toBe(225 - PROTECTED_MINUTES);
+    expect(availableMinutes([], [], WEEKDAY, shorterEvening)).toBe(225);
   });
 
-  it("a custom weekend hours budget changes the total directly, independent of weekday", () => {
-    const fewerWeekendHours: Preferences = { ...preferences, weekendHours: 3 };
-    expect(availableMinutes([], [], WEEKEND, fewerWeekendHours)).toBe(180 - PROTECTED_MINUTES);
-    // Weekday is untouched by the weekend-only change.
-    expect(availableMinutes([], [], WEEKDAY, fewerWeekendHours)).toBe(345 - PROTECTED_MINUTES);
+  it("a custom Sunday budget changes Sunday directly, independent of weekday and Saturday", () => {
+    const fewerWeekendHours: Preferences = { ...preferences, sundayHours: 3 };
+    expect(availableMinutes([], [], WEEKEND, fewerWeekendHours)).toBe(180);
+    // Weekday and Saturday are untouched by the Sunday-only change.
+    expect(availableMinutes([], [], WEEKDAY, fewerWeekendHours)).toBe(345);
+    expect(availableMinutes([], [], SATURDAY, fewerWeekendHours)).toBe(240);
   });
 
   it("subtracts an activity's duration plus its travel time both ways", () => {
     // 17:00-18:30 = 90 min + 15 min there + 15 min back = 120 min busy.
     const result = availableMinutes([activity()], [], WEEKDAY, preferences);
-    expect(result).toBe(345 - PROTECTED_MINUTES - 120);
+    expect(result).toBe(345 - 120);
   });
 
   it("subtracts travel-to and travel-from independently, even when only one side has any", () => {
     // 17:00-18:30 = 90 min + 20 min there + 0 min back = 110 min busy.
     const oneWayOnly = activity({ travelToMinutes: 20, travelFromMinutes: 0 });
     const result = availableMinutes([oneWayOnly], [], WEEKDAY, preferences);
-    expect(result).toBe(345 - PROTECTED_MINUTES - 110);
+    expect(result).toBe(345 - 110);
   });
 
   it("ignores activities on a different day", () => {
     const tuesdayOnly = activity({ days: [2] });
-    expect(availableMinutes([tuesdayOnly], [], WEEKDAY, preferences)).toBe(345 - PROTECTED_MINUTES);
+    expect(availableMinutes([tuesdayOnly], [], WEEKDAY, preferences)).toBe(345);
   });
 
   it("subtracts minutes already planned (and not done) for that date", () => {
@@ -97,7 +108,7 @@ describe("availableMinutes", () => {
       WEEKDAY,
       preferences,
     );
-    expect(result).toBe(345 - PROTECTED_MINUTES - 60);
+    expect(result).toBe(345 - 60);
   });
 
   it("does not subtract done sessions", () => {
@@ -107,7 +118,7 @@ describe("availableMinutes", () => {
       WEEKDAY,
       preferences,
     );
-    expect(result).toBe(345 - PROTECTED_MINUTES);
+    expect(result).toBe(345);
   });
 
   it("ignores sessions on a different date", () => {
@@ -117,7 +128,7 @@ describe("availableMinutes", () => {
       WEEKDAY,
       preferences,
     );
-    expect(result).toBe(345 - PROTECTED_MINUTES);
+    expect(result).toBe(345);
   });
 
   it("never goes below zero", () => {
@@ -219,5 +230,26 @@ describe("capacityPhrase", () => {
   it("returns 'Plenty of room' at and above 300", () => {
     expect(capacityPhrase(300)).toBe("Plenty of room");
     expect(capacityPhrase(600)).toBe("Plenty of room");
+  });
+});
+
+describe("stepWeekendHours", () => {
+  it("moves in half-hour steps", () => {
+    expect(stepWeekendHours(2, 0.5)).toBe(2.5);
+    expect(stepWeekendHours(2.5, -0.5)).toBe(2);
+  });
+
+  it("clamps to 0 and 8", () => {
+    expect(stepWeekendHours(0, -0.5)).toBe(0);
+    expect(stepWeekendHours(8, 0.5)).toBe(8);
+  });
+});
+
+describe("weekendHoursLabel", () => {
+  it("describes the budget in words", () => {
+    expect(weekendHoursLabel(0)).toBe("No study time");
+    expect(weekendHoursLabel(1)).toBe("1 hour");
+    expect(weekendHoursLabel(0.5)).toBe("0.5 hours");
+    expect(weekendHoursLabel(2.5)).toBe("2.5 hours");
   });
 });

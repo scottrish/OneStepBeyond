@@ -1,8 +1,9 @@
 # Feature: Study Hours — Split Saturday/Sunday Budgets (v2 proposal)
 
-**Status:** §3 decided 2026-09-25 (option b: retire `PROTECTED_MINUTES`).
-The rest is still proposed; not yet built (roadmap Phase 7 step 4).
-Produced from a prototype-sync
+**Status:** Implemented 2026-09-25 as roadmap Phase 7 step 4 (tag
+`v-pre-study-hours-split` marks the state before;
+`docs/decisions/20260925-split-weekend-study-hours.md` records the
+decisions; see "Implementation Notes (as built)" at the end). Produced from a prototype-sync
 audit of `../OneStepBeyondPrototype` (baseline commit `834368f`; `main`
 HEAD `744026a`; re-synced 2026-09-24 against the unmerged
 `mobile-redesign` branch at `1ce3145`, whose only change to this screen
@@ -49,8 +50,9 @@ string, saturdayHours: number, sundayHours: number }` — two separate
 numbers, not one shared value. Each is edited with a stepper card (label,
 a live "{N} hour(s)" / "No study time" description, −/+ buttons),
 clamped to [0, 8] in 0.5-hour increments, saving immediately per tap (no
-separate Save step — matching this app's existing "no confirm step"
-precedent on this same screen). Defaults: Saturday 2 hours, Sunday 3
+separate Save step). *Correction 2026-09-25: this app's screen **did**
+have a Save button; removing it was a decision (S1), not existing
+precedent.* Defaults: Saturday 2 hours, Sunday 3
 hours (5 total) — a materially different default budget from this app's
 current single 10-hour weekend default, not just a reshaping of the same
 number.
@@ -85,6 +87,9 @@ the original weekday/weekend split got, not a default-yes.
   a read-time migration: apply that same value to both Saturday and
   Sunday until the student changes either (avoids silently resetting
   every existing student's weekend budget to the new 2+3 default).
+  *As built: a one-time database migration copies it to both days,
+  capped at 8 and rounded to the half hour (S3). Students who never saved
+  get 2 hours each, not 2 and 3 (S2).*
 
 **Acceptance Criteria:**
 - A student can set different hour budgets for Saturday and Sunday
@@ -179,3 +184,32 @@ tests are the concrete acceptance check to update or preserve.
   §2; explicitly recommend against.
 - The prototype Settings screen's dev-only reset affordances, reached
   from the same navigational area as this feature — not proposed here.
+
+## Implementation Notes (as built, 2026-09-25)
+
+- **Decisions** (`docs/decisions/20260925-split-weekend-study-hours.md`):
+  §3 option (b), with the buffer retired on every day; S1 saves every
+  change straight away; S2 defaults to 2 h on Saturday and 2 h on Sunday;
+  S3 copies saved values to both days, capped at 8; S4 keeps no weekend
+  chips; S5 keeps the name `weekdayFinishTime`.
+- **Migration** `20260925120000_split_weekend_study_hours.sql`: adds
+  `saturday_hours` and `sunday_hours` (default 2, check 0–8), copies
+  `least(8, round(weekend_hours * 2) / 2)` into both, and drops
+  `weekend_hours`. Reviewed by `schema-migration-reviewer` with no
+  findings: no other migration, policy or function referenced the
+  column, and the RLS policies and table-level grants cover the new
+  columns.
+- **Domain:** `availableMinutes` picks the budget from the day of the
+  week and no longer subtracts a buffer. `stepWeekendHours` and
+  `weekendHoursLabel` are pure helpers for the steppers.
+- **Saving:** `usePreferences` sends one save at a time, and only the
+  newest change made meanwhile. The screen updates straight away. A
+  failed save keeps the change with an error and Try again.
+- **Weekday copy:** the prototype's "Nothing gets planned after {time}"
+  isn't true here, because a student can type a later time by hand. The
+  helper text reads "Planning counts study time up to {time}, Monday to
+  Friday." instead.
+- **Tests whose numbers moved** because the buffer is gone: Plan's
+  capacity figures (4h 15m → 5h 45m; 2h 15m → 3h 45m), Look Ahead's
+  weekday phrase ("Mostly open" → "Plenty of room"), and risk detection's
+  "not enough time" cases (1300 → 1800 min against 5 × 345).

@@ -6,7 +6,7 @@ vi.mock("../services/activityService", () => ({ listActivities: vi.fn() }));
 vi.mock("../services/workSessionService", () => ({ listWorkSessionsForStudent: vi.fn() }));
 vi.mock("../services/preferencesService", () => ({
   getPreferences: vi.fn(),
-  DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", weekendHours: 10 },
+  DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", saturdayHours: 10, sundayHours: 10 },
 }));
 
 import * as activityService from "../services/activityService";
@@ -37,7 +37,7 @@ beforeEach(() => {
   mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([]);
   mockedPreferencesService.getPreferences.mockResolvedValue({
     weekdayFinishTime: "21:00",
-    weekendHours: 10,
+    saturdayHours: 10, sundayHours: 10,
   });
 });
 

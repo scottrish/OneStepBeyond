@@ -10,15 +10,19 @@ import type { Preferences } from "../services/preferencesService";
 // Weekday start is fixed, not student-configurable — students aren't
 // expected to use pre-school time for work
 // (docs/features/student-preferences.md's Design Decisions). Weekday
-// finish and weekend's hours budget both come from the student's own
-// Preferences instead; there is deliberately no equivalent fixed
-// "weekend start" — see studySlots below for why weekend has no window
-// at all, only a budget.
+// finish and the Saturday and Sunday hours budgets all come from the
+// student's own Preferences instead; there is deliberately no equivalent
+// fixed "weekend start" — see studySlots below for why a weekend day has
+// no window at all, only a budget.
+//
+// There's no separate protected/downtime buffer: the student's own
+// "done by" time and weekend budgets are the protection (docs/decisions/
+// 20260925-split-weekend-study-hours.md, retiring PROTECTED_MINUTES).
 export const WEEKDAY_START = "15:15";
-// Minutes deliberately left for dinner, family and rest — never
-// presented to the student as free time, and never fully consumable by
-// planning.
-export const PROTECTED_MINUTES = 90;
+
+// Study-hours stepper range and step, in hours (study-hours-v2-proposal.md §1).
+export const MAX_WEEKEND_HOURS = 8;
+export const WEEKEND_HOURS_STEP = 0.5;
 
 // A day's already-planned time, for availableMinutes' "already planned"
 // subtraction — decoupled from the workSessionService's WorkSession type
@@ -51,8 +55,9 @@ export function activitiesOn(activities: Activity[], dateISO: string): Activity[
 }
 
 // The day's realistic study capacity: the student's configured total
-// (weekday window span, or weekend's raw hours budget) minus Activities
-// (+ their travel time) minus the protected block minus minutes already
+// (weekday window span, or that weekend day's own hours budget — Saturday
+// uses only saturdayHours, Sunday only sundayHours) minus Activities
+// (+ their travel time) minus minutes already
 // planned (and not yet done) for that date — the last term is this app's
 // own addition on top of the prototype's availableMinutes, mirroring the
 // "capacity" calc in the prototype's plan.tsx (availableMinutes minus
@@ -63,9 +68,13 @@ export function availableMinutes(
   dateISO: string,
   preferences: Preferences,
 ): number {
-  const total = isWeekendDate(dateISO)
-    ? preferences.weekendHours * 60
-    : minutesBetween(WEEKDAY_START, preferences.weekdayFinishTime);
+  const dow = parseISODate(dateISO).getDay();
+  const total =
+    dow === 6
+      ? preferences.saturdayHours * 60
+      : dow === 0
+        ? preferences.sundayHours * 60
+        : minutesBetween(WEEKDAY_START, preferences.weekdayFinishTime);
   const busy = activitiesOn(activities, dateISO).reduce(
     (sum, activity) =>
       sum +
@@ -78,7 +87,19 @@ export function availableMinutes(
     .filter((session) => session.date === dateISO && session.status !== "done")
     .reduce((sum, session) => sum + session.plannedMinutes, 0);
 
-  return Math.max(0, total - busy - PROTECTED_MINUTES - alreadyPlanned);
+  return Math.max(0, total - busy - alreadyPlanned);
+}
+
+/** One stepper tap on a weekend budget: clamped to [0, 8], on the half hour. */
+export function stepWeekendHours(hours: number, delta: number): number {
+  const next = Math.round((hours + delta) / WEEKEND_HOURS_STEP) * WEEKEND_HOURS_STEP;
+  return Math.min(MAX_WEEKEND_HOURS, Math.max(0, next));
+}
+
+/** The stepper's description: "No study time", "1 hour", "2.5 hours". */
+export function weekendHoursLabel(hours: number): string {
+  if (hours <= 0) return "No study time";
+  return hours === 1 ? "1 hour" : `${hours} hours`;
 }
 
 // Honest, qualitative phrasing for a day's capacity — never a raw "X hr

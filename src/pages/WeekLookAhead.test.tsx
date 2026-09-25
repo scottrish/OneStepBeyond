@@ -21,7 +21,7 @@ const mockedWorkSessionService = workSessionService as unknown as {
 // 2026-03-16 is a Monday, matching PlanPage.test.tsx's own convention.
 const TODAY_ISO = "2026-03-16";
 
-const preferences: Preferences = { weekdayFinishTime: "21:00", weekendHours: 10 };
+const preferences: Preferences = { weekdayFinishTime: "21:00", saturdayHours: 10, sundayHours: 10 };
 
 function renderWeekLookAhead(overrides: Record<string, unknown> = {}) {
   return render(
@@ -73,9 +73,9 @@ describe("WeekLookAhead", () => {
   it("shows a qualitative capacity phrase, never a raw minutes/hours figure", async () => {
     renderWeekLookAhead();
 
-    // No activities, full weekday window (15:15-21:00 = 345 min minus the
-    // 90-min protected block = 255 min) -> "Mostly open" per capacityPhrase.
-    expect(await screen.findAllByText("Mostly open")).not.toHaveLength(0);
+    // No activities, full weekday window (15:15-21:00 = 345 min, no
+    // protected buffer) -> "Plenty of room" per capacityPhrase.
+    expect(await screen.findAllByText("Plenty of room")).not.toHaveLength(0);
     expect(screen.queryByText(/\d+\s*(min|hr)\s*free/i)).not.toBeInTheDocument();
   });
 

@@ -46,7 +46,7 @@ vi.mock("../services/decompositionAttemptService", () => ({
 vi.mock("../services/preferencesService", () => ({
   getPreferences: vi.fn(),
   upsertPreferences: vi.fn(),
-  DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", weekendHours: 10 },
+  DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", saturdayHours: 10, sundayHours: 10 },
 }));
 
 import * as activityService from "../services/activityService";
@@ -182,7 +182,7 @@ beforeEach(() => {
   // unchanged unless a test explicitly overrides it.
   mockedPreferencesService.getPreferences.mockResolvedValue({
     weekdayFinishTime: "21:00",
-    weekendHours: 10,
+    saturdayHours: 10, sundayHours: 10,
   });
 });
 
@@ -203,30 +203,31 @@ describe("PlanPage", () => {
   it("states remaining capacity in plain language on Select's own header", async () => {
     render(<ControlledPlanPage user={user} />);
 
-    // Monday window 15:15-21:00 (345 min) minus 90 protected = 4h 15m.
+    // Monday window 15:15-21:00 = 345 min = 5h 45m (no protected buffer
+    // since docs/decisions/20260925-split-weekend-study-hours.md).
     expect(await screen.findByText(/that leaves about/i)).toBeInTheDocument();
-    expect(screen.getByText(/4h 15m/)).toBeInTheDocument();
+    expect(screen.getByText(/5h 45m/)).toBeInTheDocument();
   });
 
   // docs/features/student-preferences.md
   it("a configured weekday finish time changes Select's capacity figure", async () => {
     mockedPreferencesService.getPreferences.mockResolvedValue({
       weekdayFinishTime: "19:00",
-      weekendHours: 10,
+      saturdayHours: 10, sundayHours: 10,
     });
 
     render(<ControlledPlanPage user={user} />);
 
-    // Fixed 15:15 start through a configured 19:00 finish = 225 min,
-    // minus 90 protected = 2h 15m — not the default 4h 15m.
+    // Fixed 15:15 start through a configured 19:00 finish = 225 min =
+    // 3h 45m — not the default 5h 45m.
     expect(await screen.findByText(/that leaves about/i)).toBeInTheDocument();
-    expect(screen.getByText(/2h 15m/)).toBeInTheDocument();
+    expect(screen.getByText(/3h 45m/)).toBeInTheDocument();
   });
 
-  // docs/features/student-preferences.md's Design Decisions — weekend is
-  // an hours budget, independent of any weekday change, and its Schedule
-  // step offers no suggested slots (manual entry only).
-  it("a configured weekend hours budget changes capacity for a weekend day and offers no suggested slots", async () => {
+  // study-hours-v2-proposal.md — each weekend day is its own hours
+  // budget, independent of the weekday and of the other weekend day, and
+  // its Schedule step offers no suggested slots (manual entry only).
+  it("Saturday's own hours budget sets Saturday's capacity, and a weekend day offers no suggested slots", async () => {
     // Friday, so the 5-day Today+4 picker strip reaches into the
     // weekend (Fri/Sat/Sun/Mon/Tue) — TODAY_ISO elsewhere in this file
     // is a Monday, which never does.
@@ -234,7 +235,8 @@ describe("PlanPage", () => {
     vi.setSystemTime(FRIDAY);
     mockedPreferencesService.getPreferences.mockResolvedValue({
       weekdayFinishTime: "21:00",
-      weekendHours: 3,
+      saturdayHours: 1.5,
+      sundayHours: 3,
     });
     mockedAssignmentService.listAssignments.mockResolvedValue([
       assignment({ id: "a1", title: "Essay", dueDate: "2026-03-25" }),
@@ -253,9 +255,9 @@ describe("PlanPage", () => {
     const saturday = within(dayPicker).getAllByRole("radio")[1];
     await userEventInstance.click(saturday);
 
-    // 3h budget minus 90 protected = 90 min, which effortLabel renders as
-    // "1.5h" (an exact preset match) — independent of the (unrelated,
-    // unchanged) weekday finish time.
+    // Saturday's 1.5h budget = 90 min, which effortLabel renders as "1.5h"
+    // (an exact preset match) — not Sunday's 3h, and independent of the
+    // weekday finish time.
     expect(await screen.findByText(/that leaves about/i)).toBeInTheDocument();
     expect(screen.getByText("1.5h")).toBeInTheDocument();
 
