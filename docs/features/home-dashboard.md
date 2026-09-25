@@ -82,6 +82,12 @@ auth to account for).
 Content order, top to bottom (preserve exactly — this hierarchy is the
 whole point of the screen):
 
+*Added 2026-09-25 (`course-management-v2-proposal.md` §3): a student
+with **no courses** sees none of the items below. The header reads
+"Getting started / Welcome, {first name}.", and one card says "First, add
+your courses." with an **Add your courses** button that opens Courses.
+Home returns to normal once a course exists.*
+
 1. **Header** — date, "Hi {first name}." greeting, small quiet icon
    buttons for Add Assignment (+) and Settings (gear, see Navigation above)
    — sized and placed so neither competes visually with the primary action

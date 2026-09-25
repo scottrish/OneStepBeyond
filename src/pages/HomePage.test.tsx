@@ -7,7 +7,8 @@ import HomePage from "./HomePage";
 vi.mock("../services/courseService", () => ({
   listCourses: vi.fn().mockResolvedValue([]),
   createCourse: vi.fn(),
-  renameCourse: vi.fn(),
+  updateCourse: vi.fn(),
+  deleteCourse: vi.fn(),
 }));
 
 vi.mock("../services/assignmentService", () => ({
@@ -94,6 +95,7 @@ function renderHomePage(overrides: Record<string, unknown> = {}) {
       onOpenCapture={vi.fn()}
       onOpenSettings={vi.fn()}
       onOpenSupport={vi.fn()}
+      onOpenCourses={vi.fn()}
       {...overrides}
     />,
   );
@@ -103,7 +105,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(TODAY);
-  mockedCourseService.listCourses.mockResolvedValue([]);
+  // A student with at least one course; the no-courses onboarding state
+  // has its own tests below.
+  mockedCourseService.listCourses.mockResolvedValue([course]);
   mockedAssignmentService.listAssignments.mockResolvedValue([]);
   mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([]);
   mockedActivityService.listActivities.mockResolvedValue([]);
@@ -174,6 +178,51 @@ describe("HomePage", () => {
     await userEvent.click(add);
 
     expect(onOpenCapture).toHaveBeenCalledTimes(1);
+  });
+
+  describe("'add your courses first' (course-management-v2-proposal.md §3)", () => {
+    it("a student with no courses sees only the onboarding state, greeted with Welcome", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      renderHomePage();
+
+      expect(await screen.findByText("First, add your courses.")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Every assignment belongs to a class, so start by adding the classes you take this term.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Getting started")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /^welcome, person\.$/i })).toBeInTheDocument();
+      expect(screen.queryByText(/no plan for today yet/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/coming up/i)).not.toBeInTheDocument();
+      // Settings and Support stay reachable.
+      expect(screen.getByRole("button", { name: "More options" })).toBeInTheDocument();
+    });
+
+    it("'Add your courses' opens Courses", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      const onOpenCourses = vi.fn();
+      renderHomePage({ onOpenCourses });
+
+      await userEvent.click(await screen.findByRole("button", { name: "Add your courses" }));
+      expect(onOpenCourses).toHaveBeenCalledTimes(1);
+    });
+
+    it("with at least one course, Home renders normally", async () => {
+      renderHomePage();
+
+      expect(await screen.findByText(/no plan for today yet/i)).toBeInTheDocument();
+      expect(screen.queryByText("First, add your courses.")).not.toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /^hi person\.$/i })).toBeInTheDocument();
+    });
+
+    it("a course-load error shows the error banner, not the onboarding state", async () => {
+      mockedCourseService.listCourses.mockRejectedValue({ message: "network down" });
+      renderHomePage();
+
+      expect(await screen.findByText(/couldn’t load your day/i)).toBeInTheDocument();
+      expect(screen.queryByText("First, add your courses.")).not.toBeInTheDocument();
+    });
   });
 
   describe("Next card", () => {

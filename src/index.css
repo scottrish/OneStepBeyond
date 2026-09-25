@@ -47,6 +47,9 @@
   --color-course-3: var(--course-3);
   --color-course-4: var(--course-4);
   --color-course-5: var(--course-5);
+  --color-course-6: var(--course-6);
+  --color-course-7: var(--course-7);
+  --color-course-8: var(--course-8);
   --color-attention: var(--attention);
   --color-attention-foreground: var(--attention-foreground);
   --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
@@ -86,6 +89,12 @@
   --course-3: oklch(0.55 0.08 65);
   --course-4: oklch(0.55 0.09 300);
   --course-5: oklch(0.55 0.09 245);
+  /* Added for course colour choice (docs/decisions/
+     20260925-course-colour-and-delete.md, C1): the prototype's own
+     values for Teal, Rose and Moss. */
+  --course-6: oklch(0.58 0.09 195);
+  --course-7: oklch(0.55 0.1 350);
+  --course-8: oklch(0.5 0.07 120);
 }
 
 @media (prefers-color-scheme: dark) {

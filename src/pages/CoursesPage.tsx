@@ -1,60 +1,71 @@
 import { useState } from "react";
-import type { FormEvent, KeyboardEvent } from "react";
+import type { FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
+import EmptyState from "@/components/EmptyState";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ErrorBanner from "../components/ErrorBanner";
-import { courseColorValue } from "../domain/courseColor";
+import { nextCourseColor } from "../domain/courseColor";
+import { useAssignmentsList } from "../hooks/useAssignmentsList";
 import { useCourses } from "../hooks/useCourses";
+import CourseColorPicker from "./courses/CourseColorPicker";
+import CourseRow from "./courses/CourseRow";
 
 type CoursesPageProps = {
   user: User;
   onBack: () => void;
 };
 
+// docs/features/course-setup.md, extended by course-management-v2-proposal.md:
+// add a course with a chosen colour, edit its name and colour, and delete
+// it — with everything in it — behind a strong inline warning
+// (docs/decisions/20260925-course-colour-and-delete.md).
 export default function CoursesPage({ user, onBack }: CoursesPageProps) {
+  const { courses, loading, loadError, actionError, retry, addCourse, updateCourse, deleteCourse } =
+    useCourses(user.id);
+  // For each course's assignment count, and the delete warning's number.
+  // Includes completed assignments — they're deleted too.
   const {
-    courses,
-    loading,
-    loadError,
-    actionError,
-    retry,
-    addCourse,
-    renameCourse,
-  } = useCourses(user.id);
+    assignments,
+    loading: assignmentsLoading,
+    loadError: assignmentsLoadError,
+    retry: retryAssignments,
+  } = useAssignmentsList(user.id);
+
   const [newCourseName, setNewCourseName] = useState("");
+  // null = the default: a colour no existing course uses.
+  const [chosenColor, setChosenColor] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState("");
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const newColor = chosenColor ?? nextCourseColor(courses.map((course) => course.colorIndex));
+  const countsKnown = !assignmentsLoading && !assignmentsLoadError;
+
+  function assignmentCount(courseId: string): number | null {
+    return countsKnown
+      ? assignments.filter((assignment) => assignment.courseId === courseId).length
+      : null;
+  }
 
   async function handleAdd(event: FormEvent) {
     event.preventDefault();
     if (newCourseName.trim() === "") return;
-    const succeeded = await addCourse(newCourseName);
-    if (succeeded) setNewCourseName("");
-  }
-
-  function startEditing(id: string, currentName: string) {
-    setEditingId(id);
-    setEditingName(currentName);
-  }
-
-  async function commitEdit() {
-    if (!editingId) return;
-    if (editingName.trim() === "") {
-      setEditingId(null);
-      return;
+    const succeeded = await addCourse(newCourseName, newColor);
+    if (succeeded) {
+      setNewCourseName("");
+      setChosenColor(null);
     }
-    const succeeded = await renameCourse(editingId, editingName);
-    if (succeeded) setEditingId(null);
   }
 
-  function handleEditKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      commitEdit();
-    } else if (event.key === "Escape") {
-      setEditingId(null);
+  async function handleDelete(courseId: string) {
+    setDeletingId(courseId);
+    const succeeded = await deleteCourse(courseId);
+    setDeletingId(null);
+    if (succeeded) {
+      setConfirmingId(null);
+      retryAssignments();
     }
   }
 
@@ -69,63 +80,65 @@ export default function CoursesPage({ user, onBack }: CoursesPageProps) {
       {loadError && <ErrorBanner message="Couldn’t load your courses." onRetry={retry} />}
 
       {!loading && !loadError && courses.length === 0 && (
-        <p className="mb-4 text-muted-foreground">
-          No courses yet.
-          <br />
-          Add your first class so you can start capturing assignments.
-        </p>
+        <EmptyState
+          title="No courses yet."
+          hint="Add your first class so you can start capturing assignments."
+        />
       )}
 
       {courses.length > 0 && (
-        <ul className="mb-4 list-none p-0">
+        <ul className="flex flex-col gap-2">
           {courses.map((course) => (
-            <li
-              key={course.id}
-              className="flex items-center gap-3 border-b border-border py-1"
-            >
-              <span
-                aria-hidden="true"
-                className="h-4 w-4 shrink-0 rounded-full"
-                style={{ background: courseColorValue(course.colorIndex) }}
+            <li key={course.id}>
+              <CourseRow
+                course={course}
+                assignmentCount={assignmentCount(course.id)}
+                editing={editingId === course.id}
+                confirmingDelete={confirmingId === course.id}
+                deleting={deletingId === course.id}
+                onStartEdit={() => {
+                  setEditingId(course.id);
+                  setConfirmingId(null);
+                }}
+                onCancelEdit={() => setEditingId(null)}
+                onSave={async (name, colorIndex) => {
+                  const succeeded = await updateCourse(course.id, name, colorIndex);
+                  if (succeeded) setEditingId(null);
+                  return succeeded;
+                }}
+                onAskDelete={() => {
+                  setConfirmingId(course.id);
+                  setEditingId(null);
+                }}
+                onKeep={() => setConfirmingId(null)}
+                onDelete={() => void handleDelete(course.id)}
               />
-
-              {editingId === course.id ? (
-                <Input
-                  aria-label={`Rename ${course.name}`}
-                  value={editingName}
-                  onChange={(event) => setEditingName(event.target.value)}
-                  onBlur={commitEdit}
-                  onKeyDown={handleEditKeyDown}
-                  autoFocus
-                  className="flex-1"
-                />
-              ) : (
-                <Button
-                  variant="ghost"
-                  onClick={() => startEditing(course.id, course.name)}
-                  className="h-11 flex-1 justify-start px-2 font-normal"
-                >
-                  {course.name}
-                </Button>
-              )}
             </li>
           ))}
         </ul>
       )}
 
-      <form onSubmit={handleAdd}>
-        <div className="mb-2 flex flex-col gap-1.5">
-          <Label htmlFor="new-course-name">What&rsquo;s it called?</Label>
+      {actionError && <ErrorBanner message={actionError} className="mt-4" />}
+
+      <form
+        onSubmit={handleAdd}
+        className="mt-8 flex flex-col gap-4 rounded-3xl border border-border bg-card px-5 py-5"
+      >
+        <h2 className="text-sm font-semibold text-foreground">Add a course</h2>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="new-course-name">Course name</Label>
           <Input
             id="new-course-name"
             value={newCourseName}
             onChange={(event) => setNewCourseName(event.target.value)}
+            placeholder="Chemistry"
           />
         </div>
-
-        {actionError && <ErrorBanner message={actionError} />}
-
-        <Button type="submit" disabled={newCourseName.trim() === ""}>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium text-foreground">Colour</span>
+          <CourseColorPicker label="Colour for the new course" value={newColor} onChange={setChosenColor} />
+        </div>
+        <Button type="submit" size="lg" disabled={newCourseName.trim() === ""}>
           Add course
         </Button>
       </form>

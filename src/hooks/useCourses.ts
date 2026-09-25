@@ -1,5 +1,4 @@
 import { useCallback, useState } from "react";
-import { assignCourseColor } from "../domain/courseColor";
 import { errorMessage } from "../lib/errorMessage";
 import { useAsyncData } from "./useAsyncData";
 import * as courseService from "../services/courseService";
@@ -14,18 +13,15 @@ export function useCourses(studentId: string) {
     [],
   );
 
-  async function addCourse(name: string): Promise<boolean> {
+  // The colour is chosen on the Courses screen, pre-set there to one no
+  // other course uses (nextCourseColor).
+  async function addCourse(name: string, colorIndex: number): Promise<boolean> {
     const trimmed = name.trim();
     if (trimmed === "") return false;
 
     setActionError(null);
     try {
-      const colorIndex = assignCourseColor(courses.length);
-      const course = await courseService.createCourse(
-        studentId,
-        trimmed,
-        colorIndex,
-      );
+      const course = await courseService.createCourse(studentId, trimmed, colorIndex);
       setCourses((prev) => [...prev, course]);
       return true;
     } catch (error) {
@@ -34,18 +30,30 @@ export function useCourses(studentId: string) {
     }
   }
 
-  async function renameCourse(id: string, name: string): Promise<boolean> {
+  // Name and colour together (docs/decisions/20260925-course-colour-and-delete.md, C2).
+  async function updateCourse(id: string, name: string, colorIndex: number): Promise<boolean> {
     const trimmed = name.trim();
     if (trimmed === "") return false;
 
     setActionError(null);
     try {
-      await courseService.renameCourse(id, trimmed);
+      await courseService.updateCourse(id, { name: trimmed, colorIndex });
       setCourses((prev) =>
-        prev.map((course) =>
-          course.id === id ? { ...course, name: trimmed } : course,
-        ),
+        prev.map((course) => (course.id === id ? { ...course, name: trimmed, colorIndex } : course)),
       );
+      return true;
+    } catch (error) {
+      setActionError(errorMessage(error));
+      return false;
+    }
+  }
+
+  // Deletes the course and everything in it (the database cascades).
+  async function deleteCourse(id: string): Promise<boolean> {
+    setActionError(null);
+    try {
+      await courseService.deleteCourse(id);
+      setCourses((prev) => prev.filter((course) => course.id !== id));
       return true;
     } catch (error) {
       setActionError(errorMessage(error));
@@ -60,6 +68,7 @@ export function useCourses(studentId: string) {
     actionError,
     retry,
     addCourse,
-    renameCourse,
+    updateCourse,
+    deleteCourse,
   };
 }

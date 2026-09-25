@@ -7,7 +7,7 @@ vi.mock("../lib/supabase", () => ({
 }));
 
 import { supabase } from "../lib/supabase";
-import { createCourse, listCourses, renameCourse } from "./courseService";
+import { createCourse, deleteCourse, listCourses, updateCourse } from "./courseService";
 
 type QueryResult = { data: unknown; error: unknown };
 
@@ -22,6 +22,7 @@ function mockQuery(result: QueryResult) {
   builder.order = returnsBuilder;
   builder.insert = returnsBuilder;
   builder.update = returnsBuilder;
+  builder.delete = returnsBuilder;
   builder.single = returnsBuilder;
   builder.then = (resolve: (value: QueryResult) => unknown) =>
     Promise.resolve(result).then(resolve);
@@ -95,22 +96,41 @@ describe("createCourse", () => {
   });
 });
 
-describe("renameCourse", () => {
-  it("updates the course name", async () => {
-    mockedFrom.mockReturnValue(mockQuery({ data: null, error: null }));
+describe("updateCourse", () => {
+  it("updates the course's name and colour together", async () => {
+    const builder = mockQuery({ data: null, error: null });
+    mockedFrom.mockReturnValue(builder);
 
     await expect(
-      renameCourse("course-1", "Biology II"),
+      updateCourse("course-1", { name: "Biology II", colorIndex: 6 }),
     ).resolves.toBeUndefined();
+    expect(builder.update).toHaveBeenCalledWith({ name: "Biology II", color_index: 6 });
+    expect(builder.eq).toHaveBeenCalledWith("id", "course-1");
   });
 
   it("throws when the update errors", async () => {
-    mockedFrom.mockReturnValue(
-      mockQuery({ data: null, error: new Error("boom") }),
-    );
+    mockedFrom.mockReturnValue(mockQuery({ data: null, error: new Error("boom") }));
 
-    await expect(renameCourse("course-1", "Biology II")).rejects.toThrow(
+    await expect(updateCourse("course-1", { name: "Biology II", colorIndex: 0 })).rejects.toThrow(
       "boom",
     );
+  });
+});
+
+describe("deleteCourse", () => {
+  it("deletes the course by id (the database cascades to its assignments)", async () => {
+    const builder = mockQuery({ data: null, error: null });
+    mockedFrom.mockReturnValue(builder);
+
+    await expect(deleteCourse("course-1")).resolves.toBeUndefined();
+    expect(mockedFrom).toHaveBeenCalledWith("courses");
+    expect(builder.delete).toHaveBeenCalled();
+    expect(builder.eq).toHaveBeenCalledWith("id", "course-1");
+  });
+
+  it("throws when the delete errors", async () => {
+    mockedFrom.mockReturnValue(mockQuery({ data: null, error: new Error("boom") }));
+
+    await expect(deleteCourse("course-1")).rejects.toThrow("boom");
   });
 });

@@ -50,6 +50,8 @@ capture afterward just works.
   Design-Principles.md's Fourth Principle ("Reduce Cognitive Load").
 - Renaming a course changes only its display name. Assignments reference a
   course by id, so existing assignments are unaffected.
+- *Superseded 2026-09-25: courses can now be deleted, with everything in
+  them, behind a strong warning (`course-management-v2-proposal.md` §2).*
 - **Course deletion is deferred — not built this increment.** A student
   who no longer wants a course lives with it in the list; it is never
   silently hidden or auto-archived. Deletion (and whatever in-use

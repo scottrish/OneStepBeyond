@@ -28,7 +28,8 @@ vi.mock("../services/workItemService", () => ({
 vi.mock("../services/courseService", () => ({
   listCourses: vi.fn(),
   createCourse: vi.fn(),
-  renameCourse: vi.fn(),
+  updateCourse: vi.fn(),
+  deleteCourse: vi.fn(),
 }));
 vi.mock("../services/workSessionService", () => ({
   listWorkSessionsForDate: vi.fn(),

@@ -95,11 +95,14 @@ export default function App() {
   // back on Plan with its lifted day/step intact). See
   // docs/decisions/20260924-secondary-screens-app-level-overlays.md.
   const [secondary, setSecondary] = useState<SecondaryScreen | null>(null);
-  // Courses is reachable from two places: Settings, and capture's "Add a
-  // course" (a student with no courses yet). Its Back returns to whichever
-  // opened it — returning to Settings from the capture path would strand
-  // the student away from the assignment they were adding.
-  const [coursesOpenedFrom, setCoursesOpenedFrom] = useState<"settings" | "capture">("settings");
+  // Courses is reachable from three places: Settings, capture's "Add a
+  // course", and Home's "Add your courses" (both for a student with no
+  // courses yet). Its Back returns to whichever opened it — returning to
+  // Settings from the capture path would strand the student away from the
+  // assignment they were adding.
+  const [coursesOpenedFrom, setCoursesOpenedFrom] = useState<"settings" | "capture" | "home">(
+    "settings",
+  );
 
   if (!user) {
     return <LoginPage signIn={signIn} signUp={signUp} />;
@@ -195,7 +198,12 @@ export default function App() {
       case "support":
         return <SupportPage user={signedInUser} onBack={() => setSecondary("settings")} />;
       case "courses":
-        return <CoursesPage user={signedInUser} onBack={() => setSecondary(coursesOpenedFrom)} />;
+        return (
+          <CoursesPage
+            user={signedInUser}
+            onBack={() => setSecondary(coursesOpenedFrom === "home" ? null : coursesOpenedFrom)}
+          />
+        );
       case "activities":
         return <ActivitiesPage user={signedInUser} onBack={() => setSecondary("settings")} />;
       case "preferences":
@@ -238,6 +246,10 @@ export default function App() {
                 onOpenCapture={() => setSecondary("capture")}
                 onOpenSettings={() => setSecondary("settings")}
                 onOpenSupport={() => setSecondary("support")}
+                onOpenCourses={() => {
+                  setCoursesOpenedFrom("home");
+                  setSecondary("courses");
+                }}
               />
             )}
             {activeTab === "plan" && (

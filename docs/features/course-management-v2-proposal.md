@@ -1,8 +1,9 @@
 # Feature: Course Management — Color Selection, Deletion & Courses-First Onboarding (v2 proposal)
 
-**Status:** §1 and §2 approved 2026-09-25 by the product owner (see the
-"Decision" notes in each). §3 was never contested. Not yet built
-(roadmap Phase 7 step 3). Produced from a prototype-sync
+**Status:** Implemented 2026-09-25 as roadmap Phase 7 step 3 (tag
+`v-pre-course-delete` marks the state before;
+`docs/decisions/20260925-course-colour-and-delete.md` records the
+decisions; see "Implementation Notes (as built)" at the end). Produced from a prototype-sync
 audit of `../OneStepBeyondPrototype` (baseline commit `834368f`; `main`
 HEAD `744026a`; re-synced 2026-09-24 against the unmerged
 `mobile-redesign` branch at `1ce3145`, which changes how delete is
@@ -49,7 +50,9 @@ revisited later if students ask for it."
 **What the prototype now does:** at both creation and edit time, a
 student picks from a fixed 8-swatch palette (`COURSE_ACCENTS` — Clay,
 Fern, Amber, Violet, Slate blue, Teal, Rose, Moss; the same design
-tokens this app already uses for course colors, not new colors). A new
+tokens this app already uses for course colors, not new colors).
+*Correction 2026-09-25: this app had only the first 5; Teal, Rose and
+Moss were added with the prototype's values (decision C1).* A new
 course defaults to the first swatch not already in use by an existing
 course (cycling once all 8 are taken), so back-to-back additions don't
 default to the same color — the auto-assignment behavior production
@@ -111,7 +114,11 @@ course has any assignments:
 Buttons: destructive "Delete" and ghost "Keep it" (not "Cancel"). On
 confirm, the course, its assignments, their Work Items, Work Sessions,
 Reflections, Assignment Briefs, and Decomposition Episodes are all
-removed — a full cascading hard delete, no orphaned rows.
+removed — a full cascading hard delete, no orphaned rows. *As built in
+this app: assignments → work items → work sessions, plus decomposition
+attempts and reflections. Assignment Briefs and Decomposition Episodes
+don't exist here, and `planning_sessions` has no link to assignments, so
+it stays.*
 
 **Proposed decision:** adopt a cascading hard delete with this exact
 conditional-warning pattern — it directly answers the "real design
@@ -166,7 +173,9 @@ course with no assignments keeps the plain "Delete {name}?" prompt.
 - Cancelling ("Keep it") leaves the course and everything under it
   unchanged.
 - Delete can be reached without a swipe gesture: through the overflow
-  menu at `sm:` and up, and by keyboard focus on every breakpoint.
+  menu **at every width** (corrected 2026-09-25 to match
+  `mobile-gestures-reorder-and-swipe-v0.1.md` §2, which requires a
+  non-gesture route at all breakpoints), including by keyboard.
 
 ## 3. "Add your courses first" on Home for a student with no courses
 
@@ -237,3 +246,34 @@ for this.
   These are QA/demo tooling for a localStorage-backed prototype, not a
   production feature, and are explicitly not proposed here. In this
   app, a fresh account already reaches §3's state.
+
+## Implementation Notes (as built, 2026-09-25)
+
+- **Decisions** (`docs/decisions/20260925-course-colour-and-delete.md`):
+  C1 adds Teal, Rose and Moss for 8 colours; C2 saves name and colour
+  together on Save; C3 does the cascade in the database; C4 shows each
+  row's assignment count.
+- **Migration** `20260925130000_course_delete_cascade.sql`: recreates
+  `assignments_course_id_fkey` with `on delete cascade`, adds a delete
+  policy for the owning student, and grants delete. Reviewed by
+  `schema-migration-reviewer` with no findings: every child table
+  cascades, no Supporter or superuser policy allows deletes, and no
+  function or trigger is involved.
+- **Screen:** `src/pages/CoursesPage.tsx`, with `src/pages/courses/`
+  holding `CourseRow` (row, edit form and inline confirmation) and
+  `CourseColorPicker` (44px named swatches with `aria-pressed`, a ring
+  and a check). The confirmation's text comes from `courseDeleteWarning`
+  in `src/domain/courseColor.ts`.
+- **Focus:** opening Delete from the menu puts focus on "Keep it".
+  `RowActionsMenu` gained `movesFocus` so the menu doesn't take focus
+  back to its button.
+- **Home §3:** "Getting started / Welcome, {name}." with the onboarding
+  card. The "More options" menu stays, so Settings and Support remain
+  reachable. A course-load error now joins Home's error banner. Courses
+  opened from Home returns to Home.
+- **Verified in a real browser** at 320 px against local Supabase:
+  deleting a course with three assignments (unplanned, planned,
+  completed) removed them, their steps and their sessions, and left
+  another course's data and the planning log alone. Swipe and the menu
+  both open the confirmation without deleting. Deleting the last course
+  brings back Home's first-run state. No horizontal overflow.

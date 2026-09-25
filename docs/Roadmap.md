@@ -329,7 +329,7 @@ which screen the client renders.
 
 # Phase 7 — Prototype parity: mobile-first redesign + planning, completion & coaching
 
-**Status: in progress. Steps 1 (2026-09-24), 2, 4, 9, 10 and 11 (2026-09-25) done, taken out of order at product-owner direction; step 3 analyzed, decisions made 2026-09-25, not yet built; the rest proposed.**
+**Status: in progress. Steps 1 (2026-09-24), 2, 3, 4, 9, 10 and 11 (2026-09-25) done, taken out of order at product-owner direction; the rest proposed.**
 
 **Why this, why now:** `../OneStepBeyondPrototype` (this app's visual and
 behavioral source of truth, per CLAUDE.md) has moved on a lot since
@@ -367,7 +367,7 @@ normal Definition of Done and tag proposals.
 
 | # | Step | Spec | Decision needed first | Notes |
 |---|---|---|---|---|
-| 3 | Course color, cascading course delete, "add your courses first" Home state | [course-management-v2-proposal.md](features/course-management-v2-proposal.md) | ✅ Decided 2026-09-25: manual colour with an automatic default; cascading delete with a strong "all assignments, whatever their state" warning | Delete uses step 2's swipe/menu pattern |
+| 3 | ✅ **Done 2026-09-25.** Course color, cascading course delete, "add your courses first" Home state | [course-management-v2-proposal.md](features/course-management-v2-proposal.md) | ✅ Decided 2026-09-25: manual colour with an automatic default; cascading delete with a strong "all assignments, whatever their state" warning | Delete uses step 2's swipe/menu pattern |
 | 4 | ✅ **Done 2026-09-25.** Separate Saturday / Sunday study hours | [study-hours-v2-proposal.md](features/study-hours-v2-proposal.md) | ✅ Decided 2026-09-25: retire `PROTECTED_MINUTES` (§3, option b) | **Schema migration**: tag, and run `schema-migration-reviewer`. Must land before Phase C |
 
 ## Phase C — Daily planning & completion

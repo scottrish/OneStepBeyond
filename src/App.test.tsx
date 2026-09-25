@@ -15,7 +15,8 @@ vi.mock("./hooks/useAuth");
 vi.mock("./services/courseService", () => ({
   listCourses: vi.fn().mockResolvedValue([]),
   createCourse: vi.fn(),
-  renameCourse: vi.fn(),
+  updateCourse: vi.fn(),
+  deleteCourse: vi.fn(),
 }));
 vi.mock("./services/assignmentService", () => ({
   listAssignments: vi.fn().mockResolvedValue([]),
@@ -135,7 +136,7 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: /hi person\./i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /(hi|welcome,) person\./i })).toBeInTheDocument();
   });
 
   it("switches to the Plan tab", async () => {
@@ -213,7 +214,7 @@ describe("App", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Home" }));
 
-    expect(screen.getByRole("heading", { name: /hi person\./i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /(hi|welcome,) person\./i })).toBeInTheDocument();
   });
 
   it("tapping the Assignments tab returns to the Assignments list even when already on that tab", async () => {
@@ -314,7 +315,7 @@ describe("App", () => {
 
     await userEventInstance.click(screen.getByRole("button", { name: "Home" }));
 
-    expect(await screen.findByRole("heading", { name: /hi person\./i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /(hi|welcome,) person\./i })).toBeInTheDocument();
     // Today Execution's own action, not Home's — its absence confirms
     // Home actually replaced it rather than rendering underneath it.
     expect(
@@ -367,7 +368,7 @@ describe("App", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /back/i }));
 
-    expect(await screen.findByRole("heading", { name: /hi person\./i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /(hi|welcome,) person\./i })).toBeInTheDocument();
     // Returning to Home remounts it (same ternary-replace shape as Today
     // Execution), which refetches automatically — no stale data left
     // over from whatever Detail may have changed.
@@ -521,7 +522,7 @@ describe("App", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Home" }));
 
-    expect(await screen.findByRole("heading", { name: /hi person\./i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /(hi|welcome,) person\./i })).toBeInTheDocument();
   });
 
   describe("deleting an assignment from Detail", () => {
@@ -615,7 +616,7 @@ describe("App", () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([]);
       await userEventInstance.click(screen.getByRole("button", { name: /^delete$/i }));
 
-      expect(await screen.findByRole("heading", { name: /hi person\./i })).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: /(hi|welcome,) person\./i })).toBeInTheDocument();
       expect(mockedAssignmentService.deleteAssignment).toHaveBeenCalledWith("a1");
       // Home remounts on return (same as any Assignment Detail round
       // trip), so the now-deleted assignment is simply gone from its
@@ -753,8 +754,20 @@ describe("App", () => {
 
         // Settings' own Back then closes to the tab.
         await userEvent.click(screen.getByRole("button", { name: /back/i }));
-        expect(await screen.findByRole("heading", { name: /hi person\./i })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: /(hi|welcome,) person\./i })).toBeInTheDocument();
       }
+    });
+
+    it("a student with no courses gets Home's 'Add your courses', which opens Courses and returns to Home", async () => {
+      signIn();
+      render(<App />);
+
+      expect(await screen.findByText("First, add your courses.")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Add your courses" }));
+      expect(await screen.findByRole("heading", { name: /^courses$/i })).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: /back/i }));
+      expect(await screen.findByText("First, add your courses.")).toBeInTheDocument();
     });
 
     it("Courses opened from Settings returns to Settings even after an earlier visit from capture", async () => {

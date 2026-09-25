@@ -38,14 +38,27 @@ export async function createCourse(
   return { id: data.id, name: data.name, colorIndex: data.color_index };
 }
 
-export async function renameCourse(
+// Name and colour together — the Courses screen's edit saves both at
+// once (docs/decisions/20260925-course-colour-and-delete.md, C2).
+export async function updateCourse(
   courseId: string,
-  name: string,
+  changes: { name: string; colorIndex: number },
 ): Promise<void> {
   const { error } = await supabase
     .from("courses")
-    .update({ name })
+    .update({ name: changes.name, color_index: changes.colorIndex })
     .eq("id", courseId);
+
+  if (error) throw error;
+}
+
+// Deletes the course and, through the database's cascade, every
+// assignment in it and everything under those (steps, planned sessions,
+// reflections, decomposition attempts) — see
+// supabase/migrations/20260925130000_course_delete_cascade.sql. The
+// student has already been warned.
+export async function deleteCourse(courseId: string): Promise<void> {
+  const { error } = await supabase.from("courses").delete().eq("id", courseId);
 
   if (error) throw error;
 }

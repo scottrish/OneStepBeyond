@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import EmptyState from "@/components/EmptyState";
 import ErrorBanner from "../components/ErrorBanner";
 import { longPlanDate, todayISODate } from "../domain/planningDate";
 import { assignmentsNeedingAttention } from "../domain/riskDetection";
@@ -44,6 +45,9 @@ type HomePageProps = {
   onOpenCapture: () => void;
   onOpenSettings: () => void;
   onOpenSupport: () => void;
+  // The "add your courses first" state's one action
+  // (course-management-v2-proposal.md §3).
+  onOpenCourses: () => void;
 };
 
 // No name field exists anywhere in this app's signup/profile data (only
@@ -67,6 +71,7 @@ export default function HomePage({
   onOpenCapture,
   onOpenSettings,
   onOpenSupport,
+  onOpenCourses,
 }: HomePageProps) {
   const studentId = user.id;
   const today = useMemo(() => todayISODate(), []);
@@ -90,7 +95,12 @@ export default function HomePage({
     loadError: assignmentsLoadError,
     retry: retryAssignments,
   } = useAssignmentsList(studentId);
-  const { courses, loading: coursesLoading } = useCourses(studentId);
+  const {
+    courses,
+    loading: coursesLoading,
+    loadError: coursesLoadError,
+    retry: retryCourses,
+  } = useCourses(studentId);
   // Today's plan is the screen's own critical data (the Next card is
   // "the whole point of the screen"), so this uses the same hook Plan's
   // Day step does — full loading/error surface.
@@ -125,12 +135,19 @@ export default function HomePage({
     coursesLoading ||
     allSessionsLoading ||
     preferencesLoading;
-  const loadError = activitiesLoadError ?? assignmentsLoadError ?? todaySessionsLoadError;
+  // Courses count too: a failed course load must show the error, never
+  // the "add your courses first" state (course-management-v2-proposal.md §3).
+  const loadError =
+    activitiesLoadError ?? assignmentsLoadError ?? todaySessionsLoadError ?? coursesLoadError;
+  // A student with no courses yet sees one onboarding state instead of
+  // the dashboard: every assignment needs a course, so that's step one.
+  const needsCourses = !loading && !loadError && courses.length === 0;
 
   function retry() {
     retryActivities();
     retryAssignments();
     retryTodaySessions();
+    retryCourses();
   }
 
   const activeTodaySessions = useMemo(
@@ -215,8 +232,12 @@ export default function HomePage({
           only, so a stray tap on Home can't sign a student out. */}
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
         <div className="min-w-0">
-          <p className="text-sm text-muted-foreground">{longPlanDate(today)}</p>
-          <h1 className="truncate text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">Hi {displayNameFromEmail(user.email)}.</h1>
+          <p className="text-sm text-muted-foreground">
+            {needsCourses ? "Getting started" : longPlanDate(today)}
+          </p>
+          <h1 className="truncate text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">
+            {needsCourses ? "Welcome," : "Hi"} {displayNameFromEmail(user.email)}.
+          </h1>
         </div>
         <div className="flex items-center gap-1">
           <Button
@@ -248,7 +269,21 @@ export default function HomePage({
 
       {loadError && <ErrorBanner message="Couldn’t load your day." onRetry={retry} className="mt-4" />}
 
-      {!loading && !loadError && (
+      {needsCourses && (
+        <div className="mt-6">
+          <EmptyState
+            title="First, add your courses."
+            hint="Every assignment belongs to a class, so start by adding the classes you take this term."
+            action={
+              <Button size="lg" className="rounded-2xl" onClick={onOpenCourses}>
+                Add your courses
+              </Button>
+            }
+          />
+        </div>
+      )}
+
+      {!loading && !loadError && !needsCourses && (
         <>
           <NextCard
             next={next}

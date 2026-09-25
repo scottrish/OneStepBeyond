@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import { useRef, type ComponentType } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,9 @@ export type RowAction = {
   destructive?: boolean;
   // E.g. Earlier on the first row: shown, but not selectable.
   disabled?: boolean;
+  // The action moves focus somewhere itself (e.g. into an inline
+  // confirmation), so the menu mustn't send it back to its trigger.
+  movesFocus?: boolean;
 };
 
 type RowActionsMenuProps = {
@@ -34,6 +37,7 @@ type RowActionsMenuProps = {
 // keyboard and screen-reader users get. Takes a list so later rows can
 // add non-destructive actions (e.g. Earlier/Later) to the same menu.
 export default function RowActionsMenu({ label, actions, className }: RowActionsMenuProps) {
+  const focusMoved = useRef(false);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -41,13 +45,23 @@ export default function RowActionsMenu({ label, actions, className }: RowActions
           <MoreHorizontal className="size-5 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44 rounded-xl p-1">
-        {actions.map(({ label: actionLabel, icon: Icon, onSelect, destructive, disabled }) => (
+      <DropdownMenuContent
+        align="end"
+        className="w-44 rounded-xl p-1"
+        onCloseAutoFocus={(event) => {
+          if (focusMoved.current) event.preventDefault();
+          focusMoved.current = false;
+        }}
+      >
+        {actions.map(({ label: actionLabel, icon: Icon, onSelect, destructive, disabled, movesFocus }) => (
           <DropdownMenuItem
             key={actionLabel}
             className={cn("min-h-11 rounded-lg", destructive && "text-destructive focus:text-destructive")}
             disabled={disabled}
-            onSelect={onSelect}
+            onSelect={() => {
+              focusMoved.current = movesFocus === true;
+              onSelect();
+            }}
           >
             {Icon ? <Icon className="size-4" /> : null} {actionLabel}
           </DropdownMenuItem>

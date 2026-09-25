@@ -4,7 +4,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 vi.mock("../services/courseService", () => ({
   listCourses: vi.fn(),
   createCourse: vi.fn(),
-  renameCourse: vi.fn(),
+  updateCourse: vi.fn(),
+  deleteCourse: vi.fn(),
 }));
 
 import * as courseService from "../services/courseService";
@@ -13,7 +14,8 @@ import { useCourses } from "./useCourses";
 const mockedService = courseService as unknown as {
   listCourses: ReturnType<typeof vi.fn>;
   createCourse: ReturnType<typeof vi.fn>;
-  renameCourse: ReturnType<typeof vi.fn>;
+  updateCourse: ReturnType<typeof vi.fn>;
+  deleteCourse: ReturnType<typeof vi.fn>;
 };
 
 beforeEach(() => {
@@ -64,7 +66,7 @@ describe("useCourses", () => {
     ]);
   });
 
-  it("adds a course with the next palette color and appends it locally", async () => {
+  it("adds a course with the colour chosen for it and appends it locally", async () => {
     mockedService.listCourses.mockResolvedValue([
       { id: "1", name: "Biology", colorIndex: 0 },
     ]);
@@ -79,7 +81,7 @@ describe("useCourses", () => {
 
     let succeeded: boolean = false;
     await act(async () => {
-      succeeded = await result.current.addCourse("Algebra I");
+      succeeded = await result.current.addCourse("Algebra I", 1);
     });
 
     expect(succeeded).toBe(true);
@@ -102,28 +104,56 @@ describe("useCourses", () => {
 
     let succeeded: boolean = true;
     await act(async () => {
-      succeeded = await result.current.addCourse("   ");
+      succeeded = await result.current.addCourse("   ", 0);
     });
 
     expect(succeeded).toBe(false);
     expect(mockedService.createCourse).not.toHaveBeenCalled();
   });
 
-  it("renames a course locally after the service call succeeds", async () => {
+  it("updates a course's name and colour locally after the service call succeeds", async () => {
     mockedService.listCourses.mockResolvedValue([
       { id: "1", name: "Biology", colorIndex: 0 },
     ]);
-    mockedService.renameCourse.mockResolvedValue(undefined);
+    mockedService.updateCourse.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useCourses("student-1"));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(() => result.current.renameCourse("1", "Biology II"));
+    await act(() => result.current.updateCourse("1", " Biology II ", 6));
 
-    expect(mockedService.renameCourse).toHaveBeenCalledWith("1", "Biology II");
+    expect(mockedService.updateCourse).toHaveBeenCalledWith("1", { name: "Biology II", colorIndex: 6 });
     expect(result.current.courses).toEqual([
-      { id: "1", name: "Biology II", colorIndex: 0 },
+      { id: "1", name: "Biology II", colorIndex: 6 },
     ]);
+  });
+
+  it("removes a deleted course locally, and keeps it with an error when deleting fails", async () => {
+    mockedService.listCourses.mockResolvedValue([
+      { id: "1", name: "Biology", colorIndex: 0 },
+      { id: "2", name: "Algebra", colorIndex: 1 },
+    ]);
+    mockedService.deleteCourse
+      .mockRejectedValueOnce({ message: "boom" })
+      .mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useCourses("student-1"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let succeeded = true;
+    await act(async () => {
+      succeeded = await result.current.deleteCourse("1");
+    });
+    expect(succeeded).toBe(false);
+    expect(result.current.actionError).toBe("boom");
+    expect(result.current.courses).toHaveLength(2);
+
+    await act(async () => {
+      succeeded = await result.current.deleteCourse("1");
+    });
+    expect(succeeded).toBe(true);
+    expect(mockedService.deleteCourse).toHaveBeenLastCalledWith("1");
+    expect(result.current.courses).toEqual([{ id: "2", name: "Algebra", colorIndex: 1 }]);
   });
 
   it("sets actionError and returns false when adding fails, using the real error message", async () => {
@@ -135,7 +165,7 @@ describe("useCourses", () => {
 
     let succeeded: boolean = true;
     await act(async () => {
-      succeeded = await result.current.addCourse("Biology");
+      succeeded = await result.current.addCourse("Biology", 0);
     });
 
     expect(succeeded).toBe(false);
@@ -151,7 +181,7 @@ describe("useCourses", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
-      await result.current.addCourse("Biology");
+      await result.current.addCourse("Biology", 0);
     });
 
     expect(result.current.actionError).toBe("plain string failure");
