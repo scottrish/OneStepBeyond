@@ -34,3 +34,4 @@ directory.
 | 15 | [Dashboard mode toggle replaced by real, RLS-enforced access](20260819-dashboard-mode-toggle-replaced-by-real-access.md) | 2026-08-19 |
 | 16 | [Architecture refactor: audit findings and completed refactor](20260911-architecture-refactor-proposal.md) | 2026-09-11 |
 | 17 | [Page complexity reduction: audit findings and completed refactor](20260912-page-complexity-reduction-proposal.md) | 2026-09-12 |
+| 18 | [Build a PWA in two phases: installable now, offline after prototype parity](20260924-pwa-in-two-phases.md) | 2026-09-24 |

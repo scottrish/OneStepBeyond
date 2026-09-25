@@ -125,8 +125,24 @@ current feature genuinely requires it. A concept can be acknowledged in a
 decision record or code comment without becoming a database table this
 increment. If a future feature needs a richer model, introduce it then.
 
-This applies directly to the app's eventual platform direction: this is a mobile-first web app that **may** later become a PWA and/or get wrapped in something like Capacitor for native distribution. Don't install PWA tooling, service workers, or Capacitor speculatively — build the web app well (mobile-first, responsive, accessible) and add that tooling as its own increment if and when it's actually needed. If a decision is made to move
-in that direction, record it in `docs/decisions/`.
+This applies directly to the app's platform direction. This is a
+mobile-first web app that **will** become a PWA, built in two phases
+(`docs/decisions/20260924-pwa-in-two-phases.md`):
+
+- **Phase 1 (installable), current scope:** a web app manifest, app
+  icons, and standalone meta tags, delivered with the mobile shell
+  (`docs/features/mobile-app-shell-and-touch-ergonomics-v0.1.md` §7).
+  **No service worker.**
+- **Phase 2 (offline and background), after prototype parity:** service
+  worker, offline behavior, background sync, and push notifications. It
+  gets its own feature spec and decision record. Don't add any of it
+  earlier, not even a no-op service worker or a PWA build plugin. Keep
+  every data access behind `src/services/` so Phase 2 stays additive.
+
+The app **may** also later be wrapped in something like Capacitor for
+native distribution. That is still undecided. Don't install Capacitor
+or native tooling speculatively. If a decision is made to go that way,
+record it in `docs/decisions/`.
 
 Ask before building:
 - Does any acceptance criterion in the current feature require this?
@@ -168,13 +184,38 @@ actually needs them.
 
 # Architecture Principles
 
-- Keep React components thin.
-- Business logic belongs in services and domain modules.
-- Keep Supabase access centralized.
-- Algorithms should be pure TypeScript where practical.
+## General Principles
+
+Portable software-design guidance, not specific to this application's
+stack or structure — safe to carry into another project's CLAUDE.md
+largely unchanged.
+
+- Keep UI components thin — presentation only, no business logic.
 - Prefer composition over inheritance.
 - Design for testability.
 - Minimize coupling between UI and business logic.
+- Algorithms should be pure functions where practical.
+
+## Project-Specific Architecture
+
+Specific to this application's stack and structure. These name real
+conventions already in use in `src/` — treat a change to one of them as
+an architectural decision (see "Architectural Decisions" below), not a
+casual edit.
+
+- Business logic belongs in `src/services/` (I/O, including all Supabase
+  calls) and `src/domain/` (pure business rules) — keep Supabase access
+  centralized in the services layer; no direct Supabase client calls from
+  components or hooks.
+- Shared data-fetching and error-display patterns
+  (`src/hooks/useAsyncData.ts`, `src/components/ErrorBanner.tsx`) are the
+  default for a component that fetches data or reports a load/action
+  error — see
+  `docs/decisions/20260911-architecture-refactor-proposal.md` for why.
+- Large pages are composed from focused sibling components/hooks under a
+  page-specific subfolder (e.g. `src/pages/plan/`, `src/pages/home/`)
+  rather than grown as a single file — see
+  `docs/decisions/20260912-page-complexity-reduction-proposal.md`.
 
 ---
 
