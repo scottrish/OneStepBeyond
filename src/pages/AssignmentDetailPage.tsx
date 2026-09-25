@@ -2,14 +2,18 @@ import { useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import EmptyState from "@/components/EmptyState";
+import TurnedInReminder from "@/components/TurnedInReminder";
 import ErrorBanner from "../components/ErrorBanner";
 import { courseColorValue } from "../domain/courseColor";
 import { effortLabel } from "../domain/effortPresets";
 import { formatDueDate } from "../domain/dueDate";
+import { isAssignmentFinishable } from "../domain/planningCandidates";
 import { remainingMinutes } from "../domain/remainingMinutes";
 import { useAssignment } from "../hooks/useAssignment";
 import { useAssignmentRisk } from "../hooks/useAssignmentRisk";
 import { useCourses } from "../hooks/useCourses";
+import { usePlanAsOnePiece } from "../hooks/usePlanAsOnePiece";
 import { useWorkItemOrchestration } from "../hooks/useWorkItemOrchestration";
 import { useWorkItems } from "../hooks/useWorkItems";
 import type { AssignmentEdit } from "../services/assignmentService";
@@ -28,7 +32,21 @@ type AssignmentDetailPageProps = {
   // (home-dashboard-followthrough.md item 4; docs/decisions/
   // 20260925-plan-target.md, P1).
   onGoToPlan: () => void;
+  // Opened from Plan (its wizard or Look Ahead): forward exits return to
+  // Plan's day (daily-planning-and-completion-v2-proposal.md item 4).
+  openedFromPlan: boolean;
+  // "Plan it as one piece" made this step: open Plan's Select with it
+  // chosen — on Plan's day if opened from Plan, otherwise today.
+  onPlanPick: (workItemId: string) => void;
+  // A breakdown confirmed while opened from Plan: back to Plan's Select
+  // for that day, where the new steps can be chosen.
+  onBreakdownConfirmedFromPlan: () => void;
 };
+
+// After "complete": the reflection (only if the assignment had steps —
+// manual-work-breakdown-reflection-v0.1.md §9), then the turned-in
+// reminder, then close (docs/decisions/20260925-plan-rows-and-one-piece.md, P3).
+type FinishStage = "reflect" | "reminder" | null;
 
 
 export default function AssignmentDetailPage({
@@ -36,6 +54,9 @@ export default function AssignmentDetailPage({
   assignmentId,
   onBack,
   onGoToPlan,
+  openedFromPlan,
+  onPlanPick,
+  onBreakdownConfirmedFromPlan,
 }: AssignmentDetailPageProps) {
   const {
     assignment,
@@ -61,7 +82,13 @@ export default function AssignmentDetailPage({
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [breakingDown, setBreakingDown] = useState(false);
-  const [reflecting, setReflecting] = useState(false);
+  const [finishStage, setFinishStage] = useState<FinishStage>(null);
+  const [addingStep, setAddingStep] = useState(false);
+  const {
+    planAsOnePiece,
+    planning: planningOnePiece,
+    error: planOnePieceError,
+  } = usePlanAsOnePiece(user.id);
 
   // docs/features/assignment-detail-cta-hierarchy.md item 3b — inline
   // add/edit/delete replaces WorkBreakdownPage/"Edit breakdown" once at
@@ -95,12 +122,21 @@ export default function AssignmentDetailPage({
     if (succeeded) onBack();
   }
 
-  async function handleMarkComplete() {
+  // Every way of completing here ("Mark assignment complete", the all-done
+  // card's "Yes, mark it complete") goes the same way: complete, then the
+  // reflection if it had steps (§9: "Assignment is marked complete and had
+  // a Work Breakdown"), then the turned-in reminder, then close.
+  async function finishAssignment() {
     const hadWorkItems = workItems.length > 0;
-    await Promise.all([completeAssignment(), markAllComplete()]);
-    // docs/features/manual-work-breakdown-reflection-v0.1.md §9: "Preferred
-    // trigger: Assignment is marked complete and had a Work Breakdown."
-    if (hadWorkItems) setReflecting(true);
+    const [completed] = await Promise.all([completeAssignment(), markAllComplete()]);
+    if (!completed) return;
+    setFinishStage(hadWorkItems ? "reflect" : "reminder");
+  }
+
+  async function handlePlanAsOnePiece() {
+    if (!assignment) return;
+    const workItemId = await planAsOnePiece(assignment);
+    if (workItemId) onPlanPick(workItemId);
   }
 
   // docs/features/assignment-detail-cta-hierarchy.md item 3a (Correction
@@ -127,6 +163,10 @@ export default function AssignmentDetailPage({
         onCancel={() => setBreakingDown(false)}
         onConfirmed={() => {
           setBreakingDown(false);
+          if (openedFromPlan) {
+            onBreakdownConfirmedFromPlan();
+            return;
+          }
           refetchAssignment();
           refetchWorkItems();
         }}
@@ -136,15 +176,36 @@ export default function AssignmentDetailPage({
     );
   }
 
-  if (reflecting) {
+  if (finishStage === "reflect") {
     return (
       <ReflectionPrompt
         studentId={user.id}
         assignmentId={assignmentId}
-        onDone={() => setReflecting(false)}
+        onDone={() => setFinishStage("reminder")}
       />
     );
   }
+
+  if (finishStage === "reminder" && assignment) {
+    return <TurnedInReminder title={assignment.title} onDone={onBack} />;
+  }
+
+  const finishable = assignment ? isAssignmentFinishable(assignment, workItems) : false;
+  const breakdownActions = (
+    <>
+      <Button variant="ghost" className="rounded-2xl" onClick={() => setAddingStep(true)}>
+        Just add a step
+      </Button>
+      <Button
+        variant="ghost"
+        className="rounded-2xl"
+        disabled={planningOnePiece}
+        onClick={handlePlanAsOnePiece}
+      >
+        {planningOnePiece ? "Planning…" : "Plan it as one piece"}
+      </Button>
+    </>
+  );
 
   return (
     <div>
@@ -239,20 +300,23 @@ export default function AssignmentDetailPage({
             </div>
           )}
 
-          {suggestBreakdown && (
+          {planOnePieceError && <ErrorBanner message={planOnePieceError} className="mb-4" />}
+
+          {/* The one place for breakdown choices (docs/decisions/
+              20260925-plan-rows-and-one-piece.md): break it down, add one
+              step, or plan it as one piece. */}
+          {suggestBreakdown && !addingStep && (
             <div className="mb-4 rounded-3xl border border-border bg-card px-5 py-4">
               <p className="text-sm text-foreground">
                 This one is fairly big. Would it help to break it into
                 smaller steps? What do you think should happen first?
               </p>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="mt-3 rounded-xl"
-                onClick={() => setBreakingDown(true)}
-              >
-                Yes, help me start
-              </Button>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button variant="secondary" className="rounded-2xl" onClick={() => setBreakingDown(true)}>
+                  Yes, help me start
+                </Button>
+                {breakdownActions}
+              </div>
             </div>
           )}
 
@@ -261,6 +325,47 @@ export default function AssignmentDetailPage({
             onAdd={(title, effortMinutes) => addStep(title, effortMinutes, workItems)}
             onEdit={(id, patch) => editStep(id, patch, workItems)}
             onDelete={(id) => deleteStep(id)}
+            adding={addingStep}
+            onAddingChange={setAddingStep}
+            emptyState={
+              <EmptyState
+                title="No steps yet."
+                hint="Small steps are easier to start than a whole assignment."
+                // With the nudge card above, its buttons would repeat
+                // these (docs/decisions/20260925-plan-rows-and-one-piece.md, R2).
+                action={
+                  suggestBreakdown ? undefined : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Button className="rounded-2xl" onClick={() => setBreakingDown(true)}>
+                        Break this down
+                      </Button>
+                      {breakdownActions}
+                    </div>
+                  )
+                }
+              />
+            }
+            belowList={
+              finishable ? (
+                <div className="mb-3 rounded-3xl border border-border bg-card px-5 py-4">
+                  <p className="text-sm text-foreground">
+                    Every step here is done. Is the whole assignment finished?
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <Button className="rounded-2xl sm:flex-1" onClick={finishAssignment}>
+                      Yes, mark it complete
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="rounded-2xl sm:flex-1"
+                      onClick={() => setAddingStep(true)}
+                    >
+                      Not yet — add a step
+                    </Button>
+                  </div>
+                </div>
+              ) : null
+            }
           />
 
           <div className="mt-8 flex flex-col gap-3">
@@ -273,7 +378,7 @@ export default function AssignmentDetailPage({
               <Button
                 variant="ghost"
                 className="w-full text-muted-foreground"
-                onClick={handleMarkComplete}
+                onClick={finishAssignment}
               >
                 Mark assignment complete
               </Button>

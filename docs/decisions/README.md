@@ -42,3 +42,4 @@ directory.
 | 23 | [Separate Saturday and Sunday study hours, and no protected buffer](20260925-split-weekend-study-hours.md) | 2026-09-25 |
 | 24 | [Course colour choice, and deleting a course with everything in it](20260925-course-colour-and-delete.md) | 2026-09-25 |
 | 25 | [Plan opens for one assignment, with its work already chosen](20260925-plan-target.md) | 2026-09-25 |
+| 26 | [Breakdown choices live on Assignment Detail; Plan lists every assignment](20260925-plan-rows-and-one-piece.md) | 2026-09-25 |

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,16 @@ type AssignmentDetailStepsProps = {
   onAdd: (title: string, effortMinutes: number) => Promise<unknown>;
   onEdit: (id: string, patch: WorkItemEdit) => Promise<unknown>;
   onDelete: (id: string) => Promise<unknown>;
+  // The add-step form is opened from outside too — the breakdown nudge,
+  // the "No steps yet" state and the all-done card (daily-planning-and-
+  // completion-v2-proposal.md items 3 and 4) — so its open state is
+  // controlled by the page.
+  adding: boolean;
+  onAddingChange: (adding: boolean) => void;
+  // Shown instead of the list when there are no steps and the form is closed.
+  emptyState?: ReactNode;
+  // Shown under the list (e.g. the all-done card) while the form is closed.
+  belowList?: ReactNode;
 };
 
 // docs/decisions/20260911-architecture-refactor-proposal.md increment 4
@@ -27,8 +37,11 @@ export default function AssignmentDetailSteps({
   onAdd,
   onEdit,
   onDelete,
+  adding: addingStep,
+  onAddingChange: setAddingStep,
+  emptyState,
+  belowList,
 }: AssignmentDetailStepsProps) {
-  const [addingStep, setAddingStep] = useState(false);
   const [newStepTitle, setNewStepTitle] = useState("");
   const [newStepEffort, setNewStepEffort] = useState(DEFAULT_EFFORT_MINUTES);
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
@@ -194,6 +207,10 @@ export default function AssignmentDetailSteps({
         </ul>
       )}
 
+      {workItems.length === 0 && !addingStep && emptyState}
+
+      {!addingStep && belowList}
+
       {addingStep ? (
         <div className="rounded-lg border border-border bg-card p-3">
           <Input
@@ -239,13 +256,14 @@ export default function AssignmentDetailSteps({
             </Button>
           </div>
         </div>
-      ) : (
+      ) : workItems.length > 0 ? (
+        // With no steps, the "No steps yet" state offers "Just add a step".
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setAddingStep(true)}>
-            {workItems.length > 0 ? "+ Add another step" : "Just add a step"}
+            + Add another step
           </Button>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

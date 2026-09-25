@@ -12,13 +12,9 @@ type NeedsAttentionCardProps = {
   onOpenAssignment: (assignmentId: string) => void;
   // "Find time" and "Make a plan" pass their assignment, so Plan opens
   // with its work already chosen (daily-planning-and-completion-v2-
-  // proposal.md item 1). "Break it down" passes nothing.
-  onGoToPlan: (assignmentId?: string) => void;
+  // proposal.md item 1).
+  onGoToPlan: (assignmentId: string) => void;
 };
-
-function planFor(item: AttentionItem): string | undefined {
-  return item.action === "break-it-down" ? undefined : item.assignment.id;
-}
 
 // docs/decisions/20260912-page-complexity-reduction-proposal.md increment
 // 1 — Home's "Needs attention" card, split out of HomePage.tsx.
@@ -31,6 +27,15 @@ export default function NeedsAttentionCard({
   // assignmentsNeedingAttention already sorts soonest-due-first.
   const needsAttention = attentionItems[0];
   if (!needsAttention) return null;
+
+  // "Break it down" opens Assignment Detail, the one place for breakdown
+  // choices (docs/decisions/20260925-plan-rows-and-one-piece.md, P6 —
+  // reversing home-dashboard-followthrough.md item 2). "Find time" and
+  // "Make a plan" open Plan with the assignment's work already chosen.
+  function act(item: AttentionItem) {
+    if (item.action === "break-it-down") onOpenAssignment(item.assignment.id);
+    else onGoToPlan(item.assignment.id);
+  }
 
   return (
     <div className="mt-4 rounded-2xl border border-border bg-card p-4">
@@ -48,15 +53,11 @@ export default function NeedsAttentionCard({
         </button>
         : {needsAttention.message}
       </p>
-      {/* Every action lands on Plan. "Find time" and "Make a plan" carry the
-          assignment; "Break it down" lands where Plan's breakdown notice
-          lists it (docs/features/home-dashboard-followthrough.md items 2
-          and 4). */}
       <Button
         variant="outline"
         size="sm"
         className="mt-3 rounded-2xl"
-        onClick={() => onGoToPlan(planFor(needsAttention))}
+        onClick={() => act(needsAttention)}
       >
         {ATTENTION_ACTION_LABEL[needsAttention.action]}
       </Button>
@@ -76,7 +77,7 @@ export default function NeedsAttentionCard({
                 variant="outline"
                 size="sm"
                 className="shrink-0 rounded-2xl"
-                onClick={() => onGoToPlan(planFor(item))}
+                onClick={() => act(item)}
               >
                 {ATTENTION_ACTION_LABEL[item.action]}
               </Button>

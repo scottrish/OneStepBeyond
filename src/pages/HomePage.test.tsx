@@ -745,13 +745,9 @@ describe("HomePage", () => {
       expect(screen.getByRole("button", { name: /break it down/i })).toBeInTheDocument();
     });
 
-    // Needs Attention actions mean "add work", so they go to Plan's Select
-    // rather than the day view (docs/decisions/20260925-existing-day-view.md).
-    it("'Break it down' routes to Plan, the same as 'Find time'/'Make a plan', instead of opening Assignment Detail directly", async () => {
-      // docs/features/home-dashboard-followthrough.md item 2 — Plan's own
-      // Day step already shows every assignment needing a breakdown with
-      // the full "Break down / Plan as one task instead" choice, so
-      // routing there gives the identical experience Plan itself offers.
+    // "Break it down" opens Assignment Detail, the one place for breakdown
+    // choices (docs/decisions/20260925-plan-rows-and-one-piece.md, P6).
+    it("'Break it down' opens Assignment Detail, not Plan", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([
         {
           id: "a1",
@@ -771,10 +767,8 @@ describe("HomePage", () => {
 
       await userEvent.click(await screen.findByRole("button", { name: /break it down/i }));
 
-      expect(onPlanWork).toHaveBeenCalledTimes(1);
-      // No target: Plan's breakdown notice lists it.
-      expect(onPlanWork).toHaveBeenCalledWith(undefined);
-      expect(onOpenAssignment).not.toHaveBeenCalled();
+      expect(onOpenAssignment).toHaveBeenCalledWith("a1");
+      expect(onPlanWork).not.toHaveBeenCalled();
     });
 
     it("'Find time' passes its assignment to Plan (daily-planning-and-completion-v2-proposal.md item 1)", async () => {
@@ -840,7 +834,8 @@ describe("HomePage", () => {
       // One for the primary card, one for the secondary row.
       expect(secondaryActionButtons).toHaveLength(2);
       await userEvent.click(secondaryActionButtons[1]!);
-      expect(onPlanWork).toHaveBeenCalledTimes(1);
+      expect(onOpenAssignment).toHaveBeenLastCalledWith("a2");
+      expect(onPlanWork).not.toHaveBeenCalled();
     });
 
     it("opens Assignment Detail when the Needs Attention item's title is tapped", async () => {

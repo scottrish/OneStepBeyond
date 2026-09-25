@@ -93,6 +93,11 @@ export default function App() {
   // automatically — no explicit refetch-on-back plumbing needed anywhere.
   // See docs/decisions/20260817-assignment-detail-global-overlay.md.
   const [openAssignmentId, setOpenAssignmentId] = useState<string | null>(null);
+  // Whether Detail was opened from Plan (its wizard or Look Ahead): if so,
+  // its forward exits — a confirmed breakdown, "Plan it as one piece" —
+  // return to Plan's day (daily-planning-and-completion-v2-proposal.md
+  // item 4). Back needs nothing: closing the overlay reveals Plan as it was.
+  const [assignmentOpenedFromPlan, setAssignmentOpenedFromPlan] = useState(false);
 
   // Capture, Settings, and Settings' own sub-screens — the same
   // render-in-place-of-the-tab pattern as openAssignmentId/executingToday
@@ -119,19 +124,26 @@ export default function App() {
   // Home's "Find time" / "Make a plan" and Assignment Detail's "Plan work
   // for today" (docs/decisions/20260925-plan-target.md: P1 and P2 —
   // targeted entries always mean today, whatever day Plan was last on).
+  // Assignment Detail opened from anywhere but Plan.
+  function openAssignment(assignmentId: string) {
+    setAssignmentOpenedFromPlan(false);
+    setOpenAssignmentId(assignmentId);
+  }
+
+  // "Plan it as one piece" on Detail: Plan's Select with that one step
+  // chosen — on the day Plan was showing if Detail was opened from Plan,
+  // otherwise today (docs/decisions/20260925-plan-rows-and-one-piece.md).
+  function handlePlanPick(workItemId: string) {
+    if (!assignmentOpenedFromPlan) setPlanDate(todayISODate());
+    setPlanStep("select");
+    setPlanTarget({ kind: "pick", workItemId });
+    handleTabChange("plan");
+  }
+
   function handlePlanAssignment(assignmentId: string) {
     setPlanDate(todayISODate());
     setPlanStep("select");
     setPlanTarget({ kind: "assignment", assignmentId });
-    handleTabChange("plan");
-  }
-
-  // Home's Needs Attention "Break it down" (no target): Select on whatever
-  // day Plan is showing, where the breakdown notice lists it
-  // (docs/decisions/20260925-existing-day-view.md point 3). "Find time"
-  // and "Make a plan" carry their assignment instead (handlePlanAssignment).
-  function handleGoToPlanToAddWork() {
-    setPlanStep("select");
     handleTabChange("plan");
   }
 
@@ -176,7 +188,7 @@ export default function App() {
             }}
             onSaved={(assignmentId) => {
               setSecondary(null);
-              setOpenAssignmentId(assignmentId);
+              openAssignment(assignmentId);
             }}
           />
         );
@@ -228,6 +240,15 @@ export default function App() {
             assignmentId={openAssignmentId}
             onBack={() => setOpenAssignmentId(null)}
             onGoToPlan={() => handlePlanAssignment(openAssignmentId)}
+            openedFromPlan={assignmentOpenedFromPlan}
+            onPlanPick={handlePlanPick}
+            onBreakdownConfirmedFromPlan={() => {
+              // Back to Plan's wizard (even if Detail was opened from Look
+              // Ahead), on Select for the same day, where the new steps are.
+              setPlanTab("wizard");
+              setPlanStep("select");
+              setOpenAssignmentId(null);
+            }}
           />
         ) : executingToday ? (
           <TodayExecutionPage user={user} onBack={() => setExecutingToday(false)} />
@@ -241,11 +262,9 @@ export default function App() {
                 user={user}
                 onStartExecution={() => setExecutingToday(true)}
                 onGoToPlan={() => handleTabChange("plan")}
-                onPlanWork={(assignmentId) =>
-                  assignmentId ? handlePlanAssignment(assignmentId) : handleGoToPlanToAddWork()
-                }
+                onPlanWork={handlePlanAssignment}
                 onGoToAssignments={() => handleTabChange("assignments")}
-                onOpenAssignment={setOpenAssignmentId}
+                onOpenAssignment={openAssignment}
                 onOpenCapture={() => setSecondary("capture")}
                 onOpenSettings={() => setSecondary("settings")}
                 onOpenSupport={() => setSecondary("support")}
@@ -267,7 +286,10 @@ export default function App() {
                 onTabChange={setPlanTab}
                 onStartExecution={() => setExecutingToday(true)}
                 onGoToAssignments={() => handleTabChange("assignments")}
-                onOpenAssignment={setOpenAssignmentId}
+                onOpenAssignment={(assignmentId) => {
+                  setAssignmentOpenedFromPlan(true);
+                  setOpenAssignmentId(assignmentId);
+                }}
                 target={planTarget}
                 onTargetApplied={clearPlanTarget}
               />
@@ -277,7 +299,7 @@ export default function App() {
                 key={tabResetKeys.assignments}
                 user={user}
                 onOpenCapture={() => setSecondary("capture")}
-                onOpenAssignment={setOpenAssignmentId}
+                onOpenAssignment={openAssignment}
               />
             )}
           </>

@@ -1,5 +1,9 @@
 # Daily Planning: allow scheduling an assignment without a Work Breakdown
 
+> *Placement superseded 2026-09-25 by `20260925-plan-rows-and-one-piece.md`:*
+> *"Plan it as one piece" is now offered on Assignment Detail only, not in*
+> *Plan's Select step. The capability recorded here is unchanged.*
+
 Date: 2026-08-16
 
 ## Context

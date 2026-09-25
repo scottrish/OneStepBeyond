@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 
@@ -87,6 +87,14 @@ const mockedPreferencesService = preferencesService as unknown as {
 
 const user = { id: "student-1", email: "person@example.com" } as User;
 
+// Detail's forward exits toward Plan (daily-planning-and-completion-v2-
+// proposal.md item 4); tests that need them override these.
+const planExits = {
+  openedFromPlan: false,
+  onPlanPick: vi.fn(),
+  onBreakdownConfirmedFromPlan: vi.fn(),
+};
+
 const assignment = {
   id: "assignment-1",
   courseId: "course-1",
@@ -115,7 +123,7 @@ describe("AssignmentDetailPage", () => {
     mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
 
     render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
     );
 
     expect(
@@ -137,7 +145,7 @@ describe("AssignmentDetailPage", () => {
     ]);
 
     render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
     );
 
     expect(
@@ -155,7 +163,7 @@ describe("AssignmentDetailPage", () => {
     });
 
     render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
     );
 
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
@@ -169,7 +177,7 @@ describe("AssignmentDetailPage", () => {
     });
 
     render(
-      <AssignmentDetailPage user={user} assignmentId="missing" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      <AssignmentDetailPage user={user} assignmentId="missing" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -184,7 +192,7 @@ describe("AssignmentDetailPage", () => {
     const userEventInstance = userEvent.setup();
 
     render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={onBack} onGoToPlan={vi.fn()} />,
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={onBack} onGoToPlan={vi.fn()} {...planExits} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
 
@@ -201,7 +209,7 @@ describe("AssignmentDetailPage", () => {
     const userEventInstance = userEvent.setup();
 
     render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
 
@@ -230,7 +238,7 @@ describe("AssignmentDetailPage", () => {
     const userEventInstance = userEvent.setup();
 
     render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={onBack} onGoToPlan={vi.fn()} />,
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={onBack} onGoToPlan={vi.fn()} {...planExits} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
 
@@ -259,7 +267,7 @@ describe("AssignmentDetailPage", () => {
     const userEventInstance = userEvent.setup();
 
     render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={onBack} onGoToPlan={vi.fn()} />,
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={onBack} onGoToPlan={vi.fn()} {...planExits} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
 
@@ -283,7 +291,7 @@ describe("AssignmentDetailPage", () => {
     const userEventInstance = userEvent.setup();
 
     render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={onBack} onGoToPlan={vi.fn()} />,
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={onBack} onGoToPlan={vi.fn()} {...planExits} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
     await screen.findByText("Step 1");
@@ -305,7 +313,7 @@ describe("AssignmentDetailPage", () => {
     ]);
 
     render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
 
@@ -317,28 +325,190 @@ describe("AssignmentDetailPage", () => {
     expect(step2).toBeDisabled();
   });
 
-  it("never offers 'Break this down' — only 'Just add a step'/'Add another step' (docs/features/assignment-detail-cta-hierarchy.md item 3a, Correction 5)", async () => {
+  it("with no steps, 'No steps yet' offers Break this down, Just add a step and Plan it as one piece; with steps, only Add another step", async () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
     mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
 
     const { unmount } = render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
-    expect(screen.queryByRole("button", { name: /break this down/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /just add a step/i })).toBeInTheDocument();
+    expect(screen.getByText("No steps yet.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Break this down" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Just add a step" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Plan it as one piece" })).toBeInTheDocument();
     unmount();
 
     mockedWorkItemService.listWorkItems.mockResolvedValue([
       { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: null, position: 0 },
     ]);
     render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+    expect(screen.queryByText("No steps yet.")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /break this down/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /edit breakdown/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /plan it as one piece/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /add another step/i })).toBeInTheDocument();
+  });
+
+  it("a big unbroken assignment's nudge offers all three choices, and 'No steps yet' doesn't repeat them (R2)", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([]);
+    mockedAssignmentService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 60 });
+
+    render(
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
+    );
+    await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+
+    expect(screen.getByRole("button", { name: /yes, help me start/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Just add a step" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Plan it as one piece" })).toHaveLength(1);
+    expect(screen.getByText("No steps yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Break this down" })).not.toBeInTheDocument();
+  });
+
+  it("'Just add a step' opens the add form and hides the nudge", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([]);
+    mockedAssignmentService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 60 });
+    const userEventInstance = userEvent.setup();
+
+    render(
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
+    );
+    await userEventInstance.click(await screen.findByRole("button", { name: "Just add a step" }));
+
+    expect(screen.getByLabelText("New step title")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /yes, help me start/i })).not.toBeInTheDocument();
+  });
+
+  it("'Plan it as one piece' makes exactly one step named after the assignment and opens Plan with it chosen", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([]);
+    mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+    mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+    mockedWorkItemService.createWorkItems.mockResolvedValue([
+      { id: "new-step", assignmentId: "assignment-1", title: "Chapter 7 problem set", effortMinutes: 30, completedAt: null, position: 0 },
+    ]);
+    const onPlanPick = vi.fn();
+    const userEventInstance = userEvent.setup();
+
+    render(
+      <AssignmentDetailPage
+        user={user}
+        assignmentId="assignment-1"
+        onBack={vi.fn()}
+        onGoToPlan={vi.fn()}
+        {...planExits}
+        onPlanPick={onPlanPick}
+      />,
+    );
+    await userEventInstance.click(await screen.findByRole("button", { name: "Plan it as one piece" }));
+
+    await waitFor(() => expect(onPlanPick).toHaveBeenCalledWith("new-step"));
+    expect(mockedWorkItemService.createWorkItems).toHaveBeenCalledTimes(1);
+    expect(mockedWorkItemService.createWorkItems.mock.calls[0]![1]).toEqual([
+      expect.objectContaining({ title: "Chapter 7 problem set", effortMinutes: 30 }),
+    ]);
+  });
+
+  describe("all steps done (item 4)", () => {
+    const doneStep = {
+      id: "w1",
+      assignmentId: "assignment-1",
+      title: "Step 1",
+      effortMinutes: 10,
+      completedAt: "2026-03-14T00:00:00Z",
+      position: 0,
+    };
+
+    it("shows the all-done card; 'Not yet — add a step' opens the add form", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+      mockedWorkItemService.listWorkItems.mockResolvedValue([doneStep]);
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
+      );
+      expect(
+        await screen.findByText("Every step here is done. Is the whole assignment finished?"),
+      ).toBeInTheDocument();
+
+      await userEventInstance.click(screen.getByRole("button", { name: "Not yet — add a step" }));
+      expect(screen.getByLabelText("New step title")).toBeInTheDocument();
+    });
+
+    it("'Yes, mark it complete' → reflection → turned-in reminder → Got it closes Detail (P3)", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+      mockedAssignmentService.completeAssignment.mockResolvedValue(undefined);
+      mockedWorkItemService.listWorkItems.mockResolvedValue([doneStep]);
+      mockedWorkItemService.completeAllForAssignment.mockResolvedValue(undefined);
+      const onBack = vi.fn();
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={onBack} onGoToPlan={vi.fn()} {...planExits} />,
+      );
+      await userEventInstance.click(await screen.findByRole("button", { name: "Yes, mark it complete" }));
+
+      expect(await screen.findByText(/did the way you broke this down work/i)).toBeInTheDocument();
+      await userEventInstance.click(screen.getByRole("button", { name: /skip this question/i }));
+      expect(screen.getByRole("heading", { name: "Mark it turned in at school" })).toBeInTheDocument();
+
+      await userEventInstance.click(screen.getByRole("button", { name: "Got it" }));
+      expect(onBack).toHaveBeenCalledTimes(1);
+    });
+
+    it("isn't shown while any step is open", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+      mockedWorkItemService.listWorkItems.mockResolvedValue([
+        doneStep,
+        { ...doneStep, id: "w2", title: "Step 2", completedAt: null, position: 1 },
+      ]);
+
+      render(
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
+      );
+      await screen.findByText("Step 2");
+      expect(screen.queryByText(/every step here is done/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it("a breakdown confirmed while opened from Plan returns to Plan", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([]);
+    mockedAssignmentService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 60 });
+    mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+    mockedWorkItemService.createWorkItems.mockResolvedValue([]);
+    const onBreakdownConfirmedFromPlan = vi.fn();
+    const userEventInstance = userEvent.setup();
+
+    render(
+      <AssignmentDetailPage
+        user={user}
+        assignmentId="assignment-1"
+        onBack={vi.fn()}
+        onGoToPlan={vi.fn()}
+        {...planExits}
+        openedFromPlan
+        onBreakdownConfirmedFromPlan={onBreakdownConfirmedFromPlan}
+      />,
+    );
+    await userEventInstance.click(await screen.findByRole("button", { name: /yes, help me start/i }));
+    await userEventInstance.type(screen.getByPlaceholderText(/questions 1–10/i), "Read the chapter");
+    await userEventInstance.click(screen.getByRole("button", { name: /^add$/i }));
+    await userEventInstance.click(screen.getByRole("button", { name: /^next$/i }));
+    await userEventInstance.click(
+      within(screen.getByRole("radiogroup", { name: /estimated time for read the chapter/i })).getByRole(
+        "radio",
+        { name: "1h" },
+      ),
+    );
+    await userEventInstance.click(screen.getByRole("button", { name: /^next$/i }));
+    await userEventInstance.click(screen.getByRole("button", { name: /looks good/i }));
+
+    await waitFor(() => expect(onBreakdownConfirmedFromPlan).toHaveBeenCalledTimes(1));
   });
 
   it("'Yes, help me start' is the only path into the Work Breakdown flow, and cancelling returns to Detail unchanged", async () => {
@@ -350,7 +520,7 @@ describe("AssignmentDetailPage", () => {
     const userEventInstance = userEvent.setup();
 
     render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
     expect(screen.queryByRole("button", { name: /break this down/i })).not.toBeInTheDocument();
@@ -377,7 +547,7 @@ describe("AssignmentDetailPage", () => {
     const userEventInstance = userEvent.setup();
 
     render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
 
@@ -398,30 +568,29 @@ describe("AssignmentDetailPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("does not prompt for reflection when the assignment never had a Work Breakdown", async () => {
+  it("completing an assignment that never had steps skips the reflection but still shows the turned-in reminder", async () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
     mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
     mockedAssignmentService.completeAssignment.mockResolvedValue(undefined);
     mockedWorkItemService.listWorkItems.mockResolvedValue([]);
     mockedWorkItemService.completeAllForAssignment.mockResolvedValue(undefined);
+    const onBack = vi.fn();
     const userEventInstance = userEvent.setup();
 
     render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={onBack} onGoToPlan={vi.fn()} {...planExits} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
 
-    await userEventInstance.click(
-      screen.getByRole("button", { name: /mark assignment complete/i }),
-    );
+    await userEventInstance.click(screen.getByRole("button", { name: /mark assignment complete/i }));
 
     await waitFor(() =>
-      expect(mockedAssignmentService.completeAssignment).toHaveBeenCalledWith(
-        "assignment-1",
-      ),
+      expect(mockedAssignmentService.completeAssignment).toHaveBeenCalledWith("assignment-1"),
     );
     expect(screen.queryByText(/did the way you broke this down work/i)).not.toBeInTheDocument();
-    expect(await screen.findByText("Completed")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Mark it turned in at school" })).toBeInTheDocument();
+    await userEventInstance.click(screen.getByRole("button", { name: "Got it" }));
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 
   describe("CTA hierarchy (docs/features/assignment-detail-cta-hierarchy.md)", () => {
@@ -430,7 +599,7 @@ describe("AssignmentDetailPage", () => {
       mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
       await screen.findByRole("heading", { name: "Chapter 7 problem set" });
 
@@ -457,7 +626,7 @@ describe("AssignmentDetailPage", () => {
       const userEventInstance = userEvent.setup();
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={onGoToPlan} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={onGoToPlan} {...planExits} />,
       );
       await screen.findByRole("heading", { name: "Chapter 7 problem set" });
 
@@ -486,7 +655,7 @@ describe("AssignmentDetailPage", () => {
       ]);
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
 
       expect(
@@ -501,7 +670,7 @@ describe("AssignmentDetailPage", () => {
       mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
       await screen.findByRole("heading", { name: "Chapter 7 problem set" });
 
@@ -518,7 +687,7 @@ describe("AssignmentDetailPage", () => {
       ]);
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
 
       const message = await screen.findByText(/due soon and nothing planned for it yet/i);
@@ -534,7 +703,7 @@ describe("AssignmentDetailPage", () => {
       mockedActivityService.listActivities.mockRejectedValue({ message: "network error" });
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
       await screen.findByRole("heading", { name: "Chapter 7 problem set" });
       // Give the rejected Activities fetch a tick to settle.
@@ -556,7 +725,7 @@ describe("AssignmentDetailPage", () => {
       mockedPreferencesService.getPreferences.mockRejectedValue({ message: "network error" });
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
       await screen.findByRole("heading", { name: "Chapter 7 problem set" });
       await vi.waitFor(() => {});
@@ -576,7 +745,7 @@ describe("AssignmentDetailPage", () => {
       });
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
 
       expect(
@@ -595,7 +764,7 @@ describe("AssignmentDetailPage", () => {
       ]);
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
       await screen.findByRole("heading", { name: "Chapter 7 problem set" });
 
@@ -610,7 +779,7 @@ describe("AssignmentDetailPage", () => {
       mockedWorkItemService.listWorkItems.mockResolvedValue([]);
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
       await screen.findByRole("heading", { name: "Chapter 7 problem set" });
 
@@ -628,7 +797,7 @@ describe("AssignmentDetailPage", () => {
       const userEventInstance = userEvent.setup();
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
       await screen.findByText(/would it help to break it into smaller steps/i);
 
@@ -650,7 +819,7 @@ describe("AssignmentDetailPage", () => {
       const userEventInstance = userEvent.setup();
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
       await screen.findByRole("heading", { name: "Chapter 7 problem set" });
 
@@ -702,7 +871,7 @@ describe("AssignmentDetailPage", () => {
       const userEventInstance = userEvent.setup();
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
       await screen.findByText("Step 1");
 
@@ -750,7 +919,7 @@ describe("AssignmentDetailPage", () => {
       const userEventInstance = userEvent.setup();
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
       await screen.findByText("Step 1");
 
@@ -771,7 +940,7 @@ describe("AssignmentDetailPage", () => {
       const userEventInstance = userEvent.setup();
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
       await screen.findByText("Step 1");
 
@@ -802,7 +971,7 @@ describe("AssignmentDetailPage", () => {
       const userEventInstance = userEvent.setup();
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
       await screen.findByText("Step 1");
 
@@ -830,7 +999,7 @@ describe("AssignmentDetailPage", () => {
       const userEventInstance = userEvent.setup();
 
       render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} />,
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
       await screen.findByText("Step 1");
 

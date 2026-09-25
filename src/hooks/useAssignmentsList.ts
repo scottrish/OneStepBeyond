@@ -79,6 +79,22 @@ export function useAssignmentsList(studentId: string) {
     }
   }
 
+  // Plan's "All steps done" row (daily-planning-and-completion-v2-
+  // proposal.md item 4): its steps are already complete, so only the
+  // assignment itself needs marking.
+  async function completeAssignment(id: string): Promise<boolean> {
+    setActionError(null);
+    try {
+      await assignmentService.completeAssignment(id);
+      const completedAt = new Date().toISOString();
+      setAssignments((prev) => prev.map((a) => (a.id === id ? { ...a, completedAt } : a)));
+      return true;
+    } catch (error) {
+      setActionError(errorMessage(error));
+      return false;
+    }
+  }
+
   return {
     assignments,
     workItems,
@@ -88,5 +104,6 @@ export function useAssignmentsList(studentId: string) {
     retry,
     editAssignment,
     removeAssignment,
+    completeAssignment,
   };
 }

@@ -1,6 +1,8 @@
 # Feature: Daily Planning & Completion — Prototype Sync (v2 proposal)
 
-**Status:** Partly implemented. **Item 1** (plan target) was built
+**Status:** Partly implemented. **Items 3, 4, 5 and 6a** were built
+2026-09-25 as roadmap Phase 7 steps 6–8
+(`docs/decisions/20260925-plan-rows-and-one-piece.md`). **Item 1** (plan target) was built
 2026-09-25 as roadmap Phase 7 step 5 (`docs/decisions/20260925-plan-target.md`).
 **Items 7 and 8** (Next card states,
 per-assignment Look Ahead warning) were built 2026-09-25 as roadmap
@@ -286,6 +288,11 @@ This document's first draft described `main`'s version. Build the
 
 ### 3. "Plan it as one piece" moves to Assignment Detail, the single place for breakdown choices
 
+> **Implemented 2026-09-25** (roadmap step 7, built with step 6; tag
+> `v-pre-plan-rows-and-one-piece` marks the state before). As decided: when
+> the nudge card shows, "No steps yet" shows only its text, not the same
+> three buttons again (R2). Home's "Break it down" now opens Detail (P6).
+
 **Moves an already-built capability. Needs product sign-off, because it
 changes where `docs/decisions/20260816-plan-directly-without-breakdown.md`'s
 capability is offered.** Today, "Plan '{title}' as one task instead"
@@ -337,6 +344,15 @@ the placement part of 20260816, not a silent edit.
   prompt. Unbroken assignments are handled as described in item 4.
 
 ### 4. Select step surfaces "no steps yet" and "all steps done" assignments, not just open Work Items
+
+> **Implemented 2026-09-25** (roadmap step 6). The rule is
+> `isAssignmentFinishable` and the rows come from `rankSelectRows`, both in
+> `src/domain/planningCandidates.ts`. Completing from Select's "All steps
+> done" row shows the reflection first (it always had steps), then the
+> reminder, then the same Select (R1). **"Got it" on Detail closes Detail**,
+> revealing whichever screen opened it (Home, Assignments, or Plan on the
+> same day), rather than always going to Assignments. A confirmed breakdown
+> from Detail opened from Plan lands on Plan's Select for that day.
 
 **New behavior, not a copy tweak.** Today, Select's candidate list is
 built purely from open Work Items — an assignment with zero Work Items
@@ -408,6 +424,11 @@ existing overlay props. Don't introduce URL routing for this.
 
 ### 5. "Mark it turned in at school" reminder after completing an assignment
 
+> **Implemented 2026-09-25** for Assignment Detail and Plan
+> (`src/components/TurnedInReminder.tsx`). If the assignment had steps, the
+> reflection prompt comes first (P3). Today Execution's own completion
+> check arrives with `execution-coaching-v0.1.md` (roadmap step 12).
+
 **New, not currently specified.** Wherever an assignment transitions to
 complete — Assignment Detail's own "Mark assignment complete," the new
 all-done prompt in item 4 above, or Today Execution's last-step
@@ -439,6 +460,9 @@ needs to track separately at most schools.
 
 ### 6. Select: full list, "Planned today" note, and same-day items disabled — two explicit decisions
 
+> **6a implemented 2026-09-25** (roadmap step 8): Select shows every row,
+> with no cap and no "Show more" (P4).
+>
 > **6b and 6c implemented 2026-09-25** with item 10: they became
 > prerequisites once confirm appends. The disabled row keeps full text
 > contrast (a dashed border and the note, not the prototype's 60%

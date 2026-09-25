@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { preselectFor, rankCandidates, targetAssignmentId, targetFirst } from "./planningCandidates";
+import {
+  isAssignmentFinishable,
+  preselectFor,
+  rankCandidates,
+  rankSelectRows,
+  targetAssignmentId,
+  targetFirst,
+} from "./planningCandidates";
 import type { Assignment } from "../services/assignmentService";
 import type { WorkItem } from "../services/workItemService";
 
@@ -150,5 +157,60 @@ describe("plan targets (daily-planning-and-completion-v2-proposal.md item 1)", (
       expect(preselectFor({ kind: "pick", workItemId: "e2" }, candidates, [], DAY, new Set(["e2"]))).toEqual([]);
       expect(preselectFor({ kind: "pick", workItemId: "gone" }, candidates, [], DAY, new Set())).toEqual([]);
     });
+  });
+});
+
+describe("isAssignmentFinishable (item 4)", () => {
+  const a = assignment({ id: "a1" });
+  it("is true when every step is done and the assignment is still open", () => {
+    expect(isAssignmentFinishable(a, [workItem({ completedAt: "2026-03-15T00:00:00Z" })])).toBe(true);
+  });
+
+  it("is false with any open step, with no steps, or once the assignment is complete", () => {
+    expect(
+      isAssignmentFinishable(a, [
+        workItem({ id: "w1", completedAt: "2026-03-15T00:00:00Z" }),
+        workItem({ id: "w2", completedAt: null }),
+      ]),
+    ).toBe(false);
+    expect(isAssignmentFinishable(a, [])).toBe(false);
+    expect(isAssignmentFinishable(a, [workItem({ assignmentId: "other", completedAt: "x" })])).toBe(false);
+    expect(
+      isAssignmentFinishable(assignment({ completedAt: "2026-03-15T00:00:00Z" }), [
+        workItem({ completedAt: "2026-03-15T00:00:00Z" }),
+      ]),
+    ).toBe(false);
+  });
+});
+
+describe("rankSelectRows (item 4)", () => {
+  it("interleaves open steps, 'no steps yet' and 'all steps done' rows by due date, never mixing the two", () => {
+    const rows = rankSelectRows(
+      [
+        assignment({ id: "done", title: "Finished steps", dueDate: "2026-03-19" }),
+        assignment({ id: "none", title: "Unbroken", dueDate: "2026-03-17" }),
+        assignment({ id: "open", title: "In progress", dueDate: "2026-03-18" }),
+        assignment({ id: "closed", title: "Complete", dueDate: "2026-03-16", completedAt: "x" }),
+      ],
+      [
+        workItem({ id: "d1", assignmentId: "done", completedAt: "2026-03-15T00:00:00Z" }),
+        workItem({ id: "o1", assignmentId: "open" }),
+        workItem({ id: "o2", assignmentId: "open", completedAt: "2026-03-15T00:00:00Z" }),
+        workItem({ id: "c1", assignmentId: "closed" }),
+      ],
+    );
+    expect(rows.map((r) => `${r.kind}:${r.kind === "task" ? r.workItem.id : r.assignment.id}`)).toEqual([
+      "noSteps:none",
+      "task:o1",
+      "allDone:done",
+    ]);
+  });
+
+  it("targetFirst moves every kind of row for the target assignment to the top", () => {
+    const rows = rankSelectRows(
+      [assignment({ id: "a", dueDate: "2026-03-17" }), assignment({ id: "b", dueDate: "2026-03-20" })],
+      [workItem({ id: "a1", assignmentId: "a" })],
+    );
+    expect(targetFirst(rows, "b").map((r) => r.assignment.id)).toEqual(["b", "a"]);
   });
 });

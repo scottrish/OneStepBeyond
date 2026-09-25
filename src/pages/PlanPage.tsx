@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import ErrorBanner from "../components/ErrorBanner";
-import { errorMessage } from "../lib/errorMessage";
 import {
   addDaysISODate,
   longPlanDate,
@@ -11,6 +10,7 @@ import {
 import {
   preselectFor,
   rankCandidates,
+  rankSelectRows,
   targetAssignmentId,
   targetFirst,
   type PlanTarget,
@@ -29,7 +29,6 @@ import { useCourses } from "../hooks/useCourses";
 import { useDailyPlanning } from "../hooks/useDailyPlanning";
 import { useEstimationDrift } from "../hooks/useEstimationDrift";
 import { usePreferences } from "../hooks/usePreferences";
-import * as workBreakdownService from "../services/workBreakdownService";
 import type { Assignment } from "../services/assignmentService";
 import type { WorkSession } from "../services/workSessionService";
 import ConfirmStep from "./plan/ConfirmStep";
@@ -40,7 +39,8 @@ import ScheduleStep from "./plan/ScheduleStep";
 import SelectStep from "./plan/SelectStep";
 import { MIDNIGHT_MESSAGE, useSessionEditing } from "./plan/useSessionEditing";
 import WeekLookAhead from "./WeekLookAhead";
-import WorkBreakdownPage from "./WorkBreakdownPage";
+import TurnedInReminder from "@/components/TurnedInReminder";
+import ReflectionPrompt from "./ReflectionPrompt";
 
 // Step and the selected day are lifted into App.tsx and passed down as
 // controlled props (date/step + onDateChange/onStepChange) instead of
@@ -110,15 +110,16 @@ type PlanPageProps = {
   onTargetApplied: () => void;
 };
 
-// A nested view within the Plan tab, distinct from both the wizard's own
-// `step` and the top-level wizard/lookahead `tab` above. Reached from
-// FR-1's breakdown signal (see needsBreakdown below) — reuses
-// WorkBreakdownPage exactly as Assignment Detail does, rather than
-// inventing a new UI for the same job (CLAUDE.md YAGNI). Deliberately
-// stays local (not lifted): unlike the tab choice, a mid-breakdown flow
-// resetting on remount is the same accepted tradeoff `chosen`/`times`
-// selections already have.
-type View = { name: "wizard" } | { name: "breakdown"; assignmentId: string };
+// A full-screen step within the Plan tab, distinct from both the wizard's
+// own `step` and the top-level wizard/lookahead `tab` above: finishing an
+// assignment from Select's "All steps done" row — the reflection (it
+// always had steps), then the turned-in reminder, then back to the same
+// Select (docs/decisions/20260925-plan-rows-and-one-piece.md, R1). Plan
+// no longer hosts a breakdown: that lives on Assignment Detail now.
+type View =
+  | { name: "wizard" }
+  | { name: "reflect"; assignment: Assignment }
+  | { name: "reminder"; assignment: Assignment };
 
 const STEP_LABEL: Record<Exclude<Step, "day">, string> = {
   select: "Step 1 of 4",
@@ -157,15 +158,12 @@ export default function PlanPage({
   // drag or Earlier/Later, held in memory until Confirm like `times`.
   const [scheduleOrder, setScheduleOrder] = useState<string[]>([]);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
-  const [showAll, setShowAll] = useState(false);
   const [justConfirmed, setJustConfirmed] = useState(false);
   // Keeps the day view showing after the student removes the day's last
   // session from it ("Nothing planned for this day yet."), instead of the
   // screen switching to Select underneath them. Cleared by leaving the
   // day (another day picked, Add more work, Done).
   const [stayOnDayViewFor, setStayOnDayViewFor] = useState<string | null>(null);
-  const [planningAssignmentId, setPlanningAssignmentId] = useState<string | null>(null);
-  const [planDirectlyError, setPlanDirectlyError] = useState<string | null>(null);
 
   const {
     activities,
@@ -179,6 +177,8 @@ export default function PlanPage({
     loading: assignmentsLoading,
     loadError: assignmentsLoadError,
     retry: retryAssignments,
+    actionError: assignmentsActionError,
+    completeAssignment,
   } = useAssignmentsList(studentId);
   const { courses } = useCourses(studentId);
   const {
@@ -225,23 +225,12 @@ export default function PlanPage({
     return targetFirst(ranked, targetAssignmentId(appliedTarget, ranked));
   }, [assignments, workItems, appliedTarget]);
   const highlightedAssignmentId = targetAssignmentId(appliedTarget, candidates);
-  const visibleCandidates = showAll ? candidates : candidates.slice(0, 3);
-
-  // Open assignments with zero Work Items — i.e. never broken down —
-  // are exactly what makes candidates empty and Select dead-end. Named
-  // here so Select's empty state (and BreakdownNotice, in the mixed
-  // case) can point at them directly. docs/features/iterations/
-  // daily-planning/daily-planning.i02.md FR-1.
-  const assignmentsNeedingBreakdown = useMemo(
-    () =>
-      assignments
-        .filter(
-          (assignment) =>
-            assignment.completedAt === null &&
-            !workItems.some((item) => item.assignmentId === assignment.id),
-        )
-        .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
-    [assignments, workItems],
+  // Select's rows: open steps, plus "no steps yet" and "all steps done"
+  // assignments (item 4), all shown — no three-row cap (item 6a;
+  // docs/decisions/20260925-plan-rows-and-one-piece.md).
+  const selectRows = useMemo(
+    () => targetFirst(rankSelectRows(assignments, workItems), highlightedAssignmentId),
+    [assignments, workItems, highlightedAssignmentId],
   );
 
   // Work items that already have a planned session on a *different* date
@@ -291,8 +280,6 @@ export default function PlanPage({
       ),
     );
     setTimes({});
-    // Every pre-selected row must be visible, whatever the cap.
-    setShowAll(true);
   }
 
   useEffect(() => {
@@ -369,7 +356,6 @@ export default function PlanPage({
     onStepChange("day");
     setChosen({});
     setTimes({});
-    setShowAll(false);
     setJustConfirmed(false);
     setStayOnDayViewFor(null);
     setAppliedTarget(null);
@@ -382,38 +368,9 @@ export default function PlanPage({
     setAppliedTarget(null);
     setChosen({});
     setTimes({});
-    setShowAll(false);
     setJustConfirmed(false);
     setStayOnDayViewFor(null);
     onStepChange("select");
-  }
-
-  // The alternative to "Break down ..." offered by BreakdownList/Notice:
-  // not every assignment is meaningfully decomposable ("Read chapter 1 by
-  // Tuesday"), so this creates a single Work Item mirroring the
-  // assignment's own title/estimate via the same service the full
-  // breakdown flow's confirm step uses, skipping the multi-step wizard
-  // entirely. Recorded as a (trivial, one-item) confirmed Work Breakdown
-  // like any other, rather than a separate "unbroken-down but schedulable
-  // assignment" concept — see docs/decisions/
-  // 20260816-plan-directly-without-breakdown.md.
-  async function planWithoutBreakdown(assignment: Assignment) {
-    setPlanningAssignmentId(assignment.id);
-    setPlanDirectlyError(null);
-    try {
-      await workBreakdownService.confirmWorkBreakdown(
-        studentId,
-        assignment,
-        [],
-        [{ title: assignment.title, effortMinutes: assignment.effortMinutes }],
-        0,
-      );
-      retryAssignments();
-    } catch (error) {
-      setPlanDirectlyError(errorMessage(error));
-    } finally {
-      setPlanningAssignmentId(null);
-    }
   }
 
   function toggleCandidate(itemId: string, estimateMinutes: number) {
@@ -517,28 +474,25 @@ export default function PlanPage({
     }
   }
 
-  // FR-1: reached from the breakdown signal on the Day/Select steps
-  // below. Reuses WorkBreakdownPage exactly as Assignment Detail does
-  // — same component, same confirm flow — rather than a new one.
-  // Cancelling or confirming both return to the wizard at the same
-  // date/step it was left at, since nothing here touches those; a
-  // confirm also refetches so the newly-created Work Items make the
-  // assignment show up as a candidate immediately.
-  const breakdownAssignment =
-    view.name === "breakdown" ? assignments.find((a) => a.id === view.assignmentId) : undefined;
+  // Select's "All steps done" row → "Mark it complete".
+  async function finishAssignment(assignment: Assignment) {
+    const completed = await completeAssignment(assignment.id);
+    if (completed) setView({ name: "reflect", assignment });
+  }
 
-  if (view.name === "breakdown" && breakdownAssignment) {
+  if (view.name === "reflect") {
     return (
-      <WorkBreakdownPage
-        user={user}
-        assignment={breakdownAssignment}
-        confirmedItems={workItems.filter((item) => item.assignmentId === breakdownAssignment.id)}
-        onCancel={() => setView({ name: "wizard" })}
-        onConfirmed={() => {
-          setView({ name: "wizard" });
-          retryAssignments();
-        }}
+      <ReflectionPrompt
+        studentId={studentId}
+        assignmentId={view.assignment.id}
+        onDone={() => setView({ name: "reminder", assignment: view.assignment })}
       />
+    );
+  }
+
+  if (view.name === "reminder") {
+    return (
+      <TurnedInReminder title={view.assignment.title} onDone={() => setView({ name: "wizard" })} />
     );
   }
 
@@ -638,7 +592,7 @@ export default function PlanPage({
 
           {actionError && <ErrorBanner message={actionError} />}
 
-          {planDirectlyError && <ErrorBanner message={planDirectlyError} />}
+          {assignmentsActionError && <ErrorBanner message={assignmentsActionError} />}
 
           {!loading && !loadError && (
             <>
@@ -674,12 +628,8 @@ export default function PlanPage({
               courseName={courseName}
               commitments={commitments}
               capacity={capacity}
-              candidates={candidates}
-              visibleCandidates={visibleCandidates}
-              assignmentsNeedingBreakdown={assignmentsNeedingBreakdown}
-              onBreakdown={(assignmentId) => setView({ name: "breakdown", assignmentId })}
-              onPlanDirectly={planWithoutBreakdown}
-              planningAssignmentId={planningAssignmentId}
+              rows={selectRows}
+              onFinishAssignment={finishAssignment}
               onGoToAssignments={onGoToAssignments}
               chosen={chosen}
               chosenIds={chosenIds}
@@ -687,8 +637,6 @@ export default function PlanPage({
               scheduledElsewhere={scheduledElsewhere}
               plannedOnDay={plannedOnDay}
               highlightedAssignmentId={highlightedAssignmentId}
-              showAll={showAll}
-              onShowAll={() => setShowAll(true)}
               onNext={() => onStepChange("estimate")}
             />
           ) : wizardStep === "estimate" ? (

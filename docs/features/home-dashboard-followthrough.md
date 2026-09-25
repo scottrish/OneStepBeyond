@@ -123,6 +123,10 @@ than the *information* itself capped.
 
 ## 2. Needs Attention "Break it down" routes through Plan, not Assignment Detail
 
+> **Reversed 2026-09-25** (`docs/decisions/20260925-plan-rows-and-one-piece.md`,
+> P6): Plan no longer offers breakdown choices, so "Break it down" opens
+> Assignment Detail, now the one place for them.
+
 **Amends:** `risk-detection.md` (Next action routing), `home-dashboard.md`
 (Needs Attention section).
 

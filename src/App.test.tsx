@@ -85,9 +85,12 @@ const mockedAssignmentService = assignmentService as unknown as {
   listAssignments: ReturnType<typeof vi.fn>;
   getAssignment: ReturnType<typeof vi.fn>;
   deleteAssignment: ReturnType<typeof vi.fn>;
+  updateAssignment: ReturnType<typeof vi.fn>;
 };
 const mockedWorkItemService = workItemService as unknown as {
   listWorkItemsForStudent: ReturnType<typeof vi.fn>;
+  listWorkItems: ReturnType<typeof vi.fn>;
+  createWorkItems: ReturnType<typeof vi.fn>;
 };
 const mockedWorkSessionService = workSessionService as unknown as {
   listWorkSessionsForDate: ReturnType<typeof vi.fn>;
@@ -444,6 +447,85 @@ describe("App", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /draft response/i })).toHaveAttribute("aria-pressed", "true"),
     );
+  });
+
+  describe("'Plan it as one piece' from Assignment Detail (items 3 and 4)", () => {
+    // An unbroken assignment; "Plan it as one piece" creates its one step,
+    // which every later load then returns.
+    function unbrokenEssay() {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.setSystemTime(TODAY);
+      vi.mocked(useAuth).mockReturnValue({
+        user: { id: "student-1", email: "person@example.com" } as User,
+        signIn: vi.fn(),
+        signUp: vi.fn(),
+        signOut: vi.fn(),
+      });
+      mockedCourseService.listCourses.mockResolvedValue([{ id: "course-1", name: "Biology", colorIndex: 0 }]);
+      const essay = {
+        id: "a1",
+        courseId: "course-1",
+        title: "Reading response",
+        dueDate: "2026-03-22",
+        effortMinutes: 30,
+        notes: null,
+        completedAt: null,
+      };
+      mockedAssignmentService.listAssignments.mockResolvedValue([essay]);
+      mockedAssignmentService.getAssignment.mockResolvedValue(essay);
+      mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([]);
+      const items: unknown[] = [];
+      mockedWorkItemService.listWorkItemsForStudent.mockImplementation(async () => [...items]);
+      mockedWorkItemService.listWorkItems.mockImplementation(async () => [...items]);
+      mockedWorkItemService.createWorkItems.mockImplementation(async () => {
+        const created = {
+          id: "new-step",
+          assignmentId: "a1",
+          title: "Reading response",
+          effortMinutes: 30,
+          completedAt: null,
+          position: 0,
+        };
+        items.push(created);
+        return [created];
+      });
+    }
+
+    it("opened from Plan, it returns to the day Plan was on, with the new step chosen", async () => {
+      unbrokenEssay();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<App />);
+
+      await userEventInstance.click(screen.getByRole("button", { name: "Plan" }));
+      await userEventInstance.click(await screen.findByRole("radio", { name: "Tue" }));
+      await userEventInstance.click(
+        await screen.findByRole("button", { name: /reading response.*not broken into steps yet/i }),
+      );
+      await userEventInstance.click(await screen.findByRole("button", { name: "Plan it as one piece" }));
+
+      expect(await screen.findByText(/let.s plan tuesday/i)).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: /^reading response/i })).toHaveAttribute("aria-pressed", "true"),
+      );
+    });
+
+    it("opened from Assignments, it lands on today", async () => {
+      unbrokenEssay();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<App />);
+
+      await userEventInstance.click(screen.getByRole("button", { name: "Plan" }));
+      await userEventInstance.click(await screen.findByRole("radio", { name: "Tue" }));
+      await userEventInstance.click(screen.getByRole("button", { name: "Assignments" }));
+      await userEventInstance.click((await screen.findAllByRole("button", { name: /reading response/i }))[0]!);
+      await userEventInstance.click(await screen.findByRole("button", { name: "Plan it as one piece" }));
+
+      expect(await screen.findByText(/let.s plan today/i)).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: /^reading response/i })).toHaveAttribute("aria-pressed", "true"),
+      );
+    });
   });
 
   it("Home's 'Find time' opens Plan on today's Select with that assignment's step chosen, even if Plan was on another day (P2)", async () => {

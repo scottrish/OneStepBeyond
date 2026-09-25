@@ -145,8 +145,11 @@ reasoning and consequences.
 
 - A student can complete a full planning session, start to confirm, in
   under five minutes.
-- Select never shows more than three candidates without an explicit
-  "show more" action.
+- *Replaced 2026-09-25 (`docs/decisions/20260925-plan-rows-and-one-piece.md`,
+  daily-planning-and-completion-v2-proposal.md item 6a):* Select shows every
+  candidate, in due-date order, with a targeted assignment first, and no
+  "show more" action. (Was: "Select never shows more than three candidates
+  without an explicit 'show more' action.")
 - Every work item shown anywhere in this flow displays its parent
   assignment and course — never a bare item title.
 - No unexplained progress indicators — only the explicit "Step N of 4"

@@ -41,6 +41,9 @@ vi.mock("../services/workSessionService", () => ({
 vi.mock("../services/planningSessionService", () => ({
   recordPlanningSession: vi.fn(),
 }));
+vi.mock("../services/reflectionService", () => ({
+  recordReflection: vi.fn(),
+}));
 vi.mock("../services/decompositionAttemptService", () => ({
   recordDecompositionAttempt: vi.fn(),
 }));
@@ -68,6 +71,7 @@ const mockedActivityService = activityService as unknown as {
 const mockedAssignmentService = assignmentService as unknown as {
   listAssignments: ReturnType<typeof vi.fn>;
   updateAssignment: ReturnType<typeof vi.fn>;
+  completeAssignment: ReturnType<typeof vi.fn>;
 };
 const mockedWorkItemService = workItemService as unknown as {
   listWorkItemsForStudent: ReturnType<typeof vi.fn>;
@@ -492,7 +496,7 @@ describe("PlanPage", () => {
     });
   });
 
-  it("Select step shows only three candidates with a 'show more' action to reveal the rest, each with its assignment and course", async () => {
+  it("Select lists every candidate, with no 'show more' (item 6a), each with its assignment and course", async () => {
     mockedAssignmentService.listAssignments.mockResolvedValue([
       assignment({ id: "a1", title: "Essay 1", dueDate: "2026-03-17" }),
       assignment({ id: "a2", title: "Essay 2", dueDate: "2026-03-18" }),
@@ -505,21 +509,15 @@ describe("PlanPage", () => {
       workItem({ id: "w3", assignmentId: "a3", title: "Step 3" }),
       workItem({ id: "w4", assignmentId: "a4", title: "Step 4" }),
     ]);
-    const userEventInstance = userEvent.setup({
-      advanceTimers: vi.advanceTimersByTime,
-    });
 
     render(<ControlledPlanPage user={user} />);
 
     expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
-    expect(screen.getByText("Step 1")).toBeInTheDocument();
-    expect(screen.getByText("Step 2")).toBeInTheDocument();
-    expect(screen.getByText("Step 3")).toBeInTheDocument();
-    expect(screen.queryByText("Step 4")).not.toBeInTheDocument();
+    for (const title of ["Step 1", "Step 2", "Step 3", "Step 4"]) {
+      expect(screen.getByText(title)).toBeInTheDocument();
+    }
     expect(screen.getByText(/essay 1 · biology/i)).toBeInTheDocument();
-
-    await userEventInstance.click(screen.getByRole("button", { name: /show more assignments/i }));
-    expect(screen.getByText("Step 4")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /show more/i })).not.toBeInTheDocument();
   });
 
   it("completes the full flow: select, estimate with a coaching-free running total, schedule, and confirm", async () => {
@@ -723,230 +721,97 @@ describe("PlanPage", () => {
   });
 
   // docs/features/iterations/daily-planning/daily-planning.i02.md FR-1
-  describe("breakdown prerequisite signal and routing", () => {
-    it("names the assignment needing breakdown on Select's dead end, since there's nothing else schedulable yet", async () => {
+  describe("'no steps yet' and 'all steps done' rows (items 3 and 4)", () => {
+    it("an assignment with no steps is a row that opens Assignment Detail — Plan offers no breakdown choices itself", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([
-        assignment({ id: "a1", title: "Essay" }),
+        assignment({ id: "a1", title: "Essay", dueDate: "2026-03-17", effortMinutes: 90 }),
+        assignment({ id: "a2", title: "Lab", dueDate: "2026-03-18" }),
       ]);
-
-      render(<ControlledPlanPage user={user} />);
-
-      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
-      expect(screen.getByText(/nothing to plan yet/i)).toBeInTheDocument();
-      expect(
-        screen.getByText(/break .essay. into steps first, then come back/i),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /break down .essay./i }),
-      ).toBeInTheDocument();
-    });
-
-    it("lets the student complete a breakdown started from the signal and returns to Plan on the same step with the item now selectable", async () => {
-      mockedAssignmentService.listAssignments.mockResolvedValue([
-        assignment({ id: "a1", title: "Essay" }),
-      ]);
-      mockedWorkItemService.listWorkItemsForStudent
-        .mockResolvedValueOnce([])
-        .mockResolvedValue([
-          workItem({ id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 30 }),
-        ]);
-      mockedWorkItemService.createWorkItems.mockResolvedValue([
-        {
-          id: "w1",
-          assignmentId: "a1",
-          title: "Draft outline",
-          effortMinutes: 30,
-          completedAt: null,
-          position: 0,
-        },
-      ]);
-      mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
-      const userEventInstance = userEvent.setup({
-        advanceTimers: vi.advanceTimersByTime,
-      });
-
-      render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 4/i);
-
-      await userEventInstance.click(
-        screen.getByRole("button", { name: /break down .essay./i }),
-      );
-
-      expect(await screen.findByText(/what are the main pieces/i)).toBeInTheDocument();
-
-      const addInput = screen.getByPlaceholderText(/questions 1–10/i);
-      await userEventInstance.type(addInput, "Draft outline");
-      await userEventInstance.click(screen.getByRole("button", { name: /^add$/i }));
-      await userEventInstance.click(screen.getByRole("button", { name: /^next$/i }));
-
-      await userEventInstance.click(
-        within(
-          screen.getByRole("radiogroup", { name: /estimated time for draft outline/i }),
-        ).getByRole("radio", { name: "30m" }),
-      );
-      await userEventInstance.click(screen.getByRole("button", { name: /^next$/i }));
-      await userEventInstance.click(screen.getByRole("button", { name: /looks good/i }));
-
-      // Back on Plan, at the same step it left off at (Select), the
-      // dead end is gone and the newly-broken-down item is available.
-      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
-      expect(await screen.findByText("Draft outline")).toBeInTheDocument();
-      expect(screen.queryByText(/nothing to plan yet/i)).not.toBeInTheDocument();
-    });
-
-    it("cancelling a breakdown started from the signal returns to Plan unchanged", async () => {
-      mockedAssignmentService.listAssignments.mockResolvedValue([
-        assignment({ id: "a1", title: "Essay" }),
-      ]);
-      const userEventInstance = userEvent.setup({
-        advanceTimers: vi.advanceTimersByTime,
-      });
-
-      render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 4/i);
-
-      await userEventInstance.click(
-        screen.getByRole("button", { name: /break down .essay./i }),
-      );
-      expect(await screen.findByText(/what are the main pieces/i)).toBeInTheDocument();
-
-      await userEventInstance.click(screen.getByRole("button", { name: /cancel/i }));
-
-      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
-      expect(
-        screen.getByText(/break .essay. into steps first, then come back/i),
-      ).toBeInTheDocument();
-    });
-  });
-
-  // docs/decisions/20260816-plan-directly-without-breakdown.md — not every
-  // assignment is meaningfully decomposable, so the breakdown signal also
-  // offers a one-click alternative that skips the multi-step wizard.
-  describe("planning an assignment directly without a breakdown", () => {
-    it("creates a single Work Item matching the assignment and makes it selectable, without entering the breakdown wizard", async () => {
-      mockedAssignmentService.listAssignments.mockResolvedValue([
-        assignment({ id: "a1", title: "Read chapter 1", effortMinutes: 60 }),
-      ]);
-      mockedWorkItemService.listWorkItemsForStudent
-        .mockResolvedValueOnce([])
-        .mockResolvedValue([
-          workItem({ id: "w1", assignmentId: "a1", title: "Read chapter 1", effortMinutes: 60 }),
-        ]);
-      mockedWorkItemService.createWorkItems.mockResolvedValue([
-        {
-          id: "w1",
-          assignmentId: "a1",
-          title: "Read chapter 1",
-          effortMinutes: 60,
-          completedAt: null,
-          position: 0,
-        },
-      ]);
-      mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
-      mockedDecompositionAttemptService.recordDecompositionAttempt.mockResolvedValue(undefined);
-      const userEventInstance = userEvent.setup({
-        advanceTimers: vi.advanceTimersByTime,
-      });
-
-      render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 4/i);
-      expect(
-        screen.getByText(/break .read chapter 1. into steps first, then come back/i),
-      ).toBeInTheDocument();
-
-      await userEventInstance.click(
-        screen.getByRole("button", { name: /plan .read chapter 1. as one task instead/i }),
-      );
-
-      expect(mockedWorkItemService.createWorkItems).toHaveBeenCalledWith("student-1", [
-        { assignmentId: "a1", title: "Read chapter 1", effortMinutes: 60, position: 0 },
-      ]);
-      expect(mockedAssignmentService.updateAssignment).toHaveBeenCalledWith("a1", {
-        title: "Read chapter 1",
-        dueDate: "2026-03-20",
-        notes: "",
-        effortMinutes: 60,
-      });
-      expect(mockedDecompositionAttemptService.recordDecompositionAttempt).toHaveBeenCalledWith(
-        "student-1",
-        {
-          assignmentId: "a1",
-          initialWorkItems: [],
-          resultingWorkItems: ["Read chapter 1"],
-          revisionCount: 0,
-          outcome: "confirmed",
-        },
-      );
-
-      // The signal clears once the assignment has a Work Item, and the
-      // wizard never left Select's own screen (no breakdown wizard was
-      // ever rendered).
-      await waitFor(() =>
-        expect(
-          screen.queryByText(/break .read chapter 1. into steps first, then come back/i),
-        ).not.toBeInTheDocument(),
-      );
-      expect(screen.queryByText(/what are the main pieces/i)).not.toBeInTheDocument();
-
-      expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
-      expect(screen.getByText("Read chapter 1")).toBeInTheDocument();
-      expect(screen.queryByText(/nothing to plan yet/i)).not.toBeInTheDocument();
-    });
-
-    it("shows an error and re-enables the action if planning directly fails", async () => {
-      mockedAssignmentService.listAssignments.mockResolvedValue([
-        assignment({ id: "a1", title: "Essay" }),
-      ]);
-      mockedWorkItemService.createWorkItems.mockRejectedValue(new Error("network down"));
-      const userEventInstance = userEvent.setup({
-        advanceTimers: vi.advanceTimersByTime,
-      });
-
-      render(<ControlledPlanPage user={user} />);
-      await screen.findByText(/step 1 of 4/i);
-
-      const planButton = screen.getByRole("button", {
-        name: /plan .essay. as one task instead/i,
-      });
-      await userEventInstance.click(planButton);
-
-      expect(await screen.findByRole("alert")).toHaveTextContent(/network down/i);
-      expect(
-        screen.getByRole("button", { name: /plan .essay. as one task instead/i }),
-      ).not.toBeDisabled();
-    });
-  });
-
-  // docs/features/iterations/daily-planning/daily-planning.i03.md —
-  // Problem A: the breakdown signal must not be silently omitted when
-  // some (not all) of the day's assignments already have Work Items.
-  describe("breakdown notice covers the mixed-candidates case (iteration 3)", () => {
-    it("still names an assignment needing breakdown on Select, even when other candidates already exist", async () => {
-      mockedAssignmentService.listAssignments.mockResolvedValue([
-        assignment({ id: "a1", title: "Essay", dueDate: "2026-03-17" }),
-        assignment({ id: "a2", title: "Worksheet", dueDate: "2026-03-16" }),
-      ]);
-      // Only "Essay" has a Work Item — "Worksheet" (due today) does not.
       mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
-        workItem({ id: "w1", assignmentId: "a1", title: "Draft outline" }),
+        workItem({ id: "w2", assignmentId: "a2", title: "Write methods" }),
       ]);
+      const onOpenAssignment = vi.fn();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<ControlledPlanPage user={user} onOpenAssignment={onOpenAssignment} />);
 
+      const row = await screen.findByRole("button", { name: /essay.*not broken into steps yet.*opens the assignment/i });
+      expect(row).not.toHaveAttribute("aria-pressed");
+      expect(row).toHaveTextContent("1.5h");
+      expect(screen.queryByRole("button", { name: /break down/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /as one task/i })).not.toBeInTheDocument();
+
+      await userEventInstance.click(row);
+      expect(onOpenAssignment).toHaveBeenCalledWith("a1");
+      // The ordinary step is still there to choose.
+      expect(screen.getByRole("button", { name: /write methods/i })).toHaveAttribute("aria-pressed", "false");
+    });
+
+    it("with only unbroken assignments, Select lists them as rows and Next stays disabled", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([assignment({ id: "a1", title: "Essay" })]);
       render(<ControlledPlanPage user={user} />);
 
-      // Select shows the real candidate (Draft outline) AND still names
-      // the assignment that's missing — not silently omitted.
+      expect(await screen.findByText(/not broken into steps yet/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /next: estimate time/i })).toBeDisabled();
+    });
+
+    it("an assignment whose steps are all done is an 'All steps done' row, never 'Not broken into steps yet'", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([assignment({ id: "a1", title: "Essay" })]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        workItem({ id: "w1", completedAt: "2026-03-15T00:00:00Z" }),
+      ]);
+      render(<ControlledPlanPage user={user} />);
+
+      expect(await screen.findByText(/all steps done/i)).toBeInTheDocument();
+      expect(screen.queryByText(/not broken into steps yet/i)).not.toBeInTheDocument();
+    });
+
+    it("'All steps done' → Mark it complete → reflection → turned-in reminder → back on Select (R1)", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        assignment({ id: "a1", title: "Essay" }),
+        assignment({ id: "a2", title: "Lab", dueDate: "2026-03-19" }),
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        workItem({ id: "w1", completedAt: "2026-03-15T00:00:00Z" }),
+        workItem({ id: "w2", assignmentId: "a2", title: "Write methods" }),
+      ]);
+      mockedAssignmentService.completeAssignment.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<ControlledPlanPage user={user} />);
+
+      const toggle = await screen.findByRole("button", { name: /essay.*all steps done/i });
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      await userEventInstance.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByText("Every step here is done. Is the whole assignment finished?")).toBeInTheDocument();
+
+      await userEventInstance.click(screen.getByRole("button", { name: "Mark it complete" }));
+      expect(mockedAssignmentService.completeAssignment).toHaveBeenCalledWith("a1");
+
+      await userEventInstance.click(await screen.findByRole("button", { name: /skip this question/i }));
+      expect(screen.getByRole("heading", { name: "Mark it turned in at school" })).toBeInTheDocument();
+      expect(screen.getByText(/“Essay” is marked complete here/)).toBeInTheDocument();
+
+      await userEventInstance.click(screen.getByRole("button", { name: "Got it" }));
       expect(await screen.findByText(/step 1 of 4/i)).toBeInTheDocument();
-      expect(screen.getByText("Draft outline")).toBeInTheDocument();
-      expect(
-        screen.getByText(/worksheet.*needs to be broken into steps before it can be scheduled/i),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /break down .worksheet./i }),
-      ).toBeInTheDocument();
+      expect(screen.queryByText(/all steps done/i)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /write methods/i })).toBeInTheDocument();
+    });
+
+    it("'Add another step' on an all-done row opens Assignment Detail", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([assignment({ id: "a1", title: "Essay" })]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        workItem({ id: "w1", completedAt: "2026-03-15T00:00:00Z" }),
+      ]);
+      const onOpenAssignment = vi.fn();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<ControlledPlanPage user={user} onOpenAssignment={onOpenAssignment} />);
+
+      await userEventInstance.click(await screen.findByRole("button", { name: /essay.*all steps done/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: "Add another step" }));
+      expect(onOpenAssignment).toHaveBeenCalledWith("a1");
     });
   });
 
-  // docs/features/iterations/daily-planning/daily-planning.i03.md FR-1
   describe("warns when a candidate is already scheduled for a different day", () => {
     it("shows an 'also planned for {day}' indicator instead of leaving the existing commitment invisible", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
