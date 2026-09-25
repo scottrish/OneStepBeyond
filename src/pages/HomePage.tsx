@@ -70,6 +70,12 @@ export default function HomePage({
 }: HomePageProps) {
   const studentId = user.id;
   const today = useMemo(() => todayISODate(), []);
+  // The time of day Home was opened, for the Next card's "You had planned
+  // to start this earlier" check — read once per visit, like `today`.
+  const nowMinutes = useMemo(() => {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  }, []);
 
   const {
     activities,
@@ -253,6 +259,7 @@ export default function HomePage({
             workItems={workItems}
             assignments={assignments}
             courseName={courseName}
+            nowMinutes={nowMinutes}
             onStart={handleStart}
             onOpenAssignment={onOpenAssignment}
             onGoToPlan={onGoToPlan}

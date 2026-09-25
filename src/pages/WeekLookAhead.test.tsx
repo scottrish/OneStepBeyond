@@ -241,7 +241,7 @@ describe("WeekLookAhead", () => {
     expect(screen.getByText("Essay · Biology")).toBeInTheDocument();
   });
 
-  it("shows 'Preparation still needs a plan' only when something is due within two days and nothing is scheduled for it", async () => {
+  it("names an assignment due within two days that has nothing scheduled for it", async () => {
     renderWeekLookAhead({
       assignments: [
         {
@@ -256,7 +256,8 @@ describe("WeekLookAhead", () => {
       ],
     });
 
-    expect(await screen.findByText(/preparation still needs a plan/i)).toBeInTheDocument();
+    expect(await screen.findByText("Essay still needs time in your plan.")).toBeInTheDocument();
+    expect(screen.queryByText(/preparation still needs a plan/i)).not.toBeInTheDocument();
   });
 
   it("shows 'Nothing scheduled' for a day with nothing due, nothing planned, and no Activities", async () => {
@@ -265,7 +266,7 @@ describe("WeekLookAhead", () => {
     expect((await screen.findAllByText(/nothing scheduled/i)).length).toBeGreaterThan(0);
   });
 
-  it("never shows 'Preparation still needs a plan' for a day due more than two days out with nothing planned", async () => {
+  it("never says an assignment needs time for a day due more than two days out with nothing planned", async () => {
     renderWeekLookAhead({
       assignments: [
         {
@@ -282,7 +283,7 @@ describe("WeekLookAhead", () => {
     });
 
     await screen.findByRole("button", { name: /due: essay/i });
-    expect(screen.queryByText(/preparation still needs a plan/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/still needs time in your plan/i)).not.toBeInTheDocument();
   });
 
   it("does not warn when the due assignment's work is already scheduled on a different (earlier) day", async () => {
@@ -315,7 +316,62 @@ describe("WeekLookAhead", () => {
     });
 
     await screen.findByRole("button", { name: /due: chapter 1 problems/i });
-    expect(screen.queryByText(/preparation still needs a plan/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/still needs time in your plan/i)).not.toBeInTheDocument();
+  });
+
+  it("names each unplanned due assignment separately, leaving out one that has time set aside", async () => {
+    mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([
+      { id: "s1", workItemId: "w1", date: TODAY_ISO, plannedMinutes: 30, startTime: "16:00", status: "planned" },
+    ]);
+    const dueTomorrow = (id: string, title: string) => ({
+      id,
+      courseId: "course-1",
+      title,
+      dueDate: "2026-03-17",
+      effortMinutes: 60,
+      notes: null,
+      completedAt: null,
+    });
+
+    renderWeekLookAhead({
+      assignments: [
+        dueTomorrow("a1", "Lab report"),
+        dueTomorrow("a2", "Poem analysis"),
+        dueTomorrow("a3", "Map quiz prep"),
+      ],
+      workItems: [
+        { id: "w1", assignmentId: "a1", title: "Write methods", effortMinutes: 30, completedAt: null, position: 0 },
+      ],
+    });
+
+    expect(await screen.findByText("Poem analysis still needs time in your plan.")).toBeInTheDocument();
+    expect(screen.getByText("Map quiz prep still needs time in your plan.")).toBeInTheDocument();
+    expect(screen.queryByText(/lab report still needs time/i)).not.toBeInTheDocument();
+  });
+
+  it("time planned before today doesn't count as time set aside", async () => {
+    mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([
+      { id: "s0", workItemId: "w1", date: "2026-03-15", plannedMinutes: 30, startTime: "16:00", status: "done" },
+    ]);
+
+    renderWeekLookAhead({
+      assignments: [
+        {
+          id: "a1",
+          courseId: "course-1",
+          title: "Lab report",
+          dueDate: "2026-03-17",
+          effortMinutes: 60,
+          notes: null,
+          completedAt: null,
+        },
+      ],
+      workItems: [
+        { id: "w1", assignmentId: "a1", title: "Write methods", effortMinutes: 30, completedAt: null, position: 0 },
+      ],
+    });
+
+    expect(await screen.findByText("Lab report still needs time in your plan.")).toBeInTheDocument();
   });
 
   describe("reordering a day (daily-planning-and-completion-v2-proposal.md item 2)", () => {

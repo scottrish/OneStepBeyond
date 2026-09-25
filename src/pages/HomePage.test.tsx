@@ -317,6 +317,83 @@ describe("HomePage", () => {
       expect(onStartExecution).toHaveBeenCalledTimes(1);
     });
 
+    describe("in-progress and late-start states (daily-planning-and-completion-v2-proposal.md item 7)", () => {
+      function oneSession(overrides: Record<string, unknown> = {}) {
+        mockedAssignmentService.listAssignments.mockResolvedValue([
+          {
+            id: "a1",
+            courseId: "course-1",
+            title: "Cell structure project",
+            dueDate: "2026-03-25",
+            effortMinutes: 60,
+            notes: null,
+            completedAt: null,
+          },
+        ]);
+        mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+          { id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 30, completedAt: null, position: 0 },
+        ]);
+        mockedCourseService.listCourses.mockResolvedValue([course]);
+        mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+          {
+            id: "s1",
+            workItemId: "w1",
+            date: TODAY_ISO,
+            plannedMinutes: 30,
+            startTime: "16:00",
+            status: "planned",
+            ...overrides,
+          },
+        ]);
+      }
+
+      it("the eyebrow reads 'Working on' while the session is in progress, 'Next' otherwise", async () => {
+        oneSession({ status: "in_progress" });
+        renderHomePage();
+
+        await screen.findByText("Draft outline");
+        expect(screen.getByText("Working on")).toBeInTheDocument();
+        expect(screen.queryByText(/^next$/i)).not.toBeInTheDocument();
+      });
+
+      it("more than 45 minutes past a planned start: a calm note, 'Start now', and 'Change the plan' to Plan", async () => {
+        vi.setSystemTime(new Date(2026, 2, 16, 16, 46, 0));
+        oneSession();
+        const onGoToPlan = vi.fn();
+        renderHomePage({ onGoToPlan });
+
+        expect(await screen.findByText("You had planned to start this earlier.")).toBeInTheDocument();
+        expect(screen.getByText(/^next$/i)).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /^start now$/i })).toBeInTheDocument();
+        expect(screen.queryByText(/late/i)).not.toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole("button", { name: /^change the plan$/i }));
+        expect(onGoToPlan).toHaveBeenCalledTimes(1);
+      });
+
+      it("within 45 minutes of the start time, shows the plain Start with no note", async () => {
+        vi.setSystemTime(new Date(2026, 2, 16, 16, 45, 0));
+        oneSession();
+        renderHomePage();
+
+        await screen.findByText("Draft outline");
+        expect(screen.getByRole("button", { name: /^start$/i })).toBeInTheDocument();
+        expect(screen.queryByText(/planned to start this earlier/i)).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /change the plan/i })).not.toBeInTheDocument();
+      });
+
+      it("an already-started session long past its start shows Continue and no note", async () => {
+        vi.setSystemTime(new Date(2026, 2, 16, 18, 0, 0));
+        oneSession({ status: "in_progress" });
+        renderHomePage();
+
+        await screen.findByText("Draft outline");
+        expect(screen.getByRole("button", { name: /^continue$/i })).toBeInTheDocument();
+        expect(screen.queryByText(/planned to start this earlier/i)).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /change the plan/i })).not.toBeInTheDocument();
+      });
+    });
+
     it("opens Assignment Detail when the Next card's assignment/course line is tapped", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([
         {

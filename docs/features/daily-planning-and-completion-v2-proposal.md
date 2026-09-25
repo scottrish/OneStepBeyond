@@ -1,6 +1,8 @@
 # Feature: Daily Planning & Completion — Prototype Sync (v2 proposal)
 
-**Status:** Partly implemented. **Item 2** (reorder, re-chain, retime,
+**Status:** Partly implemented. **Items 7 and 8** (Next card states,
+per-assignment Look Ahead warning) were built 2026-09-25 as roadmap
+Phase 7 step 11. **Item 2** (reorder, re-chain, retime,
 with drag) was built 2026-09-25 as roadmap Phase 7 step 10
 (`docs/decisions/20260925-session-reorder-and-drag.md`). **Item 10** (existing-day view) and
 **items 6b/6c** (Select's "Planned today" note and same-day disable) were
@@ -509,6 +511,15 @@ Two accessibility requirements the prototype doesn't meet:
 
 ### 7. Home's Next card: reflect in-progress state and a late start
 
+> **Implemented 2026-09-25** (roadmap step 11). The text says "45+
+> minutes" but the acceptance criteria say "more than 45"; as built, it
+> follows the criteria: exactly 45 minutes past shows nothing. The rule is
+> `startTimePassed` in `src/domain/lateStart.ts`. Home reads the time once
+> when it opens (as it already does for today's date), so a card left
+> open doesn't change until Home is opened again. A session with no start
+> time never shows the note. "Change the plan" opens Plan, which lands on
+> today's day view.
+
 **Small, additive.** `NextCard.tsx` already shows "Continue" instead of
 "Start" once a session is `in_progress` (see Already covered). Two
 things it doesn't do yet:
@@ -530,6 +541,12 @@ things it doesn't do yet:
   of its start time, or already started, shows neither.
 
 ### 8. Week Look-Ahead: per-assignment "still needs a plan" messaging
+
+> **Implemented 2026-09-25** (roadmap step 11). As in the prototype,
+> "time set aside" means a session for one of the assignment's steps
+> dated **from today up to the due date**, in any status. A session
+> before today no longer counts; before, any session on any date did. As
+> before, the warning shows only on a day with no sessions of its own.
 
 **Copy/behavior refinement.** Today, a day with due assignments and no
 plan yet shows one generic line ("Preparation still needs a plan"). The

@@ -121,21 +121,26 @@ export default function WeekLookAhead({
               (assignment) => !assignment.completedAt && assignment.dueDate === date,
             );
             const free = availableMinutes(activities, sessions, date, preferences);
-            // "Nothing is scheduled for it" means the *assignment*, not
-            // literally "this day" — a session planned for today against
-            // something due Tuesday is still real, already-addressed
-            // preparation. Checking only daySessions here would flag a
-            // due-soon assignment as unaddressed just because its already-
-            // scheduled work happens to sit on an earlier day.
-            const dueSoonUnaddressed =
-              daysBetween(today, date) <= DUE_SOON_DAYS &&
-              dueThatDay.some(
-                (assignment) =>
-                  !sessions.some((session) => {
-                    const item = workItems.find((w) => w.id === session.workItemId);
-                    return item?.assignmentId === assignment.id;
-                  }),
-              );
+            // Each due-soon assignment with no time set aside for it
+            // anywhere from today up to its due date, named individually
+            // (daily-planning-and-completion-v2-proposal.md item 8). "No
+            // time" means the *assignment*, not literally "this day" — a
+            // session planned for today against something due Tuesday is
+            // real, already-addressed preparation.
+            const needsTime =
+              daysBetween(today, date) <= DUE_SOON_DAYS
+                ? dueThatDay.filter(
+                    (assignment) =>
+                      !sessions.some((session) => {
+                        const item = workItems.find((w) => w.id === session.workItemId);
+                        return (
+                          item?.assignmentId === assignment.id &&
+                          session.date >= today &&
+                          session.date <= assignment.dueDate
+                        );
+                      }),
+                  )
+                : [];
 
             return (
               <li key={date} className="rounded-3xl border border-border bg-card px-5 py-4">
@@ -283,10 +288,14 @@ export default function WeekLookAhead({
                       );
                     }}
                   />
-                ) : dueSoonUnaddressed ? (
-                  <p className="mt-3 text-sm text-attention-foreground">
-                    Preparation still needs a plan.
-                  </p>
+                ) : needsTime.length > 0 ? (
+                  <ul className="mt-3 flex flex-col gap-1">
+                    {needsTime.map((assignment) => (
+                      <li key={assignment.id} className="text-sm text-attention-foreground">
+                        {assignment.title} still needs time in your plan.
+                      </li>
+                    ))}
+                  </ul>
                 ) : dayActivities.length === 0 ? (
                   <p className="mt-3 text-sm text-muted-foreground">Nothing scheduled.</p>
                 ) : null}

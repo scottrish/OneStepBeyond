@@ -59,7 +59,11 @@ packed" without having to plan every day just to see that.
   state and a remove action for not-yet-done sessions).
 - **Signal-to-noise rule:** only call out a missing plan when it's actually
   consequential — something is due within the next two days and nothing is
-  scheduled for it ("Preparation still needs a plan"). A day with nothing
+  scheduled for it. *Amended 2026-09-25
+  (`daily-planning-and-completion-v2-proposal.md` item 8): each such
+  assignment is named, "{title} still needs time in your plan.", and only
+  sessions dated from today up to its due date count as time set aside.
+  This replaces the generic "Preparation still needs a plan".* A day with nothing
   due and nothing planned just shows "Nothing scheduled," not a repeated
   warning.
 - **Capacity language rule:** never state raw unscheduled hours (e.g. "8 hr
