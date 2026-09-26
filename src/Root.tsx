@@ -11,20 +11,26 @@ const isDashboard = window.location.pathname.startsWith('/dashboard')
 // extends to a second branch, since one more standalone screen doesn't
 // justify adopting one.
 const isInviteAccept = window.location.pathname.startsWith('/invite')
+// docs/features/admin-account-management-v0.1.md (A2): the superuser-only
+// admin page, a third standalone screen on the same pattern.
+const isAdmin = window.location.pathname.startsWith('/admin')
 
 // index.css's `#root` rule caps width at 640px and centers it — correct
 // for the mobile student app (and the invite-accept screen, which is
 // just as narrow), wrong for the desktop dashboard, and all three mount
 // into the same #root element. Mark it here so that CSS rule can exclude
 // the dashboard (see index.css's #root selector).
-document.getElementById('root')?.classList.toggle('dashboard-root', isDashboard)
+// The admin page is desktop-first too, so it gets the same full width.
+document.getElementById('root')?.classList.toggle('dashboard-root', isDashboard || isAdmin)
 
 const Root = lazy(() =>
   isDashboard
     ? import('./dashboard/DashboardApp.tsx')
-    : isInviteAccept
-      ? import('./pages/InviteAcceptPage.tsx')
-      : import('./App.tsx'),
+    : isAdmin
+      ? import('./admin/AdminApp.tsx')
+      : isInviteAccept
+        ? import('./pages/InviteAcceptPage.tsx')
+        : import('./App.tsx'),
 )
 
 export default Root

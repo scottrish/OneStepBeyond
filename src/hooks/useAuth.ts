@@ -3,6 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { clearOfflineData, setCacheOwner } from "../services/offlineCache";
 import { discardQueue, loadQueue } from "../services/offlineQueue";
+import { signInErrorMessage } from "../domain/adminAccounts";
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -55,7 +56,9 @@ export function useAuth() {
       password,
     });
 
-    if (error) alert(error.message);
+    // A turned-off account (admin page, A3) is told so plainly, rather than
+    // the auth server's "User is banned".
+    if (error) alert(signInErrorMessage(error));
   }
 
   // Nothing of this student stays on the device after signing out —

@@ -102,6 +102,20 @@ describe("useAuth", () => {
     expect(alertSpy).not.toHaveBeenCalled();
   });
 
+  it("a turned-off account is told so plainly, not 'User is banned' (admin page, A3)", async () => {
+    mockedAuth.signInWithPassword.mockResolvedValue({
+      error: { code: "user_banned", message: "User is banned" },
+    });
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+
+    const { result } = renderHook(() => useAuth());
+    await act(() => result.current.signIn("person@example.com", "secret123"));
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      "This account has been turned off. Ask your teacher or the app’s administrator.",
+    );
+  });
+
   it("alerts the error message when sign-in fails", async () => {
     mockedAuth.signInWithPassword.mockResolvedValue({
       error: { message: "Invalid login credentials" },

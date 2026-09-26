@@ -570,6 +570,14 @@ built — schedule it as one piece of work, not two.
   flagged as needed once that happened, never done. Discovered
   2026-08-17 while auditing this same file for the Assignment Detail
   global-overlay change; not fixed as part of that unrelated work.
+- ✅ **Done 2026-09-26.** **Admin page: view and manage all accounts**
+  (superusers only, at `/admin`). **Spec:**
+  [admin-account-management-v0.1.md](features/admin-account-management-v0.1.md)
+  (`docs/decisions/20260926-admin-account-management.md`). It lists every
+  account, turns accounts off and on, and clears an account's data by
+  category or all of it (optionally turning it off in the same step),
+  with a record of every action. Database checks:
+  `node scripts/check-admin-functions.mjs`.
 - **Offline fast fallback** (added 2026-09-26; low priority, an
   optimization). **Spec:**
   [offline-fast-fallback-v0.1.md](features/offline-fast-fallback-v0.1.md).

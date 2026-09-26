@@ -49,3 +49,4 @@ directory.
 | 30 | [Offline actions: a queue beside the offline plan, sent directly when online](20260926-offline-action-queue.md) | 2026-09-26 |
 | 31 | [The prototype is no longer a reference](20260926-prototype-no-longer-a-reference.md) | 2026-09-26 |
 | 32 | [Assignment Detail with no steps: one card, and planning that makes steps](20260926-assignment-detail-no-steps.md) | 2026-09-26 |
+| 33 | [Admin powers through superuser-checked database functions](20260926-admin-account-management.md) | 2026-09-26 |
