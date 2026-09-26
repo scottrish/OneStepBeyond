@@ -416,6 +416,11 @@ describe("App", () => {
     mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
       { id: "w1", assignmentId: "a1", title: "Draft response", effortMinutes: 30, completedAt: null, position: 0 },
     ]);
+    // Assignment Detail's own read: with steps, "Plan work for today" goes
+    // straight to Plan (with none, it first asks how to plan).
+    mockedWorkItemService.listWorkItems.mockResolvedValue([
+      { id: "w1", assignmentId: "a1", title: "Draft response", effortMinutes: 30, completedAt: null, position: 0 },
+    ]);
     // vi.clearAllMocks() (beforeEach) only clears call history, not a
     // previously-set mockResolvedValue — without this, an earlier test's
     // stale scheduled-session mock (also keyed on workItemId "w1") can
@@ -450,7 +455,7 @@ describe("App", () => {
     );
   });
 
-  describe("'Plan it as one piece' from Assignment Detail (items 3 and 4)", () => {
+  describe("'Plan work for today' → 'Plan it as one piece' from Assignment Detail (items 3 and 4)", () => {
     // An unbroken assignment; "Plan it as one piece" creates its one step,
     // which every later load then returns.
     function unbrokenEssay() {
@@ -503,6 +508,7 @@ describe("App", () => {
       await userEventInstance.click(
         await screen.findByRole("button", { name: /reading response.*not broken into steps yet/i }),
       );
+      await userEventInstance.click(await screen.findByRole("button", { name: "Plan work for today" }));
       await userEventInstance.click(await screen.findByRole("button", { name: "Plan it as one piece" }));
 
       expect(await screen.findByText(/let.s plan tuesday/i)).toBeInTheDocument();
@@ -520,11 +526,107 @@ describe("App", () => {
       await userEventInstance.click(await screen.findByRole("radio", { name: "Tue" }));
       await userEventInstance.click(screen.getByRole("button", { name: "Assignments" }));
       await userEventInstance.click((await screen.findAllByRole("button", { name: /reading response/i }))[0]!);
+      await userEventInstance.click(await screen.findByRole("button", { name: "Plan work for today" }));
       await userEventInstance.click(await screen.findByRole("button", { name: "Plan it as one piece" }));
 
       expect(await screen.findByText(/let.s plan today/i)).toBeInTheDocument();
       await waitFor(() =>
         expect(screen.getByRole("button", { name: /^reading response/i })).toHaveAttribute("aria-pressed", "true"),
+      );
+    });
+  });
+
+  describe("a breakdown made to plan it (assignment-detail-no-steps-v0.1.md, N3 and N4)", () => {
+    // An unbroken assignment; the breakdown creates one step, which every
+    // later load then returns.
+    function unbrokenEssay() {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.setSystemTime(TODAY);
+      vi.mocked(useAuth).mockReturnValue({
+        user: { id: "student-1", email: "person@example.com" } as User,
+        signIn: vi.fn(),
+        signUp: vi.fn(),
+        signOut: vi.fn(),
+      });
+      mockedCourseService.listCourses.mockResolvedValue([{ id: "course-1", name: "Biology", colorIndex: 0 }]);
+      const essay = {
+        id: "a1",
+        courseId: "course-1",
+        title: "Reading response",
+        dueDate: "2026-03-22",
+        effortMinutes: 60,
+        notes: "Answer the three questions",
+        completedAt: null,
+      };
+      mockedAssignmentService.listAssignments.mockResolvedValue([essay]);
+      mockedAssignmentService.getAssignment.mockResolvedValue(essay);
+      mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([]);
+      const items: unknown[] = [];
+      mockedWorkItemService.listWorkItemsForStudent.mockImplementation(async () => [...items]);
+      mockedWorkItemService.listWorkItems.mockImplementation(async () => [...items]);
+      mockedWorkItemService.createWorkItems.mockImplementation(async () => {
+        const created = {
+          id: "new-step",
+          assignmentId: "a1",
+          title: "Read the chapter",
+          effortMinutes: 60,
+          completedAt: null,
+          position: 0,
+        };
+        items.push(created);
+        return [created];
+      });
+    }
+
+    async function breakDownIntoOneStep(userEventInstance: ReturnType<typeof userEvent.setup>) {
+      await userEventInstance.type(await screen.findByPlaceholderText(/questions 1–10/i), "Read the chapter");
+      await userEventInstance.click(screen.getByRole("button", { name: /^add$/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: /^next$/i }));
+      await userEventInstance.click(
+        within(screen.getByRole("radiogroup", { name: /estimated time for read the chapter/i })).getByRole("radio", {
+          name: "1h",
+        }),
+      );
+      await userEventInstance.click(screen.getByRole("button", { name: /^next$/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: /looks good/i }));
+    }
+
+    it("opened from Assignments: 'Plan work for today' → 'Break it into steps first' → Plan today, the new step chosen", async () => {
+      unbrokenEssay();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<App />);
+
+      await userEventInstance.click(screen.getByRole("button", { name: "Plan" }));
+      await userEventInstance.click(await screen.findByRole("radio", { name: "Tue" }));
+      await userEventInstance.click(screen.getByRole("button", { name: "Assignments" }));
+      await userEventInstance.click((await screen.findAllByRole("button", { name: /reading response/i }))[0]!);
+      await userEventInstance.click(await screen.findByRole("button", { name: "Plan work for today" }));
+      await userEventInstance.click(await screen.findByRole("button", { name: "Break it into steps first" }));
+      await breakDownIntoOneStep(userEventInstance);
+
+      expect(await screen.findByText(/let.s plan today/i)).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: /^read the chapter/i })).toHaveAttribute("aria-pressed", "true"),
+      );
+    });
+
+    it("opened from Plan: the card's 'Break this down' → back to the day Plan was on, the new step chosen", async () => {
+      unbrokenEssay();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<App />);
+
+      await userEventInstance.click(screen.getByRole("button", { name: "Plan" }));
+      await userEventInstance.click(await screen.findByRole("radio", { name: "Tue" }));
+      await userEventInstance.click(
+        await screen.findByRole("button", { name: /reading response.*not broken into steps yet/i }),
+      );
+      await userEventInstance.click(await screen.findByRole("button", { name: "Break this down" }));
+      await breakDownIntoOneStep(userEventInstance);
+
+      expect(await screen.findByText(/let.s plan tuesday/i)).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: /^read the chapter/i })).toHaveAttribute("aria-pressed", "true"),
       );
     });
   });

@@ -400,9 +400,10 @@ All items are from [daily-planning-and-completion-v2-proposal.md](features/daily
 Steps 3 and 11 are off the critical path and can happen while a decision
 is pending elsewhere.
 
-**If the prototype's `mobile-redesign` branch changes before it merges**,
-re-check daily planning items 2, 6, and 10 first. Those are where it most
-recently diverged from the prototype's `main`.
+~~**If the prototype's `mobile-redesign` branch changes before it merges**,
+re-check daily planning items 2, 6, and 10 first.~~ *No longer applies
+(2026-09-26): the prototype isn't consulted unless the product owner asks
+(`docs/decisions/20260926-prototype-no-longer-a-reference.md`).*
 
 **Demoable at the end of this phase:**
 - A student can install the app to their phone's home screen and run
@@ -494,29 +495,44 @@ built — schedule it as one piece of work, not two.
 
 ## Smaller open items inside already-built specs
 
-- **Assignment Detail's CTA hierarchy needs reconsidering, not just
-  completing.** `assignment-management.md` specs two primary actions side
-  by side — "Plan work for today" and "Mark assignment complete" — but
-  only "Mark assignment complete" was ever built (its partner was
-  deferred pending Daily Planning, which now exists but was never
-  revisited). With no partner action, "Mark assignment complete" reads as
-  the screen's single dominant CTA, including for a just-created,
-  never-worked-on assignment. Raised 2026-08-16: does "Mark assignment
-  complete" even make sense there? It's a "record already-done or
-  unplanned work" action, not a "plan what's next" one — **this is a
-  planning tool, not a tool for recording unplanned work** — so simply
-  adding the missing "Plan work for today" button back may not be enough;
-  the relative prominence of "Mark complete" itself (always secondary, or
-  conditioned on some state) deserves its own look before either is
-  touched. The spec's related, also-never-built "offer a coaching prompt
-  suggesting a breakdown (does not force one)" line is the same shape of
-  gap — see `docs/decisions/20260816-plan-directly-without-breakdown.md`
-  for the equivalent capability already built in Daily Planning, not yet
-  wired into Assignment Detail's own "Break this down." Risk Detection
-  (Phase 5, now built) is the same story a third time: `risk-detection.md`
-  names Assignment Detail as a consumer, but nothing there calls it yet —
-  worth folding into this same reconsideration rather than wiring it in
-  separately ahead of the CTA-hierarchy decision.
+- ✅ **Done 2026-09-26.** **Assignment Detail with no steps: what should it lead with?**
+  (Rewritten 2026-09-26. The original 2026-08-16 note said "Plan work
+  for today" was never built, and that the breakdown prompt and Risk
+  Detection weren't wired in. All three have since been done:
+  [assignment-detail-cta-hierarchy.md](features/assignment-detail-cta-hierarchy.md),
+  2026-08-18, made "Plan work for today" the dominant button and "Mark
+  assignment complete" a quiet one beneath it, and added the risk
+  message and the "This one is fairly big… Yes, help me start" prompt.
+  Phase 7 step 7 (`docs/decisions/20260925-plan-rows-and-one-piece.md`)
+  then made Assignment Detail the one place for breakdown choices.)
+
+  On a brand-new assignment the screen shows "No steps yet" with **Break
+  this down**, **Just add a step** and **Plan it as one piece**, then
+  **Plan work for today** and **Mark assignment complete** at the
+  bottom. Still open:
+  - **Two main buttons compete.** "Break this down" and "Plan work for
+    today" are both solid, filled buttons, so neither is clearly the main
+    action.
+  - **"Plan work for today" goes in a circle with no steps.** It opens
+    Plan with the assignment highlighted, but nothing can be chosen: its
+    row says "No steps yet", and tapping it reopens Assignment Detail.
+    With no steps, "Plan it as one piece" is what actually puts the
+    assignment on today's plan.
+  - ✅ **Done 2026-09-26: "Mark assignment complete" is hidden until the
+    assignment has at least one step** (product-owner decision). A
+    brand-new assignment is something to plan, not to mark done.
+
+  **Spec (draft 2026-09-26):**
+  [assignment-detail-no-steps-v0.1.md](features/assignment-detail-no-steps-v0.1.md).
+  It proposes:
+  - one "No steps yet" card, worded by size, with **Break this down**
+    and **Just add a step**;
+  - **"Plan work for today" always ends in planned steps.** With no
+    steps it asks "How do you want to plan this?" (break it down first,
+    or plan it as one piece).
+
+  Built 2026-09-26 with N1–N4 as recommended
+  (`docs/decisions/20260926-assignment-detail-no-steps.md`).
 - Course Setup: archiving a course at the end of a term/year — deferred
   by the 2026-08-14 resolution in `course-setup.md`. (Deleting a course
   and manual color selection, deferred by that same resolution, are now
@@ -547,6 +563,16 @@ built — schedule it as one piece of work, not two.
   flagged as needed once that happened, never done. Discovered
   2026-08-17 while auditing this same file for the Assignment Detail
   global-overlay change; not fixed as part of that unrelated work.
+- **Offline fast fallback** (added 2026-09-26; low priority, an
+  optimization). **Spec:**
+  [offline-fast-fallback-v0.1.md](features/offline-fast-fallback-v0.1.md).
+  Offline, the stored plan can take about 7 s to appear (phone says
+  online, no connection) or about 25 s (sign-in token expired, e.g. the
+  app reopened after an hour), because the Supabase libraries retry
+  requests that can't succeed. Plan: skip the server when it's known to
+  be unreachable, stop read retries after a network failure, limit each
+  request's time, and check periodically for the connection coming back.
+  Decisions F1–F3 are open; needs `analyze-feature` when it's picked up.
 - **Push notifications** (deferred 2026-09-25, decision W5 in
   `docs/decisions/20260925-pwa-phase-2-approach.md`). They need
   server-side sending (keys, stored subscriptions, a scheduler), a clear

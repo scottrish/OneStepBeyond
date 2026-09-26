@@ -140,6 +140,18 @@ export default function App() {
     handleTabChange("plan");
   }
 
+  // A breakdown made in order to plan: Detail's "Plan work for today" →
+  // "Break it into steps first", or any breakdown confirmed with Detail
+  // opened from Plan. Plan's Select with the new steps chosen — on Plan's
+  // day if Detail was opened from Plan, otherwise today
+  // (docs/features/assignment-detail-no-steps-v0.1.md, N3 and N4).
+  function handlePlanBrokenDown(assignmentId: string) {
+    if (!assignmentOpenedFromPlan) setPlanDate(todayISODate());
+    setPlanStep("select");
+    setPlanTarget({ kind: "assignment", assignmentId });
+    handleTabChange("plan");
+  }
+
   function handlePlanAssignment(assignmentId: string) {
     setPlanDate(todayISODate());
     setPlanStep("select");
@@ -242,13 +254,7 @@ export default function App() {
             onGoToPlan={() => handlePlanAssignment(openAssignmentId)}
             openedFromPlan={assignmentOpenedFromPlan}
             onPlanPick={handlePlanPick}
-            onBreakdownConfirmedFromPlan={() => {
-              // Back to Plan's wizard (even if Detail was opened from Look
-              // Ahead), on Select for the same day, where the new steps are.
-              setPlanTab("wizard");
-              setPlanStep("select");
-              setOpenAssignmentId(null);
-            }}
+            onPlanBrokenDown={() => handlePlanBrokenDown(openAssignmentId)}
           />
         ) : executingToday ? (
           <TodayExecutionPage

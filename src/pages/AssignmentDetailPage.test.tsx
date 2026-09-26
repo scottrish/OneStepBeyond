@@ -92,8 +92,22 @@ const user = { id: "student-1", email: "person@example.com" } as User;
 const planExits = {
   openedFromPlan: false,
   onPlanPick: vi.fn(),
-  onBreakdownConfirmedFromPlan: vi.fn(),
+  onPlanBrokenDown: vi.fn(),
 };
+
+// Through WorkBreakdownPage's create → estimate → confirm, with one step.
+async function confirmOneStepBreakdown(userEventInstance: ReturnType<typeof userEvent.setup>) {
+  await userEventInstance.type(screen.getByPlaceholderText(/questions 1–10/i), "Read the chapter");
+  await userEventInstance.click(screen.getByRole("button", { name: /^add$/i }));
+  await userEventInstance.click(screen.getByRole("button", { name: /^next$/i }));
+  await userEventInstance.click(
+    within(screen.getByRole("radiogroup", { name: /estimated time for read the chapter/i })).getByRole("radio", {
+      name: "1h",
+    }),
+  );
+  await userEventInstance.click(screen.getByRole("button", { name: /^next$/i }));
+  await userEventInstance.click(screen.getByRole("button", { name: /looks good/i }));
+}
 
 const assignment = {
   id: "assignment-1",
@@ -325,7 +339,7 @@ describe("AssignmentDetailPage", () => {
     expect(step2).toBeDisabled();
   });
 
-  it("with no steps, 'No steps yet' offers Break this down, Just add a step and Plan it as one piece; with steps, only Add another step", async () => {
+  it("with no steps, one 'No steps yet' card offers Break this down and Just add a step (not Plan it as one piece); with steps, only Add another step", async () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
     mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
 
@@ -336,7 +350,9 @@ describe("AssignmentDetailPage", () => {
     expect(screen.getByText("No steps yet.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Break this down" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Just add a step" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Plan it as one piece" })).toBeInTheDocument();
+    // A way to plan, not to break down: it's in "Plan work for today"'s sheet.
+    expect(screen.queryByRole("button", { name: "Plan it as one piece" })).not.toBeInTheDocument();
+    expect(screen.getByText("Small steps are easier to start than a whole assignment.")).toBeInTheDocument();
     unmount();
 
     mockedWorkItemService.listWorkItems.mockResolvedValue([
@@ -352,7 +368,7 @@ describe("AssignmentDetailPage", () => {
     expect(screen.getByRole("button", { name: /add another step/i })).toBeInTheDocument();
   });
 
-  it("a big unbroken assignment's nudge offers all three choices, and 'No steps yet' doesn't repeat them (R2)", async () => {
+  it("a big assignment with no steps gets the same one card, with the 'fairly big' hint (assignment-detail-no-steps-v0.1.md)", async () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
     mockedAssignmentService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 60 });
 
@@ -361,14 +377,32 @@ describe("AssignmentDetailPage", () => {
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
 
-    expect(screen.getByRole("button", { name: /yes, help me start/i })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Just add a step" })).toHaveLength(1);
-    expect(screen.getAllByRole("button", { name: "Plan it as one piece" })).toHaveLength(1);
     expect(screen.getByText("No steps yet.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Break this down" })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This one is fairly big — smaller steps will make it easier to start. What should happen first?",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Break this down" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Just add a step" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: /yes, help me start/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Plan it as one piece" })).not.toBeInTheDocument();
   });
 
-  it("'Just add a step' opens the add form and hides the nudge", async () => {
+  it("with no steps, 'Plan work for today' is the only solid button", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([]);
+    mockedAssignmentService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 60 });
+
+    render(
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
+    );
+    await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+
+    const solid = screen.getAllByRole("button").filter((button) => /(^|\s)bg-primary(\s|$)/.test(button.className));
+    expect(solid.map((button) => button.textContent)).toEqual(["Plan work for today"]);
+  });
+
+  it("'Just add a step' opens the add form in place of the card", async () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
     mockedAssignmentService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 60 });
     const userEventInstance = userEvent.setup();
@@ -379,10 +413,10 @@ describe("AssignmentDetailPage", () => {
     await userEventInstance.click(await screen.findByRole("button", { name: "Just add a step" }));
 
     expect(screen.getByLabelText("New step title")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /yes, help me start/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("No steps yet.")).not.toBeInTheDocument();
   });
 
-  it("'Plan it as one piece' makes exactly one step named after the assignment and opens Plan with it chosen", async () => {
+  it("'Plan work for today' → 'Plan it as one piece' makes exactly one step named after the assignment and opens Plan with it chosen", async () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
     mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
     mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
@@ -402,7 +436,9 @@ describe("AssignmentDetailPage", () => {
         onPlanPick={onPlanPick}
       />,
     );
-    await userEventInstance.click(await screen.findByRole("button", { name: "Plan it as one piece" }));
+    await userEventInstance.click(await screen.findByRole("button", { name: "Plan work for today" }));
+    const sheet = screen.getByRole("dialog", { name: "How do you want to plan this?" });
+    await userEventInstance.click(within(sheet).getByRole("button", { name: "Plan it as one piece" }));
 
     await waitFor(() => expect(onPlanPick).toHaveBeenCalledWith("new-step"));
     expect(mockedWorkItemService.createWorkItems).toHaveBeenCalledTimes(1);
@@ -476,56 +512,179 @@ describe("AssignmentDetailPage", () => {
     });
   });
 
-  it("a breakdown confirmed while opened from Plan returns to Plan", async () => {
-    mockedCourseService.listCourses.mockResolvedValue([]);
-    mockedAssignmentService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 60 });
-    mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
-    mockedWorkItemService.createWorkItems.mockResolvedValue([]);
-    const onBreakdownConfirmedFromPlan = vi.fn();
-    const userEventInstance = userEvent.setup();
+  describe("'Plan work for today' always ends in planned steps (assignment-detail-no-steps-v0.1.md)", () => {
+    it("with no steps it asks how to plan; a big assignment leads with breaking it down", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 60 });
+      const onGoToPlan = vi.fn();
+      const userEventInstance = userEvent.setup();
 
-    render(
-      <AssignmentDetailPage
-        user={user}
-        assignmentId="assignment-1"
-        onBack={vi.fn()}
-        onGoToPlan={vi.fn()}
-        {...planExits}
-        openedFromPlan
-        onBreakdownConfirmedFromPlan={onBreakdownConfirmedFromPlan}
-      />,
-    );
-    await userEventInstance.click(await screen.findByRole("button", { name: /yes, help me start/i }));
-    await userEventInstance.type(screen.getByPlaceholderText(/questions 1–10/i), "Read the chapter");
-    await userEventInstance.click(screen.getByRole("button", { name: /^add$/i }));
-    await userEventInstance.click(screen.getByRole("button", { name: /^next$/i }));
-    await userEventInstance.click(
-      within(screen.getByRole("radiogroup", { name: /estimated time for read the chapter/i })).getByRole(
-        "radio",
-        { name: "1h" },
-      ),
-    );
-    await userEventInstance.click(screen.getByRole("button", { name: /^next$/i }));
-    await userEventInstance.click(screen.getByRole("button", { name: /looks good/i }));
+      render(
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={onGoToPlan} {...planExits} />,
+      );
+      await userEventInstance.click(await screen.findByRole("button", { name: "Plan work for today" }));
 
-    await waitFor(() => expect(onBreakdownConfirmedFromPlan).toHaveBeenCalledTimes(1));
+      const sheet = screen.getByRole("dialog", { name: "How do you want to plan this?" });
+      const choices = within(sheet)
+        .getAllByRole("button")
+        .map((button) => button.textContent)
+        .filter((text) => text !== "Close");
+      expect(choices).toEqual(["Break it into steps first", "Plan it as one piece", "Never mind"]);
+      expect(within(sheet).getByRole("button", { name: "Break it into steps first" }).className).toMatch(/bg-primary/);
+      expect(onGoToPlan).not.toHaveBeenCalled();
+
+      await userEventInstance.click(within(sheet).getByRole("button", { name: "Never mind" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(onGoToPlan).not.toHaveBeenCalled();
+    });
+
+    it("a smaller assignment's two choices are equal", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue(assignment); // 30m
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
+      );
+      await userEventInstance.click(await screen.findByRole("button", { name: "Plan work for today" }));
+
+      const sheet = screen.getByRole("dialog", { name: "How do you want to plan this?" });
+      expect(within(sheet).getByRole("button", { name: "Break it into steps first" }).className).not.toMatch(
+        /bg-primary/,
+      );
+    });
+
+    it("'Break it into steps first' → confirm → Plan with the new steps chosen", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 60 });
+      mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+      mockedWorkItemService.createWorkItems.mockResolvedValue([]);
+      const onPlanBrokenDown = vi.fn();
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <AssignmentDetailPage
+          user={user}
+          assignmentId="assignment-1"
+          onBack={vi.fn()}
+          onGoToPlan={vi.fn()}
+          {...planExits}
+          onPlanBrokenDown={onPlanBrokenDown}
+        />,
+      );
+      await userEventInstance.click(await screen.findByRole("button", { name: "Plan work for today" }));
+      await userEventInstance.click(screen.getByRole("button", { name: "Break it into steps first" }));
+      await confirmOneStepBreakdown(userEventInstance);
+
+      await waitFor(() => expect(onPlanBrokenDown).toHaveBeenCalledTimes(1));
+    });
+
+    it("…and cancelling the breakdown returns to Detail with nothing changed", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 60 });
+      const onPlanBrokenDown = vi.fn();
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <AssignmentDetailPage
+          user={user}
+          assignmentId="assignment-1"
+          onBack={vi.fn()}
+          onGoToPlan={vi.fn()}
+          {...planExits}
+          onPlanBrokenDown={onPlanBrokenDown}
+        />,
+      );
+      await userEventInstance.click(await screen.findByRole("button", { name: "Plan work for today" }));
+      await userEventInstance.click(screen.getByRole("button", { name: "Break it into steps first" }));
+      await userEventInstance.click(screen.getByRole("button", { name: /cancel/i }));
+
+      expect(await screen.findByText("No steps yet.")).toBeInTheDocument();
+      expect(onPlanBrokenDown).not.toHaveBeenCalled();
+      expect(mockedWorkItemService.createWorkItems).not.toHaveBeenCalled();
+    });
+
+    it("the card's own 'Break this down' → confirm stays on Detail (not a request to plan)", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 60 });
+      mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+      mockedWorkItemService.createWorkItems.mockResolvedValue([]);
+      const onPlanBrokenDown = vi.fn();
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <AssignmentDetailPage
+          user={user}
+          assignmentId="assignment-1"
+          onBack={vi.fn()}
+          onGoToPlan={vi.fn()}
+          {...planExits}
+          onPlanBrokenDown={onPlanBrokenDown}
+        />,
+      );
+      await userEventInstance.click(await screen.findByRole("button", { name: "Break this down" }));
+      await confirmOneStepBreakdown(userEventInstance);
+
+      expect(await screen.findByRole("heading", { name: "Chapter 7 problem set" })).toBeInTheDocument();
+      expect(onPlanBrokenDown).not.toHaveBeenCalled();
+    });
+
+    it("opened from Plan, the card's 'Break this down' → confirm goes back to Plan with the new steps (N4)", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 60 });
+      mockedAssignmentService.updateAssignment.mockResolvedValue(undefined);
+      mockedWorkItemService.createWorkItems.mockResolvedValue([]);
+      const onPlanBrokenDown = vi.fn();
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <AssignmentDetailPage
+          user={user}
+          assignmentId="assignment-1"
+          onBack={vi.fn()}
+          onGoToPlan={vi.fn()}
+          {...planExits}
+          openedFromPlan
+          onPlanBrokenDown={onPlanBrokenDown}
+        />,
+      );
+      await userEventInstance.click(await screen.findByRole("button", { name: "Break this down" }));
+      await confirmOneStepBreakdown(userEventInstance);
+
+      await waitFor(() => expect(onPlanBrokenDown).toHaveBeenCalledTimes(1));
+    });
+
+    it("with steps, it goes straight to Plan — no sheet", async () => {
+      mockedCourseService.listCourses.mockResolvedValue([]);
+      mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+      mockedWorkItemService.listWorkItems.mockResolvedValue([
+        { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: null, position: 0 },
+      ]);
+      const onGoToPlan = vi.fn();
+      const userEventInstance = userEvent.setup();
+
+      render(
+        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={onGoToPlan} {...planExits} />,
+      );
+      await screen.findByText("Step 1");
+      await userEventInstance.click(screen.getByRole("button", { name: "Plan work for today" }));
+
+      expect(onGoToPlan).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
   });
 
-  it("'Yes, help me start' is the only path into the Work Breakdown flow, and cancelling returns to Detail unchanged", async () => {
+  it("'Break this down' opens the Work Breakdown flow, and cancelling returns to Detail unchanged", async () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
-    mockedAssignmentService.getAssignment.mockResolvedValue({
-      ...assignment,
-      effortMinutes: 60, // large enough to qualify for the breakdown nudge
-    });
+    mockedAssignmentService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 60 });
     const userEventInstance = userEvent.setup();
 
     render(
       <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
-    expect(screen.queryByRole("button", { name: /break this down/i })).not.toBeInTheDocument();
 
-    await userEventInstance.click(screen.getByRole("button", { name: /yes, help me start/i }));
+    await userEventInstance.click(screen.getByRole("button", { name: "Break this down" }));
 
     expect(screen.getByText(/what are the main pieces/i)).toBeInTheDocument();
 
@@ -590,35 +749,27 @@ describe("AssignmentDetailPage", () => {
     expect(screen.queryByText(/did the way you broke this down work/i)).not.toBeInTheDocument();
   });
 
-  it("completing an assignment that never had steps skips the reflection but still shows the turned-in reminder", async () => {
+  it("an assignment with no steps doesn't offer 'Mark assignment complete' (2026-09-26)", async () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
     mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
-    mockedAssignmentService.completeAssignment.mockResolvedValue(undefined);
     mockedWorkItemService.listWorkItems.mockResolvedValue([]);
-    mockedWorkItemService.completeAllForAssignment.mockResolvedValue(undefined);
-    const onBack = vi.fn();
-    const userEventInstance = userEvent.setup();
 
     render(
-      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={onBack} onGoToPlan={vi.fn()} {...planExits} />,
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
     );
     await screen.findByRole("heading", { name: "Chapter 7 problem set" });
 
-    await userEventInstance.click(screen.getByRole("button", { name: /mark assignment complete/i }));
-
-    await waitFor(() =>
-      expect(mockedAssignmentService.completeAssignment).toHaveBeenCalledWith("assignment-1"),
-    );
-    expect(screen.queryByText(/did the way you broke this down work/i)).not.toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "Mark it turned in at school" })).toBeInTheDocument();
-    await userEventInstance.click(screen.getByRole("button", { name: "Got it" }));
-    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /plan work for today/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /mark assignment complete/i })).not.toBeInTheDocument();
   });
 
   describe("CTA hierarchy (docs/features/assignment-detail-cta-hierarchy.md)", () => {
     it("shows 'Plan work for today' as the dominant action, and 'Mark assignment complete' as a secondary one beneath it", async () => {
       mockedCourseService.listCourses.mockResolvedValue([]);
       mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+      mockedWorkItemService.listWorkItems.mockResolvedValue([
+        { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: null, position: 0 },
+      ]);
 
       render(
         <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
@@ -641,9 +792,12 @@ describe("AssignmentDetailPage", () => {
       expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it("calls onGoToPlan when 'Plan work for today' is tapped", async () => {
+    it("calls onGoToPlan when 'Plan work for today' is tapped (with steps)", async () => {
       mockedCourseService.listCourses.mockResolvedValue([]);
       mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+      mockedWorkItemService.listWorkItems.mockResolvedValue([
+        { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: null, position: 0 },
+      ]);
       const onGoToPlan = vi.fn();
       const userEventInstance = userEvent.setup();
 
@@ -758,29 +912,23 @@ describe("AssignmentDetailPage", () => {
     });
   });
 
-  describe("Breakdown nudge (docs/features/assignment-detail-cta-hierarchy.md item 3)", () => {
-    it("shows the nudge for a large assignment with no Work Items yet", async () => {
+  describe("'Fairly big' hint (assignment-detail-no-steps-v0.1.md; formerly the breakdown nudge)", () => {
+    const BIG_HINT = /this one is fairly big/i;
+
+    it("shows for a large assignment with no steps yet", async () => {
       mockedCourseService.listCourses.mockResolvedValue([]);
-      mockedAssignmentService.getAssignment.mockResolvedValue({
-        ...assignment,
-        effortMinutes: 60,
-      });
+      mockedAssignmentService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 60 });
 
       render(
         <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
 
-      expect(
-        await screen.findByText(/would it help to break it into smaller steps/i),
-      ).toBeInTheDocument();
+      expect(await screen.findByText(BIG_HINT)).toBeInTheDocument();
     });
 
-    it("does not show the nudge once at least one Work Item exists", async () => {
+    it("goes once at least one step exists", async () => {
       mockedCourseService.listCourses.mockResolvedValue([]);
-      mockedAssignmentService.getAssignment.mockResolvedValue({
-        ...assignment,
-        effortMinutes: 60,
-      });
+      mockedAssignmentService.getAssignment.mockResolvedValue({ ...assignment, effortMinutes: 60 });
       mockedWorkItemService.listWorkItems.mockResolvedValue([
         { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 20, completedAt: null, position: 0 },
       ]);
@@ -788,44 +936,21 @@ describe("AssignmentDetailPage", () => {
       render(
         <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
-      await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+      await screen.findByText("Step 1");
 
-      expect(
-        screen.queryByText(/would it help to break it into smaller steps/i),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText(BIG_HINT)).not.toBeInTheDocument();
     });
 
-    it("does not show the nudge for a small estimate, regardless of Work Item count", async () => {
+    it("doesn't show for a small estimate", async () => {
       mockedCourseService.listCourses.mockResolvedValue([]);
       mockedAssignmentService.getAssignment.mockResolvedValue(assignment); // 30m
-      mockedWorkItemService.listWorkItems.mockResolvedValue([]);
 
       render(
         <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
       );
-      await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+      await screen.findByText("No steps yet.");
 
-      expect(
-        screen.queryByText(/would it help to break it into smaller steps/i),
-      ).not.toBeInTheDocument();
-    });
-
-    it("'Yes, help me start' opens the Work Breakdown flow", async () => {
-      mockedCourseService.listCourses.mockResolvedValue([]);
-      mockedAssignmentService.getAssignment.mockResolvedValue({
-        ...assignment,
-        effortMinutes: 60,
-      });
-      const userEventInstance = userEvent.setup();
-
-      render(
-        <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
-      );
-      await screen.findByText(/would it help to break it into smaller steps/i);
-
-      await userEventInstance.click(screen.getByRole("button", { name: /yes, help me start/i }));
-
-      expect(screen.getByText(/what are the main pieces/i)).toBeInTheDocument();
+      expect(screen.queryByText(BIG_HINT)).not.toBeInTheDocument();
     });
   });
 

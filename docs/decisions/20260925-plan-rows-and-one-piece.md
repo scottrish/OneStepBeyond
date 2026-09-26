@@ -84,3 +84,10 @@ The product owner confirmed the approach (P3–P6) and two build details
 - Today Execution's own "is the whole assignment finished?" check
   (`execution-coaching-v0.1.md`, roadmap step 12) should reuse
   `isAssignmentFinishable` and `TurnedInReminder`.
+
+---
+
+*Update 2026-09-26:* R2 is superseded by
+`20260926-assignment-detail-no-steps.md`. There's now one "No steps yet"
+card (Break this down, Just add a step), and "Plan it as one piece" is
+offered from "Plan work for today" when there are no steps.

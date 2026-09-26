@@ -16,6 +16,14 @@ appears for a large unbroken-down assignment, "Plan work for today"
 correctly switches to the Plan tab, and adding/editing/deleting steps
 inline works with no page navigation.
 
+**Update (2026-09-26):** "Mark assignment complete" is now hidden until
+the assignment has at least one step. With no steps, the breakdown nudge
+card and "Yes, help me start" are gone, replaced by one "No steps yet"
+card. "Plan work for today" always ends in planned steps. See
+`assignment-detail-no-steps-v0.1.md` and
+`docs/decisions/20260926-assignment-detail-no-steps.md`. With steps, the
+hierarchy above is unchanged.
+
 **Item 3a implemented (2026-08-18), merged to `main` — Correction 5's
 final design.** "Break this down" is removed from Assignment Detail
 entirely; "Yes, help me start" is the sole remaining path into

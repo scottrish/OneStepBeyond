@@ -47,3 +47,5 @@ directory.
 | 28 | [Light/dark choice: saved on the device, applied before the first paint](20260925-appearance-on-device.md) | 2026-09-25 |
 | 29 | [PWA phase 2: how the app works offline and stays up to date](20260925-pwa-phase-2-approach.md) | 2026-09-25 |
 | 30 | [Offline actions: a queue beside the offline plan, sent directly when online](20260926-offline-action-queue.md) | 2026-09-26 |
+| 31 | [The prototype is no longer a reference](20260926-prototype-no-longer-a-reference.md) | 2026-09-26 |
+| 32 | [Assignment Detail with no steps: one card, and planning that makes steps](20260926-assignment-detail-no-steps.md) | 2026-09-26 |
