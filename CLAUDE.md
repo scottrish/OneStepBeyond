@@ -74,41 +74,20 @@ Before making a significant product, domain, or architectural decision:
 
 # Visual & Aesthetic Reference
 
-The sibling repository `../OneStepBeyondPrototype` (a Lovable-built
-prototype) is this application's source of truth for visual design —
-colors, spacing, typography, component chrome, and interaction patterns —
-not just behavior.
+This application's own design system is the reference for visual design
+and interaction: the colour tokens in `src/index.css` (light and dark),
+the shadcn/ui components in `src/components/ui/`, the shared components
+in `src/components/`, the existing screens, and `docs/Design-Principles.md`.
+New UI should look and behave like the screens already built, not invent
+a new aesthetic or fall back to bare, unstyled markup.
 
-Feature specifications under `docs/features/` name a specific prototype
-route as "Source" when a directly matching screen exists (e.g.
-`src/routes/activities.tsx`). When a feature has **no** matching prototype
-screen — as with `course-setup.md` — its UI must still adopt the
-prototype's overall look and feel (component style, spacing scale, color
-tokens) rather than inventing a new aesthetic or falling back to bare,
-unstyled markup.
-
-The prototype is built with Tailwind CSS and shadcn/ui. See
-`docs/decisions/20260814-adopt-prototype-visual-design-toolchain.md` for
-how that interacts with this file's YAGNI guidance on introducing that
-tooling.
-
-## Prototype Evidence
-
-When a feature specification already records prototype evidence — such as
-specific routes, components, commits, screenshots, behaviors, or design
-observations — treat that evidence as the starting point. Do not automatically
-repeat the investigation.
-
-Inspect the prototype directly when:
-
-- the feature spec does not contain enough visual or behavioral detail;
-- implementation requires exact styling or interaction details not captured in
-  the spec;
-- the recorded evidence appears inconsistent with the current prototype; or
-- an ambiguity cannot otherwise be resolved.
-
-When direct prototype inspection is needed, inspect the smallest relevant set
-of files rather than broadly exploring the prototype.
+**Do not consult the prototype (`../OneStepBeyondPrototype`) unless the
+product owner asks for it.** It was the reference up to prototype parity
+(Roadmap Phase 7), and that work is done
+(`docs/decisions/20260926-prototype-no-longer-a-reference.md`). Older
+specs that name a prototype route under "Source", or record prototype
+evidence, describe how those features were first built. Treat that as
+history, not as a requirement to keep matching the prototype.
 
 ---
 
@@ -120,9 +99,9 @@ Before implementing any feature:
 2. Verify it against the relevant canonical project context using the
    progressive context-discovery rules above; do not preload canonical
    documents in full unless the task actually requires them.
-3. Use prototype evidence already recorded in the feature specification.
-   Inspect `../OneStepBeyondPrototype` only when additional visual or
-   behavioral evidence is required, per "Prototype Evidence" above.
+3. Match the app's existing design system and screens (see "Visual &
+   Aesthetic Reference" above). Don't consult the prototype unless the
+   product owner asks.
 4. If requirements are ambiguous, stop and ask.
 5. Do not implement functionality outside the feature scope.
 6. Preserve existing behaviour unless requirements explicitly change it.
@@ -225,10 +204,9 @@ Technology stack:
 
 Only React, TypeScript, Vite, and Supabase are installed at the base of
 this template. Tailwind CSS and shadcn/ui are the exception to "add it
-when a feature needs it": adopt them as soon as UI work begins, since
-they're what `../OneStepBeyondPrototype`'s design system is built on (see
-"Visual & Aesthetic Reference" above and
-`docs/decisions/20260814-adopt-prototype-visual-design-toolchain.md`). Add
+when a feature needs it": they were adopted as soon as UI work began,
+and are the app's design system (see "Visual & Aesthetic Reference"
+above and `docs/decisions/20260814-adopt-prototype-visual-design-toolchain.md`). Add
 React Router, TanStack Query, and Oxlint separately, only when a feature
 actually needs them.
 

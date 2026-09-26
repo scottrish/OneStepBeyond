@@ -45,10 +45,11 @@ Use progressive context discovery:
    document referenced by the feature merely because it is referenced.
 6. Inspect the existing application code needed to understand the affected
    architecture and current behavior.
-7. Use prototype evidence already captured in the feature specification before
-   reopening prototype source files. Inspect prototype source only when the
-   recorded evidence is insufficient, appears stale, or exact visual or
-   interaction details are required.
+7. For visual and interaction details, use the app's own design system and
+   existing screens (CLAUDE.md, "Visual & Aesthetic Reference"). Do not
+   consult the prototype (`../OneStepBeyondPrototype`) unless the user asks
+   for it. Prototype evidence recorded in older specs is history, not a
+   requirement.
 
 The goal is sufficient evidence for a correct implementation plan, not
 exhaustive context loading.

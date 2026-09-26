@@ -78,3 +78,10 @@ silently folding a reskin into unrelated feature work.
   corresponding screen (or, absent one, its general component/token
   usage) for visual patterns, not just behavior — see CLAUDE.md's "Visual
   & Aesthetic Reference" section.
+
+---
+
+*Update 2026-09-26:* the toolchain decision stands (Tailwind CSS and
+shadcn/ui are the app's design system). What changed is the reference:
+the prototype is no longer consulted unless the product owner asks —
+see `20260926-prototype-no-longer-a-reference.md`.

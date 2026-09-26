@@ -390,9 +390,12 @@ Every screen should answer
 
 "What is the most useful thing this student needs right now?"
 
-The prototype (`OneStepBeyondPrototype`) is the concrete reference for
-what this looks like in practice — new UI should feel like it belongs in
-the same application, not like a different one bolted on beside it.
+The application's own screens and design system are the concrete
+reference for what this looks like in practice. New UI should feel like
+it belongs in the same application, not like a different one bolted on
+beside it. (Until prototype parity, the prototype, `OneStepBeyondPrototype`,
+played this role; it's no longer consulted unless the product owner asks —
+`docs/decisions/20260926-prototype-no-longer-a-reference.md`.)
 
 ---
 
