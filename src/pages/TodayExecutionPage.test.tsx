@@ -4,17 +4,24 @@ import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 
 vi.mock("../services/assignmentService", () => ({
+  peekAssignments: () => undefined,
+  peekAssignment: () => undefined,
   listAssignments: vi.fn(),
   completeAssignment: vi.fn(),
 }));
 vi.mock("../services/workItemService", () => ({
+  peekWorkItemsForStudent: () => undefined,
+  peekWorkItems: () => undefined,
   listWorkItemsForStudent: vi.fn(),
   completeWorkItem: vi.fn(),
 }));
 vi.mock("../services/courseService", () => ({
+  peekCourses: () => undefined,
   listCourses: vi.fn(),
 }));
 vi.mock("../services/workSessionService", () => ({
+  peekWorkSessionsForDate: () => undefined,
+  peekWorkSessionsForStudent: () => undefined,
   listWorkSessionsForDate: vi.fn(),
   listWorkSessionsForStudent: vi.fn(),
   startWorkSession: vi.fn(),
@@ -30,9 +37,11 @@ vi.mock("../services/coachingInteractionService", () => ({
   listRecentDismissals: vi.fn(),
 }));
 vi.mock("../services/activityService", () => ({
+  peekActivities: () => undefined,
   listActivities: vi.fn(),
 }));
 vi.mock("../services/preferencesService", () => ({
+  peekPreferences: () => undefined,
   getPreferences: vi.fn(),
   DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", saturdayHours: 2, sundayHours: 2 },
 }));

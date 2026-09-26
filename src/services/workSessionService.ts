@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { cachedRead } from "./offlineCache";
+import { cachedRead, peekRead } from "./offlineCache";
 import { sendOrQueue } from "./offlineQueue";
 
 export type WorkSessionStatus = "planned" | "in_progress" | "done";
@@ -57,6 +57,15 @@ function toWorkSession(row: {
     completedAt: row.completed_at ?? null,
     originalPlannedMinutes: row.original_planned_minutes ?? null,
   };
+}
+
+// The in-memory copy, for an instant screen (instant-screen-data-v0.1.md).
+export function peekWorkSessionsForDate(studentId: string, date: string): WorkSession[] | undefined {
+  return peekRead(studentId, `workSessions:${date}`);
+}
+
+export function peekWorkSessionsForStudent(studentId: string): WorkSession[] | undefined {
+  return peekRead(studentId, "workSessions:all");
 }
 
 // Kept on the device for offline use (PWA phase 2, 2b — offlineCache).

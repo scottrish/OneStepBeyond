@@ -21,8 +21,11 @@ export function useWorkItems(studentId: string, assignmentId: string) {
     setData: setWorkItems,
     loading,
     loadError,
+    refreshError,
     refetch: fetchWorkItemsAgain,
-  } = useAsyncData<WorkItem[]>(fetchWorkItems, []);
+  } = useAsyncData<WorkItem[]>(fetchWorkItems, [], {
+    peek: () => workItemService.peekWorkItems(assignmentId),
+  });
 
   async function markAllComplete(): Promise<boolean> {
     setActionError(null);
@@ -91,6 +94,7 @@ export function useWorkItems(studentId: string, assignmentId: string) {
     workItems,
     loading,
     loadError,
+    refreshError,
     actionError,
     refetch: fetchWorkItemsAgain,
     markAllComplete,

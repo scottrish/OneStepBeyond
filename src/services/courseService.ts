@@ -1,11 +1,16 @@
 import { supabase } from "../lib/supabase";
-import { cachedRead } from "./offlineCache";
+import { cachedRead, peekRead } from "./offlineCache";
 
 export type Course = {
   id: string;
   name: string;
   colorIndex: number;
 };
+
+// The in-memory copy, for an instant screen (instant-screen-data-v0.1.md).
+export function peekCourses(studentId: string): Course[] | undefined {
+  return peekRead(studentId, "courses");
+}
 
 // Kept on the device for offline use (PWA phase 2, 2b — offlineCache).
 export async function listCourses(studentId: string): Promise<Course[]> {

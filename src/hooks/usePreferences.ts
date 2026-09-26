@@ -28,8 +28,11 @@ export function usePreferences(studentId: string) {
     setData: setPreferences,
     loading,
     loadError,
+    refreshError,
     retry,
-  } = useAsyncData<Preferences>(fetchPreferences, DEFAULT_PREFERENCES);
+  } = useAsyncData<Preferences>(fetchPreferences, DEFAULT_PREFERENCES, {
+    peek: () => preferencesService.peekPreferences(studentId),
+  });
 
   // Shows the new value straight away. On failure it stays on screen with
   // the error, and the next change (or retrySave) sends it again — every
@@ -69,6 +72,7 @@ export function usePreferences(studentId: string) {
     preferences,
     loading,
     loadError,
+    refreshError,
     actionError,
     saveStatus,
     retry,

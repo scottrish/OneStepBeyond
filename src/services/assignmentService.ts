@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { cachedRead, ownRead } from "./offlineCache";
+import { cachedRead, ownRead, peekOwnRead, peekRead } from "./offlineCache";
 import { sendOrQueue } from "./offlineQueue";
 
 export type Assignment = {
@@ -48,6 +48,15 @@ function toAssignment(row: {
     notes: row.notes,
     completedAt: row.completed_at,
   };
+}
+
+// The in-memory copy, for an instant screen (instant-screen-data-v0.1.md).
+export function peekAssignments(studentId: string): Assignment[] | undefined {
+  return peekRead(studentId, "assignments");
+}
+
+export function peekAssignment(id: string): Assignment | null | undefined {
+  return peekOwnRead(`assignment:${id}`);
 }
 
 // Kept on the device for offline use (PWA phase 2, 2b — offlineCache).

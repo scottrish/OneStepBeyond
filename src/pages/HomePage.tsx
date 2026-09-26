@@ -8,8 +8,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import ContentPlaceholder from "@/components/ContentPlaceholder";
 import EmptyState from "@/components/EmptyState";
 import ErrorBanner from "../components/ErrorBanner";
+import { REFRESH_FAILED } from "../lib/errorMessage";
 import { longPlanDate, todayISODate } from "../domain/planningDate";
 import { assignmentsNeedingAttention } from "../domain/riskDetection";
 import { sortByStartTime } from "../domain/sessionOrder";
@@ -89,6 +91,7 @@ export default function HomePage({
     activities,
     loading: activitiesLoading,
     loadError: activitiesLoadError,
+    refreshError: activitiesRefreshError,
     retry: retryActivities,
   } = useActivities(studentId);
   const {
@@ -96,12 +99,14 @@ export default function HomePage({
     workItems,
     loading: assignmentsLoading,
     loadError: assignmentsLoadError,
+    refreshError: assignmentsRefreshError,
     retry: retryAssignments,
   } = useAssignmentsList(studentId);
   const {
     courses,
     loading: coursesLoading,
     loadError: coursesLoadError,
+    refreshError: coursesRefreshError,
     retry: retryCourses,
   } = useCourses(studentId);
   // Today's plan is the screen's own critical data (the Next card is
@@ -111,6 +116,7 @@ export default function HomePage({
     workSessions: todaySessions,
     loading: todaySessionsLoading,
     loadError: todaySessionsLoadError,
+    refreshError: todaySessionsRefreshError,
     retry: retryTodaySessions,
   } = useDailyPlanning(studentId, today);
   // Risk Detection's capacity/scheduling checks span every date through
@@ -142,6 +148,10 @@ export default function HomePage({
   // the "add your courses first" state (course-management-v2-proposal.md §3).
   const loadError =
     activitiesLoadError ?? assignmentsLoadError ?? todaySessionsLoadError ?? coursesLoadError;
+  // Showing the last-known copy, but refreshing it failed (instant
+  // screens, I3): the content stays, with a banner above it.
+  const refreshError =
+    activitiesRefreshError ?? assignmentsRefreshError ?? todaySessionsRefreshError ?? coursesRefreshError;
   // A student with no courses yet sees one onboarding state instead of
   // the dashboard: every assignment needs a course, so that's step one.
   const needsCourses = !loading && !loadError && courses.length === 0;
@@ -280,6 +290,9 @@ export default function HomePage({
       <UpdateNote />
 
       {loadError && <ErrorBanner message="Couldn’t load your day." onRetry={retry} className="mt-4" />}
+      {!loadError && refreshError && <ErrorBanner message={REFRESH_FAILED} onRetry={retry} className="mt-4" />}
+      {/* First visit this session: quiet shapes, not a blank area (I2). */}
+      {loading && !loadError && <ContentPlaceholder />}
 
       {needsCourses && (
         <div className="mt-6">

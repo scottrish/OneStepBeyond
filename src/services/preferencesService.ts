@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { cachedRead } from "./offlineCache";
+import { cachedRead, peekRead } from "./offlineCache";
 
 export type Preferences = {
   weekdayFinishTime: string;
@@ -32,6 +32,11 @@ function toPreferences(row: {
     saturdayHours: Number(row.saturday_hours),
     sundayHours: Number(row.sunday_hours),
   };
+}
+
+// The in-memory copy, for an instant screen (instant-screen-data-v0.1.md).
+export function peekPreferences(studentId: string): Preferences | undefined {
+  return peekRead(studentId, "preferences");
 }
 
 // Kept on the device for offline use (PWA phase 2, 2b — offlineCache).

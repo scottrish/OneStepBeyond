@@ -5,6 +5,7 @@ import type { User } from "@supabase/supabase-js";
 import HomePage from "./HomePage";
 
 vi.mock("../services/courseService", () => ({
+  peekCourses: () => undefined,
   listCourses: vi.fn().mockResolvedValue([]),
   createCourse: vi.fn(),
   updateCourse: vi.fn(),
@@ -12,16 +13,21 @@ vi.mock("../services/courseService", () => ({
 }));
 
 vi.mock("../services/assignmentService", () => ({
+  peekAssignments: () => undefined,
+  peekAssignment: () => undefined,
   listAssignments: vi.fn().mockResolvedValue([]),
   createAssignment: vi.fn(),
   getAssignment: vi.fn(),
 }));
 
 vi.mock("../services/workItemService", () => ({
+  peekWorkItemsForStudent: () => undefined,
+  peekWorkItems: () => undefined,
   listWorkItemsForStudent: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("../services/activityService", () => ({
+  peekActivities: () => undefined,
   listActivities: vi.fn().mockResolvedValue([]),
   createActivity: vi.fn(),
   updateActivityDays: vi.fn(),
@@ -29,12 +35,15 @@ vi.mock("../services/activityService", () => ({
 }));
 
 vi.mock("../services/workSessionService", () => ({
+  peekWorkSessionsForDate: () => undefined,
+  peekWorkSessionsForStudent: () => undefined,
   listWorkSessionsForDate: vi.fn().mockResolvedValue([]),
   listWorkSessionsForStudent: vi.fn().mockResolvedValue([]),
   startWorkSession: vi.fn().mockResolvedValue("2026-03-16T16:00:00.000Z"),
 }));
 
 vi.mock("../services/preferencesService", () => ({
+  peekPreferences: () => undefined,
   getPreferences: vi.fn(),
   upsertPreferences: vi.fn(),
   DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", saturdayHours: 10, sundayHours: 10 },

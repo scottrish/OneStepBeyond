@@ -50,3 +50,4 @@ directory.
 | 31 | [The prototype is no longer a reference](20260926-prototype-no-longer-a-reference.md) | 2026-09-26 |
 | 32 | [Assignment Detail with no steps: one card, and planning that makes steps](20260926-assignment-detail-no-steps.md) | 2026-09-26 |
 | 33 | [Admin powers through superuser-checked database functions](20260926-admin-account-management.md) | 2026-09-26 |
+| 34 | [Instant screens: an in-memory copy of each read, dropped on any save](20260926-instant-screens.md) | 2026-09-26 |

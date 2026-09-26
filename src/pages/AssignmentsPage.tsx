@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import EmptyState from "@/components/EmptyState";
 import ErrorBanner from "../components/ErrorBanner";
+import ContentPlaceholder from "@/components/ContentPlaceholder";
+import { REFRESH_FAILED } from "../lib/errorMessage";
 import { courseColorValue } from "../domain/courseColor";
 import { EFFORT_PRESETS, effortLabel } from "../domain/effortPresets";
 import { formatDueDate } from "../domain/dueDate";
@@ -240,6 +242,7 @@ export default function AssignmentsPage({
     workItems,
     loading,
     loadError,
+    refreshError,
     actionError,
     retry,
     editAssignment,
@@ -257,6 +260,9 @@ export default function AssignmentsPage({
       <h1 className="mb-4 text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">Assignments</h1>
 
       {loadError && <ErrorBanner message="Couldn’t load your assignments." onRetry={retry} />}
+      {!loadError && refreshError && <ErrorBanner message={REFRESH_FAILED} onRetry={retry} />}
+      {/* First visit this session: quiet shapes, not a blank area (I2). */}
+      {loading && !loadError && <ContentPlaceholder />}
 
       {actionError && <ErrorBanner message={actionError} />}
 

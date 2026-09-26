@@ -29,8 +29,11 @@ export function useTodayExecution(studentId: string, date: string) {
     setData: setSessions,
     loading,
     loadError,
+    refreshError,
     retry,
-  } = useAsyncData<WorkSession[]>(fetchSessions, []);
+  } = useAsyncData<WorkSession[]>(fetchSessions, [], {
+    peek: () => workSessionService.peekWorkSessionsForDate(studentId, date),
+  });
 
   async function start(id: string): Promise<boolean> {
     setActionError(null);
@@ -127,6 +130,7 @@ export function useTodayExecution(studentId: string, date: string) {
     sessions,
     loading,
     loadError,
+    refreshError,
     actionError,
     retry,
     start,

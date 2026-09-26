@@ -15,3 +15,8 @@ export function errorMessage(error: unknown): string {
   }
   return String(error);
 }
+
+// A background refresh failed while the screen shows its last-known copy
+// (instant screens, I3): the content stays, with this above it.
+export const REFRESH_FAILED = "Couldn’t refresh. What’s shown may be out of date.";
+

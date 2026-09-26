@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 
 vi.mock("../services/courseService", () => ({
+  peekCourses: () => undefined,
   listCourses: vi.fn(),
   createCourse: vi.fn(),
   updateCourse: vi.fn(),

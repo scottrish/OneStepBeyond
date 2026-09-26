@@ -25,6 +25,37 @@ if (typeof window !== "undefined") {
   });
 }
 
+// ——— Saves (docs/features/instant-screen-data-v0.1.md) ———
+// Every request that writes to the database — anything but a read to the
+// database API; sign-in and token requests don't count — is counted here,
+// as it starts. The in-memory copies of the student's reads are dropped
+// on each (I4), and a read that started before a save knows its answer
+// may predate it (F1).
+
+let writes = 0;
+const writeListeners = new Set<() => void>();
+
+function isDatabaseWrite(input: RequestInfo | URL, init?: RequestInit): boolean {
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+  return url.includes("/rest/v1/") && method !== "GET" && method !== "HEAD";
+}
+
+/** How many saves have started this session. Compare before and after a read. */
+export function writeCount(): number {
+  return writes;
+}
+
+export function subscribeWrites(listener: () => void): () => void {
+  writeListeners.add(listener);
+  return () => writeListeners.delete(listener);
+}
+
+function noteWrite() {
+  writes += 1;
+  writeListeners.forEach((listener) => listener());
+}
+
 export function isReachable(): boolean {
   return reachable;
 }
@@ -42,6 +73,7 @@ export function subscribeReachability(listener: () => void): () => void {
  */
 export function reachabilityFetch(baseFetch: typeof fetch = (...args) => fetch(...args)): typeof fetch {
   return async (input, init) => {
+    if (isDatabaseWrite(input, init)) noteWrite();
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
       set(false);
       throw new DOMException("You're offline.", "AbortError");

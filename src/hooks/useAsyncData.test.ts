@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useAsyncData } from "./useAsyncData";
+import { reachabilityFetch } from "../lib/networkStatus";
 
 describe("useAsyncData", () => {
   it("starts loading, then resolves with the fetched data", async () => {
@@ -114,3 +115,90 @@ describe("useAsyncData", () => {
     });
   });
 });
+
+describe("instant screens (instant-screen-data-v0.1.md)", () => {
+  // A save, as the Supabase client's fetch wrapper sees one.
+  const save = () =>
+    reachabilityFetch(() => Promise.resolve(new Response("ok")))("https://x.supabase.co/rest/v1/work_sessions", {
+      method: "PATCH",
+    });
+
+  it("with a copy, the first render already has it — and it still refreshes", async () => {
+    const fetcher = vi.fn().mockResolvedValue(["fresh"]);
+    const { result } = renderHook(() => useAsyncData(fetcher, [] as string[], { peek: () => ["known"] }));
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.data).toEqual(["known"]);
+    await waitFor(() => expect(result.current.data).toEqual(["fresh"]));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("with no copy, behaves as before", async () => {
+    const fetcher = vi.fn().mockResolvedValue(["fresh"]);
+    const { result } = renderHook(() => useAsyncData(fetcher, [] as string[], { peek: () => undefined }));
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.data).toEqual(["fresh"]));
+  });
+
+  it("a read that was on its way when a save started is set aside and read again — a just-made change doesn't flip back (F1)", async () => {
+    let finishFirst: (value: string) => void = () => {};
+    const fetcher = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<string>((resolve) => (finishFirst = resolve)))
+      .mockResolvedValue("after the save");
+    const { result } = renderHook(() => useAsyncData(fetcher, "", { peek: () => "known" }));
+
+    // The student acts on what's showing: a save, and the screen's own update.
+    await act(async () => {
+      await save();
+      result.current.setData("changed by the student");
+    });
+    await act(async () => {
+      finishFirst("from before the save");
+    });
+
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.data).toBe("after the save"));
+    expect(result.current.data).not.toBe("from before the save");
+  });
+
+  it("a new fetcher (e.g. another day) shows its copy at once (F3)", async () => {
+    const copies: Record<string, string> = { mon: "Monday's copy", tue: "Tuesday's copy" };
+    const pending = () => vi.fn(() => new Promise<string>(() => {}));
+    const fetchers = { mon: pending(), tue: pending() };
+    const { result, rerender } = renderHook(
+      ({ day }: { day: "mon" | "tue" }) => useAsyncData(fetchers[day], "", { peek: () => copies[day] }),
+      { initialProps: { day: "mon" } },
+    );
+    expect(result.current.data).toBe("Monday's copy");
+
+    rerender({ day: "tue" });
+    expect(result.current.data).toBe("Tuesday's copy");
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("a failed refresh keeps the content and reports it separately (I3); Try again refreshes in place", async () => {
+    const fetcher = vi.fn().mockRejectedValueOnce({ message: "boom" }).mockResolvedValue("fresh");
+    const { result } = renderHook(() => useAsyncData(fetcher, "", { peek: () => "known" }));
+
+    await waitFor(() => expect(result.current.refreshError).toBe("boom"));
+    expect(result.current.loadError).toBeNull();
+    expect(result.current.data).toBe("known");
+
+    act(() => result.current.retry());
+    expect(result.current.loading).toBe(false);
+    await waitFor(() => expect(result.current.data).toBe("fresh"));
+    expect(result.current.refreshError).toBeNull();
+  });
+
+  it("offline with content showing, a failed refresh says nothing (the offline line does)", async () => {
+    const fetcher = vi.fn().mockRejectedValue({ message: "TypeError: Failed to fetch" });
+    const { result } = renderHook(() => useAsyncData(fetcher, "", { peek: () => "known" }));
+    await waitFor(() => expect(fetcher).toHaveBeenCalled());
+    await act(async () => {});
+    expect(result.current.refreshError).toBeNull();
+    expect(result.current.loadError).toBeNull();
+    expect(result.current.data).toBe("known");
+  });
+});
+

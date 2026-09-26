@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 
 vi.mock("../services/workSessionService", () => ({
+  peekWorkSessionsForDate: () => undefined,
+  peekWorkSessionsForStudent: () => undefined,
   listWorkSessionsForStudent: vi.fn(),
 }));
 

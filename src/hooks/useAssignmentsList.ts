@@ -25,9 +25,17 @@ export function useAssignmentsList(studentId: string) {
       ]).then(([assignments, workItems]) => ({ assignments, workItems })),
     [studentId],
   );
-  const { data, setData, loading, loadError, retry } = useAsyncData<ListData>(
+  const { data, setData, loading, loadError, refreshError, retry } = useAsyncData<ListData>(
     fetchAll,
     EMPTY_LIST_DATA,
+    {
+      // Both copies, or none: the screen needs the pair.
+      peek: () => {
+        const assignments = assignmentService.peekAssignments(studentId);
+        const workItems = workItemService.peekWorkItemsForStudent(studentId);
+        return assignments && workItems ? { assignments, workItems } : undefined;
+      },
+    },
   );
   const { assignments, workItems } = data;
 
@@ -100,6 +108,7 @@ export function useAssignmentsList(studentId: string) {
     workItems,
     loading,
     loadError,
+    refreshError,
     actionError,
     retry,
     editAssignment,

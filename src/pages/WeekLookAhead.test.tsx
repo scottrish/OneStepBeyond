@@ -3,6 +3,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("../services/workSessionService", () => ({
+  peekWorkSessionsForDate: () => undefined,
+  peekWorkSessionsForStudent: () => undefined,
   listWorkSessionsForStudent: vi.fn(),
   deleteWorkSession: vi.fn(),
   updateWorkSessionStartTimes: vi.fn(),

@@ -4,17 +4,22 @@ import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 
 vi.mock("../services/courseService", () => ({
+  peekCourses: () => undefined,
   listCourses: vi.fn(),
   createCourse: vi.fn(),
   updateCourse: vi.fn(),
   deleteCourse: vi.fn(),
 }));
 vi.mock("../services/assignmentService", () => ({
+  peekAssignments: () => undefined,
+  peekAssignment: () => undefined,
   listAssignments: vi.fn(),
   updateAssignment: vi.fn(),
   deleteAssignment: vi.fn(),
 }));
 vi.mock("../services/workItemService", () => ({
+  peekWorkItemsForStudent: () => undefined,
+  peekWorkItems: () => undefined,
   listWorkItemsForStudent: vi.fn(),
 }));
 

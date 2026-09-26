@@ -3,11 +3,15 @@ import {
   MAX_AGE_MS,
   cachedRead,
   clearOfflineData,
+  ownRead,
+  peekOwnRead,
+  peekRead,
   resetOfflineCacheForTests,
   setCacheOwner,
   shownPlanSavedAt,
 } from "./offlineCache";
 import { memoryStore, type KeyValueStore } from "./offlineStore";
+import { reachabilityFetch } from "../lib/networkStatus";
 
 // PWA phase 2, increment 2b (docs/features/pwa-phase-2-offline-v0.1.md).
 
@@ -134,3 +138,75 @@ describe("clearing", () => {
     expect(await store.get("s2:courses")).toMatchObject({ data: ["s2's"] });
   });
 });
+
+describe("the in-memory copy for instant screens (instant-screen-data-v0.1.md)", () => {
+  // A save, as the Supabase client's fetch wrapper sees one.
+  const save = () =>
+    reachabilityFetch(() => Promise.resolve(new Response("ok")))("https://x.supabase.co/rest/v1/courses", {
+      method: "POST",
+    });
+
+  it("a fresh read is kept, and can be looked at synchronously", async () => {
+    setCacheOwner("s1");
+    expect(peekRead("s1", "courses")).toBeUndefined();
+    await cachedRead("s1", "courses", async () => ["Biology"]);
+    expect(peekRead("s1", "courses")).toEqual(["Biology"]);
+  });
+
+  it("never for another student (the supporter dashboard)", async () => {
+    setCacheOwner("s1");
+    await cachedRead("someone-else", "courses", async () => ["Theirs"]);
+    expect(peekRead("someone-else", "courses")).toBeUndefined();
+  });
+
+  it("Assignment Detail's own reads too", async () => {
+    setCacheOwner("s1");
+    await ownRead("assignment:a1", async () => ({ id: "a1" }));
+    expect(peekOwnRead("assignment:a1")).toEqual({ id: "a1" });
+  });
+
+  it("any save drops every copy (I4)", async () => {
+    setCacheOwner("s1");
+    await cachedRead("s1", "courses", async () => ["Biology"]);
+    await cachedRead("s1", "activities", async () => ["Soccer"]);
+    await save();
+    expect(peekRead("s1", "courses")).toBeUndefined();
+    expect(peekRead("s1", "activities")).toBeUndefined();
+  });
+
+  it("a read that was on its way when a save started isn't kept — it may predate the save (F1)", async () => {
+    setCacheOwner("s1");
+    let finish: (value: string[]) => void = () => {};
+    const reading = cachedRead("s1", "courses", () => new Promise<string[]>((resolve) => (finish = resolve)));
+    await save();
+    finish(["from before the save"]);
+    await reading;
+    expect(peekRead("s1", "courses")).toBeUndefined();
+  });
+
+  it("signing out, or another student, drops the copies; the same student keeps them", async () => {
+    setCacheOwner("s1");
+    await cachedRead("s1", "courses", async () => ["Biology"]);
+    setCacheOwner("s1");
+    expect(peekRead("s1", "courses")).toEqual(["Biology"]);
+
+    setCacheOwner("s2");
+    setCacheOwner("s1");
+    expect(peekRead("s1", "courses")).toBeUndefined();
+
+    await cachedRead("s1", "courses", async () => ["Biology"]);
+    await clearOfflineData();
+    setCacheOwner("s1");
+    expect(peekRead("s1", "courses")).toBeUndefined();
+  });
+
+  it("offline, the stored copy isn't mistaken for a fresh one", async () => {
+    setCacheOwner("s1");
+    await cachedRead("s1", "courses", async () => ["Biology"]);
+    await save();
+    offline();
+    expect(await cachedRead("s1", "courses", networkDown)).toEqual(["Biology"]);
+    expect(peekRead("s1", "courses")).toBeUndefined();
+  });
+});
+

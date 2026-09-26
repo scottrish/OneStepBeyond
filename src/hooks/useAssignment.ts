@@ -13,8 +13,11 @@ export function useAssignment(id: string) {
     setData: setAssignment,
     loading,
     loadError,
+    refreshError,
     refetch: fetchAssignmentAgain,
-  } = useAsyncData<Assignment | null>(fetchAssignment, null);
+  } = useAsyncData<Assignment | null>(fetchAssignment, null, {
+    peek: () => assignmentService.peekAssignment(id),
+  });
 
   async function updateAssignment(patch: AssignmentEdit): Promise<boolean> {
     setActionError(null);
@@ -67,6 +70,7 @@ export function useAssignment(id: string) {
     assignment,
     loading,
     loadError,
+    refreshError,
     actionError,
     refetch: fetchAssignmentAgain,
     updateAssignment,

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useOnlineStatus } from "./useOnlineStatus";
+import { writeCount } from "../lib/networkStatus";
 import * as workSessionService from "../services/workSessionService";
 import type { WorkSession } from "../services/workSessionService";
 
@@ -32,17 +33,34 @@ export type UseAllWorkSessionsResult = {
 // after (docs/playwright/daily-planning/iteration-03/findings.yaml
 // FINDING-DP-003). Callers are expected to call it after a successful
 // confirmPlan.
+//
+// Instant screens (instant-screen-data-v0.1.md, J3): starts from the app's
+// last-known copy when there is one, and sets aside a read a save may have
+// overtaken (F1), as useAsyncData does.
 export function useAllWorkSessions(studentId: string): UseAllWorkSessionsResult {
-  const [sessions, setSessions] = useState<WorkSession[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [start] = useState(() => workSessionService.peekWorkSessionsForStudent(studentId));
+  const [sessions, setSessions] = useState<WorkSession[]>(start ?? []);
+  const [loading, setLoading] = useState(start === undefined);
 
   const fetchSessions = useCallback(() => {
     let cancelled = false;
+    const writesAtStart = writeCount();
 
     workSessionService
       .listWorkSessionsForStudent(studentId)
       .then((data) => {
-        if (!cancelled) setSessions(data);
+        if (cancelled) return;
+        // Overtaken by a save: read again rather than show what may predate it.
+        if (writeCount() !== writesAtStart) {
+          workSessionService
+            .listWorkSessionsForStudent(studentId)
+            .then((again) => {
+              if (!cancelled) setSessions(again);
+            })
+            .catch(() => {});
+          return;
+        }
+        setSessions(data);
       })
       .catch(() => {
         // Non-critical signal — leave sessions as they are; the warning

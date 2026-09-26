@@ -5,12 +5,15 @@ import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 
 vi.mock("../services/activityService", () => ({
+  peekActivities: () => undefined,
   listActivities: vi.fn(),
   createActivity: vi.fn(),
   updateActivityDays: vi.fn(),
   deleteActivity: vi.fn(),
 }));
 vi.mock("../services/assignmentService", () => ({
+  peekAssignments: () => undefined,
+  peekAssignment: () => undefined,
   listAssignments: vi.fn(),
   createAssignment: vi.fn(),
   getAssignment: vi.fn(),
@@ -19,6 +22,8 @@ vi.mock("../services/assignmentService", () => ({
   completeAssignment: vi.fn(),
 }));
 vi.mock("../services/workItemService", () => ({
+  peekWorkItemsForStudent: () => undefined,
+  peekWorkItems: () => undefined,
   listWorkItemsForStudent: vi.fn(),
   listWorkItems: vi.fn(),
   createWorkItems: vi.fn(),
@@ -26,12 +31,15 @@ vi.mock("../services/workItemService", () => ({
   completeAllForAssignment: vi.fn(),
 }));
 vi.mock("../services/courseService", () => ({
+  peekCourses: () => undefined,
   listCourses: vi.fn(),
   createCourse: vi.fn(),
   updateCourse: vi.fn(),
   deleteCourse: vi.fn(),
 }));
 vi.mock("../services/workSessionService", () => ({
+  peekWorkSessionsForDate: () => undefined,
+  peekWorkSessionsForStudent: () => undefined,
   listWorkSessionsForDate: vi.fn(),
   listWorkSessionsForStudent: vi.fn(),
   createWorkSessions: vi.fn(),
@@ -48,6 +56,7 @@ vi.mock("../services/decompositionAttemptService", () => ({
   recordDecompositionAttempt: vi.fn(),
 }));
 vi.mock("../services/preferencesService", () => ({
+  peekPreferences: () => undefined,
   getPreferences: vi.fn(),
   upsertPreferences: vi.fn(),
   DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", saturdayHours: 10, sundayHours: 10 },

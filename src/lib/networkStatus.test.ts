@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isReachable, reachabilityFetch } from "./networkStatus";
+import { isReachable, reachabilityFetch, subscribeWrites, writeCount } from "./networkStatus";
 
 afterEach(async () => {
   Object.defineProperty(navigator, "onLine", { value: true, configurable: true });
@@ -46,3 +46,25 @@ describe("reachabilityFetch (PWA phase 2)", () => {
     expect(isReachable()).toBe(true);
   });
 });
+
+describe("counting saves (instant-screen-data-v0.1.md)", () => {
+  it("database writes count as they start; reads and sign-in don't", async () => {
+    const heard = vi.fn();
+    const unsubscribe = subscribeWrites(heard);
+    const fetchOk = reachabilityFetch(() => Promise.resolve(new Response("ok")));
+    const before = writeCount();
+
+    await fetchOk("https://x.supabase.co/rest/v1/courses?select=*");
+    await fetchOk("https://x.supabase.co/rest/v1/courses", { method: "HEAD" });
+    await fetchOk("https://x.supabase.co/auth/v1/token?grant_type=refresh_token", { method: "POST" });
+    expect(writeCount()).toBe(before);
+
+    await fetchOk("https://x.supabase.co/rest/v1/work_sessions?id=eq.1", { method: "PATCH" });
+    await fetchOk("https://x.supabase.co/rest/v1/courses", { method: "POST" });
+    await fetchOk(new Request("https://x.supabase.co/rest/v1/courses?id=eq.1", { method: "DELETE" }));
+    expect(writeCount()).toBe(before + 3);
+    expect(heard).toHaveBeenCalledTimes(3);
+    unsubscribe();
+  });
+});
+

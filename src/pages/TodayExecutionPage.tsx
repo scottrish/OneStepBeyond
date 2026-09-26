@@ -3,7 +3,9 @@ import type { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/EmptyState";
 import TurnedInReminder from "@/components/TurnedInReminder";
+import ContentPlaceholder from "../components/ContentPlaceholder";
 import ErrorBanner from "../components/ErrorBanner";
+import { REFRESH_FAILED } from "../lib/errorMessage";
 import { activityBlocks, sessionBlocks } from "../domain/defaultStartTimes";
 import { effortLabel } from "../domain/effortPresets";
 import {
@@ -92,6 +94,7 @@ export default function TodayExecutionPage({
     sessions,
     loading: sessionsLoading,
     loadError: sessionsLoadError,
+    refreshError: sessionsRefreshError,
     actionError,
     retry: retrySessions,
     start,
@@ -104,6 +107,7 @@ export default function TodayExecutionPage({
     workItems,
     loading: assignmentsLoading,
     loadError: assignmentsLoadError,
+    refreshError: assignmentsRefreshError,
     retry: retryAssignments,
     actionError: assignmentActionError,
     completeAssignment,
@@ -127,6 +131,9 @@ export default function TodayExecutionPage({
 
   const loading = sessionsLoading || assignmentsLoading || allSessionsLoading;
   const loadError = sessionsLoadError ?? assignmentsLoadError;
+  // Showing the last-known copy, but refreshing it failed (instant
+  // screens, I3): the content stays, with a banner above it.
+  const refreshError = sessionsRefreshError ?? assignmentsRefreshError;
 
   function retry() {
     retrySessions();
@@ -346,6 +353,9 @@ export default function TodayExecutionPage({
       <h1 className="mb-1 text-[clamp(1.65rem,7vw,2.1rem)] leading-tight">Today</h1>
 
       {loadError && <ErrorBanner message="Couldn’t load today’s plan." onRetry={retry} />}
+      {!loadError && refreshError && <ErrorBanner message={REFRESH_FAILED} onRetry={retry} />}
+      {/* First visit this session: quiet shapes, not a blank area (I2). */}
+      {loading && !loadError && <ContentPlaceholder blocks={2} />}
 
       {actionError && <ErrorBanner message={actionError} />}
 

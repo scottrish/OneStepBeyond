@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import ContentPlaceholder from "../components/ContentPlaceholder";
 import ErrorBanner from "../components/ErrorBanner";
+import { REFRESH_FAILED } from "../lib/errorMessage";
 import {
   addDaysISODate,
   longPlanDate,
@@ -169,6 +171,7 @@ export default function PlanPage({
     activities,
     loading: activitiesLoading,
     loadError: activitiesLoadError,
+    refreshError: activitiesRefreshError,
     retry: retryActivities,
   } = useActivities(studentId);
   const {
@@ -176,6 +179,7 @@ export default function PlanPage({
     workItems,
     loading: assignmentsLoading,
     loadError: assignmentsLoadError,
+    refreshError: assignmentsRefreshError,
     retry: retryAssignments,
     actionError: assignmentsActionError,
     completeAssignment,
@@ -185,6 +189,7 @@ export default function PlanPage({
     workSessions,
     loading: sessionsLoading,
     loadError: sessionsLoadError,
+    refreshError: sessionsRefreshError,
     actionError,
     retry: retrySessions,
     confirmPlan,
@@ -205,6 +210,9 @@ export default function PlanPage({
   // flash home-dashboard.md's loading gate was written to prevent.
   const loading = activitiesLoading || assignmentsLoading || sessionsLoading || preferencesLoading;
   const loadError = activitiesLoadError ?? assignmentsLoadError ?? sessionsLoadError;
+  // Showing the last-known copy, but refreshing it failed (instant
+  // screens, I3): the content stays, with a banner above it.
+  const refreshError = activitiesRefreshError ?? assignmentsRefreshError ?? sessionsRefreshError;
 
   function retry() {
     retryActivities();
@@ -543,6 +551,8 @@ export default function PlanPage({
       {tab === "lookahead" ? (
         <>
           {loadError && <ErrorBanner message="Couldn’t load your plan." onRetry={retry} />}
+          {!loadError && refreshError && <ErrorBanner message={REFRESH_FAILED} onRetry={retry} />}
+          {loading && !loadError && <ContentPlaceholder />}
           {!loading && !loadError && (
             <WeekLookAhead
               studentId={studentId}
@@ -589,6 +599,9 @@ export default function PlanPage({
           </div>
 
           {loadError && <ErrorBanner message="Couldn’t load your plan." onRetry={retry} />}
+          {!loadError && refreshError && <ErrorBanner message={REFRESH_FAILED} onRetry={retry} />}
+          {/* First visit this session: quiet shapes, not a blank area (I2). */}
+          {loading && !loadError && <ContentPlaceholder />}
 
           {actionError && <ErrorBanner message={actionError} />}
 

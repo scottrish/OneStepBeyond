@@ -583,6 +583,45 @@ built — schedule it as one piece of work, not two.
   L1–L5 approved. It's an "Admin log" view on `/admin` listing every
   admin action across all accounts, filterable, and linked to each
   account's page. It builds on the admin page, done above.
+- **Signing in reopens the previous screen** (found 2026-09-26, during
+  the instant-screens check). After signing out and in (even as another
+  student on the same device), the app reopens on whichever screen was
+  open before, such as Settings, instead of Home. App-level screen state
+  (`secondary`, open assignment, tab) isn't reset when the user changes.
+  It's small, and no data leaks, since every screen reads the signed-in
+  student's own data.
+- ✅ **Done 2026-09-26.** **Instant screens: show what's already known, then refresh** (added
+  2026-09-26). **Spec:**
+  [instant-screen-data-v0.1.md](features/instant-screen-data-v0.1.md),
+  with I1–I4 approved. Screens briefly show a blank area on every
+  navigation, because each remount re-reads from the server. This keeps
+  the last result of each student read in memory, renders from it
+  instantly, and refreshes in the background. Any save drops the copies.
+- **Potential future: adopt TanStack Query** (added 2026-09-26; not
+  scheduled). It's already in CLAUDE.md's stack as "add when a feature
+  needs it". It would replace `useAsyncData`'s hand-rolled loading (17
+  hooks and components) and the ~30 hand-written post-save updates with
+  a shared cache: queries keyed by read, invalidated by the saves that
+  affect them, with request deduplication and background refresh. The
+  services layer, and with it the PWA offline copy and queue, would stay
+  underneath unchanged.
+  - **Cost:** a medium refactor across most screens; test wrappers; new
+    rules (query keys, how long data counts as fresh, what each save
+    invalidates); about 13 kB compressed.
+  - **Justified when any of these appear:**
+    1. data shared across screens visibly gets out of step after edits;
+    2. the instant-screens memory copy (above) starts needing per-save
+       invalidation rules;
+    3. more data should stay warm (caching or prefetching more screens);
+    4. live or polled data, e.g. a supporter dashboard updating while the
+       student works;
+    5. larger or paged lists with background refresh;
+    6. repeated identical requests become a real cost on phone
+       connections.
+  
+  Until then, the instant-screens spec covers the empty-screen flash.
+  It's straightforward to replace later, since reads stay behind the
+  same services and hooks.
 - **Offline fast fallback** (added 2026-09-26; low priority, an
   optimization). **Spec:**
   [offline-fast-fallback-v0.1.md](features/offline-fast-fallback-v0.1.md).

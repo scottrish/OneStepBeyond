@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 
 vi.mock("../services/preferencesService", () => ({
+  peekPreferences: () => undefined,
   getPreferences: vi.fn(),
   upsertPreferences: vi.fn(),
   DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", saturdayHours: 2, sundayHours: 2 },

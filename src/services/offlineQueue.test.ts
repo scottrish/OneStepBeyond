@@ -7,7 +7,7 @@ import { supabase } from "../lib/supabase";
 import type { OfflineAction } from "../domain/offlineActions";
 import type { WorkSession } from "./workSessionService";
 import { memoryStore, type KeyValueStore } from "./offlineStore";
-import { cachedRead, resetOfflineCacheForTests, setCacheOwner } from "./offlineCache";
+import { cachedRead, peekRead, resetOfflineCacheForTests, setCacheOwner } from "./offlineCache";
 import { sendAction } from "./offlineSenders";
 import {
   discardQueue,
@@ -315,4 +315,24 @@ describe("offline queue (PWA phase 2, 2c)", () => {
     });
     expect((await read)[0]!.status).toBe("in_progress");
   });
+
+  it("instant screens: a peek shows what's waiting to be saved, like any read", async () => {
+    const planned: WorkSession = {
+      id: "a",
+      workItemId: "w1",
+      date: "2026-09-26",
+      plannedMinutes: 30,
+      startTime: null,
+      status: "planned",
+    };
+    await cachedRead("s1", "workSessions:all", async () => [planned]);
+
+    setOnline(false);
+    mockedSend.mockRejectedValue({ message: "AbortError: You're offline." });
+    await sendOrQueue(start("a"));
+
+    const peeked = peekRead<WorkSession[]>("s1", "workSessions:all");
+    expect(peeked?.[0]).toMatchObject({ status: "in_progress", startedAt: "2026-09-26T16:02:00.000Z" });
+  });
 });
+

@@ -13,12 +13,15 @@ vi.mock("./hooks/useAuth");
 // fine without any assignment ever loading, so these all default to
 // resolving empty/undefined.
 vi.mock("./services/courseService", () => ({
+  peekCourses: () => undefined,
   listCourses: vi.fn().mockResolvedValue([]),
   createCourse: vi.fn(),
   updateCourse: vi.fn(),
   deleteCourse: vi.fn(),
 }));
 vi.mock("./services/assignmentService", () => ({
+  peekAssignments: () => undefined,
+  peekAssignment: () => undefined,
   listAssignments: vi.fn().mockResolvedValue([]),
   createAssignment: vi.fn(),
   getAssignment: vi.fn(),
@@ -27,6 +30,8 @@ vi.mock("./services/assignmentService", () => ({
   completeAssignment: vi.fn(),
 }));
 vi.mock("./services/workItemService", () => ({
+  peekWorkItemsForStudent: () => undefined,
+  peekWorkItems: () => undefined,
   listWorkItemsForStudent: vi.fn().mockResolvedValue([]),
   listWorkItems: vi.fn().mockResolvedValue([]),
   createWorkItems: vi.fn(),
@@ -45,12 +50,15 @@ vi.mock("./services/reflectionService", () => ({
 // in this file never visits that tab, so these all default to
 // resolving empty.
 vi.mock("./services/activityService", () => ({
+  peekActivities: () => undefined,
   listActivities: vi.fn().mockResolvedValue([]),
   createActivity: vi.fn(),
   updateActivityDays: vi.fn(),
   deleteActivity: vi.fn(),
 }));
 vi.mock("./services/workSessionService", () => ({
+  peekWorkSessionsForDate: () => undefined,
+  peekWorkSessionsForStudent: () => undefined,
   listWorkSessionsForDate: vi.fn().mockResolvedValue([]),
   listWorkSessionsForStudent: vi.fn().mockResolvedValue([]),
   createWorkSessions: vi.fn(),
@@ -69,6 +77,7 @@ vi.mock("./services/planningSessionService", () => ({
   recordPlanningSession: vi.fn(),
 }));
 vi.mock("./services/preferencesService", () => ({
+  peekPreferences: () => undefined,
   getPreferences: vi.fn().mockResolvedValue({ weekdayFinishTime: "21:00", saturdayHours: 10, sundayHours: 10 }),
   upsertPreferences: vi.fn(),
   DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", saturdayHours: 10, sundayHours: 10 },

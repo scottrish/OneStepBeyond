@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { cachedRead } from "./offlineCache";
+import { cachedRead, peekRead } from "./offlineCache";
 
 export type Activity = {
   id: string;
@@ -41,6 +41,11 @@ function toActivity(row: {
     travelToMinutes: row.travel_to_minutes,
     travelFromMinutes: row.travel_from_minutes,
   };
+}
+
+// The in-memory copy, for an instant screen (instant-screen-data-v0.1.md).
+export function peekActivities(studentId: string): Activity[] | undefined {
+  return peekRead(studentId, "activities");
 }
 
 // Kept on the device for offline use (PWA phase 2, 2b — offlineCache).

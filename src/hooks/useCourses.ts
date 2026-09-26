@@ -8,10 +8,14 @@ export function useCourses(studentId: string) {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const fetchCourses = useCallback(() => courseService.listCourses(studentId), [studentId]);
-  const { data: courses, setData: setCourses, loading, loadError, retry } = useAsyncData<Course[]>(
-    fetchCourses,
-    [],
-  );
+  const {
+    data: courses,
+    setData: setCourses,
+    loading,
+    loadError,
+    refreshError,
+    retry,
+  } = useAsyncData<Course[]>(fetchCourses, [], { peek: () => courseService.peekCourses(studentId) });
 
   // The colour is chosen on the Courses screen, pre-set there to one no
   // other course uses (nextCourseColor).
@@ -65,6 +69,7 @@ export function useCourses(studentId: string) {
     courses,
     loading,
     loadError,
+    refreshError,
     actionError,
     retry,
     addCourse,

@@ -36,9 +36,12 @@ export function useDailyPlanning(studentId: string, date: string) {
     setData: setWorkSessions,
     loading,
     loadError,
+    refreshError,
     refetch: refetchSessions,
     retry,
-  } = useAsyncData<WorkSession[]>(fetchSessions, []);
+  } = useAsyncData<WorkSession[]>(fetchSessions, [], {
+    peek: () => workSessionService.peekWorkSessionsForDate(studentId, date),
+  });
 
   // Confirming a plan: remove the date's previous not-yet-started
   // sessions, insert the newly confirmed set, then record one Planning
@@ -117,6 +120,7 @@ export function useDailyPlanning(studentId: string, date: string) {
     workSessions,
     loading,
     loadError,
+    refreshError,
     actionError,
     retry,
     confirmPlan,

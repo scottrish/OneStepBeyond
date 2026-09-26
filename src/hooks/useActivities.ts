@@ -16,8 +16,11 @@ export function useActivities(studentId: string) {
     setData: setActivities,
     loading,
     loadError,
+    refreshError,
     retry,
-  } = useAsyncData<Activity[]>(fetchActivities, []);
+  } = useAsyncData<Activity[]>(fetchActivities, [], {
+    peek: () => activityService.peekActivities(studentId),
+  });
 
   async function addActivity(input: NewActivity): Promise<boolean> {
     setActionError(null);
@@ -63,6 +66,7 @@ export function useActivities(studentId: string) {
     activities,
     loading,
     loadError,
+    refreshError,
     actionError,
     retry,
     addActivity,

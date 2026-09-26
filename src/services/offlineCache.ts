@@ -1,4 +1,4 @@
-import { isReachable } from "../lib/networkStatus";
+import { isReachable, subscribeWrites, writeCount } from "../lib/networkStatus";
 import { defaultStore, type KeyValueStore } from "./offlineStore";
 
 // The last-known plan (PWA phase 2, increment 2b — docs/features/
@@ -29,6 +29,13 @@ let lastFreshAt: string | null = null;
 let generation = 0;
 const listeners = new Set<() => void>();
 
+// The latest fresh result of each of the signed-in student's reads, for
+// this session (docs/features/instant-screen-data-v0.1.md, I1): screens
+// start from it and refresh in the background. Any save drops it all (I4),
+// and so does a change of student or signing out.
+const memory = new Map<string, unknown>();
+subscribeWrites(() => memory.clear());
+
 // Actions made offline (2c) are shown on every read: the offline queue
 // registers how. `mark` is taken before a read starts, so an action sent
 // while the read was on its way is still shown even if the server's
@@ -51,6 +58,7 @@ function notify() {
 export function resetOfflineCacheForTests(next: KeyValueStore): void {
   store = next;
   owner = null;
+  memory.clear();
   ownerChecked = Promise.resolve();
   fromStorage.clear();
   lastFreshAt = null;
@@ -64,6 +72,7 @@ export function resetOfflineCacheForTests(next: KeyValueStore): void {
  * cleared first.
  */
 export function setCacheOwner(userId: string | null): void {
+  if (userId !== owner) memory.clear();
   owner = userId;
   if (!userId) return;
   ownerChecked = (async () => {
@@ -90,6 +99,7 @@ export function setCacheOwner(userId: string | null): void {
 /** On sign-out: nothing of this student stays on the device. */
 export async function clearOfflineData(): Promise<void> {
   owner = null;
+  memory.clear();
   generation += 1;
   fromStorage.clear();
   lastFreshAt = null;
@@ -130,11 +140,15 @@ export async function cachedRead<T>(studentId: string, key: string, fetcher: () 
   const fullKey = `${studentId}:${key}`;
   const mine = owner !== null && studentId === owner;
   const since = readOverlay.mark();
+  const writesAtStart = writeCount();
   const shown = (data: T): T => (mine ? (readOverlay.apply(key, data, since) as T) : data);
   try {
     const data = await fetcher();
     lastFreshAt = new Date().toISOString();
     if (fromStorage.delete(fullKey)) notify();
+    // Kept for instant screens only if no save started while it was on its
+    // way — otherwise it may predate that save (F1).
+    if (mine && owner === studentId && writeCount() === writesAtStart) memory.set(fullKey, data);
     if (mine) {
       const entry: Entry = { data, savedAt: lastFreshAt };
       const startedIn = generation;
@@ -155,6 +169,23 @@ export async function cachedRead<T>(studentId: string, key: string, fetcher: () 
     }
     throw error;
   }
+}
+
+/**
+ * The latest fresh copy of one of the signed-in student's reads, with
+ * unsaved offline changes applied — or undefined if there isn't one (never
+ * for another student). Synchronous, so a screen can render from it at once.
+ */
+export function peekRead<T>(studentId: string, key: string): T | undefined {
+  if (owner === null || studentId !== owner) return undefined;
+  const fullKey = `${studentId}:${key}`;
+  if (!memory.has(fullKey)) return undefined;
+  return readOverlay.apply(key, memory.get(fullKey), readOverlay.mark()) as T;
+}
+
+/** peekRead for ownRead's reads (Assignment Detail's). */
+export function peekOwnRead<T>(key: string): T | undefined {
+  return owner ? peekRead<T>(owner, key) : undefined;
 }
 
 /**

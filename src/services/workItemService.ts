@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { cachedRead, ownRead } from "./offlineCache";
+import { cachedRead, ownRead, peekOwnRead, peekRead } from "./offlineCache";
 import { sendOrQueue } from "./offlineQueue";
 
 export type WorkItem = {
@@ -37,6 +37,15 @@ function toWorkItem(row: {
     completedAt: row.completed_at,
     position: row.position,
   };
+}
+
+// The in-memory copy, for an instant screen (instant-screen-data-v0.1.md).
+export function peekWorkItemsForStudent(studentId: string): WorkItem[] | undefined {
+  return peekRead(studentId, "workItems");
+}
+
+export function peekWorkItems(assignmentId: string): WorkItem[] | undefined {
+  return peekOwnRead(`workItemsFor:${assignmentId}`);
 }
 
 // Kept on the device for offline use (PWA phase 2, 2b — offlineCache).

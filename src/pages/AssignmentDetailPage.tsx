@@ -4,7 +4,9 @@ import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/EmptyState";
 import TurnedInReminder from "@/components/TurnedInReminder";
+import ContentPlaceholder from "@/components/ContentPlaceholder";
 import ErrorBanner from "../components/ErrorBanner";
+import { REFRESH_FAILED } from "../lib/errorMessage";
 import { courseColorValue } from "../domain/courseColor";
 import { effortLabel } from "../domain/effortPresets";
 import { formatDueDate } from "../domain/dueDate";
@@ -61,8 +63,9 @@ export default function AssignmentDetailPage({
 }: AssignmentDetailPageProps) {
   const {
     assignment,
-    loading,
+    loading: assignmentLoading,
     loadError,
+    refreshError: assignmentRefreshError,
     actionError: assignmentActionError,
     refetch: refetchAssignment,
     updateAssignment,
@@ -72,6 +75,8 @@ export default function AssignmentDetailPage({
   const { courses } = useCourses(user.id);
   const {
     workItems,
+    loading: workItemsLoading,
+    refreshError: workItemsRefreshError,
     refetch: refetchWorkItems,
     actionError: stepsActionError,
     markAllComplete,
@@ -80,6 +85,15 @@ export default function AssignmentDetailPage({
     deleteItem,
   } = useWorkItems(user.id, assignmentId);
   const { attentionItem, suggestBreakdown } = useAssignmentRisk(user.id, assignment, workItems);
+  // The steps count too: without them, "No steps yet" would flash before
+  // the real steps arrive (instant screens, I2).
+  const loading = assignmentLoading || workItemsLoading;
+  // Showing the last-known copy, but refreshing it failed (I3).
+  const refreshError = assignmentRefreshError ?? workItemsRefreshError;
+  function refreshAgain() {
+    void refetchAssignment();
+    void refetchWorkItems();
+  }
 
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -224,9 +238,11 @@ export default function AssignmentDetailPage({
         ← Back
       </Button>
 
-      {loading && <p className="text-muted-foreground">Loading…</p>}
+      {/* First visit this session: quiet shapes, not "Loading…" (I2, J1). */}
+      {loading && !loadError && <ContentPlaceholder />}
 
       {loadError && <ErrorBanner message="Couldn’t load this assignment." />}
+      {!loadError && refreshError && <ErrorBanner message={REFRESH_FAILED} onRetry={refreshAgain} />}
 
       {assignment && confirmingDelete && (
         <AssignmentDetailDeleteConfirm
@@ -245,7 +261,7 @@ export default function AssignmentDetailPage({
         />
       )}
 
-      {assignment && !editing && !confirmingDelete && (
+      {assignment && !loading && !editing && !confirmingDelete && (
         <>
           <div className="mb-2 flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">

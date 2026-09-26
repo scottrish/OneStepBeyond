@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useAssignmentRisk } from "./useAssignmentRisk";
 
-vi.mock("../services/activityService", () => ({ listActivities: vi.fn() }));
-vi.mock("../services/workSessionService", () => ({ listWorkSessionsForStudent: vi.fn() }));
+vi.mock("../services/activityService", () => ({ peekActivities: () => undefined, listActivities: vi.fn() }));
+vi.mock("../services/workSessionService", () => ({ peekWorkSessionsForDate: () => undefined, peekWorkSessionsForStudent: () => undefined, listWorkSessionsForStudent: vi.fn() }));
 vi.mock("../services/preferencesService", () => ({
+  peekPreferences: () => undefined,
   getPreferences: vi.fn(),
   DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", saturdayHours: 10, sundayHours: 10 },
 }));
