@@ -72,6 +72,7 @@ export default function AssignmentDetailPage({
   const {
     workItems,
     refetch: refetchWorkItems,
+    actionError: stepsActionError,
     markAllComplete,
     addItem,
     editItem,
@@ -126,9 +127,13 @@ export default function AssignmentDetailPage({
   // card's "Yes, mark it complete") goes the same way: complete, then the
   // reflection if it had steps (§9: "Assignment is marked complete and had
   // a Work Breakdown"), then the turned-in reminder, then close.
+  // The steps first: completing them needs a connection, while completing
+  // the assignment can wait offline (PWA phase 2, 2c) — so offline, nothing
+  // is half done.
   async function finishAssignment() {
     const hadWorkItems = workItems.length > 0;
-    const [completed] = await Promise.all([completeAssignment(), markAllComplete()]);
+    if (!(await markAllComplete())) return;
+    const completed = await completeAssignment();
     if (!completed) return;
     setFinishStage(hadWorkItems ? "reflect" : "reminder");
   }
@@ -301,6 +306,11 @@ export default function AssignmentDetailPage({
           )}
 
           {planOnePieceError && <ErrorBanner message={planOnePieceError} className="mb-4" />}
+          {/* Completing: the steps' or the assignment's own message, e.g.
+              "You'll need to be online to do this." offline (PWA phase 2, 2c). */}
+          {(stepsActionError ?? assignmentActionError) && (
+            <ErrorBanner message={(stepsActionError ?? assignmentActionError)!} className="mb-4" />
+          )}
 
           {/* The one place for breakdown choices (docs/decisions/
               20260925-plan-rows-and-one-piece.md): break it down, add one

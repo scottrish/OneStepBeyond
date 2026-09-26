@@ -172,13 +172,19 @@ mobile-first web app that **will** become a PWA, built in two phases
 - **Phase 1 (installable), built:** a web app manifest, app icons, and
   standalone meta tags, delivered with the mobile shell
   (`docs/features/mobile-app-shell-and-touch-ergonomics-v0.1.md` §7).
-- **Phase 2 (offline), in progress:**
+- **Phase 2 (offline), built:**
   `docs/features/pwa-phase-2-offline-v0.1.md`, decided in
-  `docs/decisions/20260925-pwa-phase-2-approach.md`. Increment 2a (the
-  app opens offline; safe updates via `vite-plugin-pwa`) and 2b (the
-  last-known plan offline, stored per student by `src/services/offlineCache.ts`)
-  are built. 2c (offline session actions) follows, through
-  `analyze-feature`. Push
+  `docs/decisions/20260925-pwa-phase-2-approach.md` and
+  `20260926-offline-action-queue.md`:
+  - 2a: the app opens offline, with safe updates via `vite-plugin-pwa`;
+  - 2b: the last-known plan, stored per student by
+    `src/services/offlineCache.ts`;
+  - 2c: mid-session actions queued offline by
+    `src/services/offlineQueue.ts`.
+  
+  A new student read that should work offline goes through
+  `cachedRead`. A new write that should work offline becomes an
+  `OfflineAction` with a guarded, safe-to-repeat sender. Push
   notifications are deferred to their own spec. The service worker is
   off in development; test offline behaviour against a production build
   (`vite preview`). Keep every data access behind `src/services/`, since

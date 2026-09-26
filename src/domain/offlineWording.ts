@@ -33,3 +33,19 @@ const NETWORK_FAILURE =
 export function isNetworkFailureMessage(message: string): boolean {
   return NETWORK_FAILURE.test(message);
 }
+
+// ——— Changes made offline (2c, questions 2–4) ———
+
+export const QUEUED_NOTE = "Changes will be saved when you’re back online.";
+
+export const CONFLICT_NOTE =
+  "Some changes from while you were offline didn’t apply, because the plan changed on another device.";
+
+export function waitingLabel(count: number): string {
+  return count === 1 ? "1 change waiting to be saved" : `${count} changes waiting to be saved`;
+}
+
+// Never "failed" or "error" (question 3): it's still kept, and can be sent again.
+export const STUCK_NOTE = "One change hasn’t gone through yet.";
+
+export const SIGN_OUT_WARNING = "You have changes that haven’t been saved yet. Signing out will lose them.";

@@ -568,6 +568,28 @@ describe("AssignmentDetailPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("offline, completing the steps needs a connection, so the assignment isn't completed on its own (PWA phase 2, 2c)", async () => {
+    mockedCourseService.listCourses.mockResolvedValue([]);
+    mockedAssignmentService.getAssignment.mockResolvedValue(assignment);
+    mockedAssignmentService.completeAssignment.mockResolvedValue(undefined);
+    mockedWorkItemService.listWorkItems.mockResolvedValue([
+      { id: "w1", assignmentId: "assignment-1", title: "Step 1", effortMinutes: 10, completedAt: null, position: 0 },
+    ]);
+    mockedWorkItemService.completeAllForAssignment.mockRejectedValue({ message: "AbortError: You're offline." });
+    const userEventInstance = userEvent.setup();
+
+    render(
+      <AssignmentDetailPage user={user} assignmentId="assignment-1" onBack={vi.fn()} onGoToPlan={vi.fn()} {...planExits} />,
+    );
+    await screen.findByRole("heading", { name: "Chapter 7 problem set" });
+
+    await userEventInstance.click(screen.getByRole("button", { name: /mark assignment complete/i }));
+
+    expect(await screen.findByText("You’ll need to be online to do this.")).toBeInTheDocument();
+    expect(mockedAssignmentService.completeAssignment).not.toHaveBeenCalled();
+    expect(screen.queryByText(/did the way you broke this down work/i)).not.toBeInTheDocument();
+  });
+
   it("completing an assignment that never had steps skips the reflection but still shows the turned-in reminder", async () => {
     mockedCourseService.listCourses.mockResolvedValue([]);
     mockedAssignmentService.getAssignment.mockResolvedValue(assignment);

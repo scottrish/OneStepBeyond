@@ -26,6 +26,12 @@ The Implementation Note and §26 immediately below describe the
 now-superseded, temporary access model; the screens, content, and phased
 roadmap (§23) they describe are unaffected.
 
+**Update (2026-09-26):** students' actions can now reach the server late,
+because work done offline is saved when the connection returns
+(`pwa-phase-2-offline-v0.1.md`, 2c). It arrives with the real times it
+happened. So data that isn't here yet isn't necessarily missing: a
+session done offline appears once it's saved, dated when it was done.
+
 ---
 
 # Implementation Note (this increment)

@@ -6,7 +6,13 @@ vi.mock("../lib/supabase", () => ({
   },
 }));
 
+vi.mock("./offlineQueue", () => ({
+  sendOrQueue: vi.fn().mockResolvedValue(undefined),
+  newId: () => "device-made-id",
+}));
+
 import { supabase } from "../lib/supabase";
+import { sendOrQueue } from "./offlineQueue";
 import {
   completeAssignment,
   createAssignment,
@@ -204,18 +210,13 @@ describe("deleteAssignment", () => {
   });
 });
 
-describe("completeAssignment", () => {
-  it("marks the assignment complete", async () => {
-    mockedFrom.mockReturnValue(mockQuery({ data: null, error: null }));
-
-    await expect(completeAssignment("1")).resolves.toBeUndefined();
-  });
-
-  it("throws when the update errors", async () => {
-    mockedFrom.mockReturnValue(
-      mockQuery({ data: null, error: new Error("boom") }),
-    );
-
-    await expect(completeAssignment("1")).rejects.toThrow("boom");
+describe("completeAssignment (works offline, PWA phase 2 2c)", () => {
+  it("hands over the assignment and the device's time", async () => {
+    await completeAssignment("assignment-1");
+    expect(vi.mocked(sendOrQueue)).toHaveBeenCalledWith({
+      kind: "completeAssignment",
+      assignmentId: "assignment-1",
+      at: expect.stringMatching(/^\d{4}-/),
+    });
   });
 });

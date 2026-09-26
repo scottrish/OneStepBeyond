@@ -4,7 +4,10 @@
 (tag `v-pre-pwa-offline-shell` marks the state before; see
 "Implementation Notes (as built) — 2a"). **Increment 2b built
 2026-09-26** (tag `v-pre-pwa-offline-data`; see "Implementation Notes
-(as built) — 2b"). 2c not yet built. W1–W4 approved as
+(as built) — 2b"). **Increment 2c built 2026-09-26** (tag
+`v-pre-pwa-offline-actions`; see "Implementation Notes (as built) — 2c"
+and `docs/decisions/20260926-offline-action-queue.md`). Phase 2 is
+complete, apart from push notifications (W5, deferred). W1–W4 approved as
 recommended, and W5 (push notifications) deferred
 (`docs/decisions/20260925-pwa-phase-2-approach.md`). This is roadmap
 Phase 7 step 13 ("After parity"), phase 2 of
@@ -176,7 +179,11 @@ installed app from iOS 16.4.
   - Today Execution: **Start**, **Done** (including "Is the whole task
     done?" and "Not yet"), **Need more time**, and the coaching record
     (friction and response);
-  - Assignment Detail: **ticking off a step**.
+  - Assignment Detail: **ticking off a step**. *As built (2c, Q1):*
+    Assignment Detail has no tick control, so this is the step
+    completion inside Today's Done. The whole Done flow works offline
+    (Q2): clearing the other time, "Yes, mark it complete", and both
+    reflections.
 
   These are what a student does mid-session. Everything else (planning,
   reordering, rescheduling, capture, editing and deleting, course
@@ -285,7 +292,10 @@ installed app from iOS 16.4.
   save correctly, with the original times, when the connection returns.
   Sending twice has no extra effect. An action made obsolete on another
   device is dropped, with one calm message. Signing out with unsaved
-  actions warns first. An online-only action explains itself.
+  actions warns first. An online-only action explains itself. Queued
+  actions survive closing the app, and show on every screen until
+  they're saved. An expired sign-in keeps them for the same student; a
+  different student signing in discards them.
 - **Throughout:** nothing implies an action worked when it hasn't been
   saved or queued. No copy says "error", "failed" or "late" for being
   offline.
@@ -437,4 +447,80 @@ installed app from iOS 16.4.
   - In Playwright, `navigator.onLine` reads true after an offline reload,
     so the first reads wait for Supabase's retries (about 7 s) before
     falling back. A real device reporting offline falls back at once.
+
+## Implementation Notes (as built) — 2c, 2026-09-26
+
+- **Decisions:** Q1–Q6 as recommended
+  (`docs/decisions/20260926-offline-action-queue.md`):
+  - Q1: "ticking a step" is Today's Done;
+  - Q2: the whole Done flow;
+  - Q3: one conflict note until OK;
+  - Q4: no Background Sync;
+  - Q5: sent directly when online, queued only when needed;
+  - Q6: Assignment Detail stored.
+- **What works offline:** Start (Today and Home), Need more time, Done
+  and everything after it ("clear the other time", "mark it complete",
+  both reflections), and the coaching record. Each service keeps its
+  signature and returns the device's values at once:
+  - `startWorkSession`, `completeWorkSession`, `reviseWorkSessionEstimate`
+    and the new `clearWorkSession`;
+  - `completeWorkItem` and `completeAssignment`;
+  - `recordReflection`, `recordFriction` and `resolveInteraction`.
+- **Queue** (`src/services/offlineQueue.ts`):
+  - kept per student in IndexedDB, beside the offline plan;
+  - sent in order, one at a time, as the signed-in student;
+  - sent on the `online` event, when the app is brought to the front,
+    on sign-in, and after an action is added while online.
+- **Safe to send twice** (`src/services/offlineSenders.ts`):
+  - updates are guarded to the state they change from;
+  - inserts carry ids made on the device and ignore duplicates;
+  - times are the device's, sent explicitly.
+  
+  No migration.
+- **Showing waiting actions:** every read of the student's own data
+  applies the waiting actions (`src/domain/offlineActions.ts`
+  `applyPending`), so nothing flips back after a reload or a fresh read.
+- **UI:**
+  - the offline line adds "Changes will be saved when you're back
+    online.";
+  - `ConflictNote` in AppShell;
+  - Settings shows "{N} changes waiting to be saved", and, after three
+    real failures, "One change hasn't gone through yet." with Try again
+    and Discard;
+  - the sign-out warning ("Stay signed in" / "Sign out anyway").
+- **Also changed:** Assignment Detail's "Mark assignment complete"
+  completes the steps first (online only), so offline it stops with
+  "You'll need to be online to do this." instead of completing half. The
+  page now shows that error; it didn't show step errors before.
+- **Verified in a real browser** (Chromium, a production build via
+  `vite preview`, 320 px, local Supabase), 20 checks:
+  - offline: Start from Home, then Need more time (to 40 min), then Done,
+    "clear the other time", "mark it complete" and the reflection. No
+    "need to be online" anywhere. 9 actions kept in order. The offline
+    line adds "Changes will be saved…".
+  - reloaded offline: Settings shows "9 changes waiting to be saved";
+    signing out warns first.
+  - back online, the queue empties and the database holds:
+    - the session done, with the start and finish times from while
+      offline;
+    - 40 minutes, with the original 30;
+    - tomorrow's session removed;
+    - the step and the assignment complete;
+    - one reflection and one coaching record, with offline times.
+  - the same queue sent again changes nothing, with no conflict note.
+  - a session deleted on "another device" before its queued Start is
+    sent: one calm note, gone after OK.
+  - Assignment Detail opens offline after one online visit.
+  - "Sign out anyway" leaves nothing on the device, and the discarded
+    Start is never sent.
+- **Not yet:**
+  - Assignment Detail is stored only after it's been opened online once
+    (like every stored read).
+  - Two open copies of the app adding actions at the same moment could
+    overwrite each other's stored queue (rare; any double send is
+    harmless).
+  - The "must refresh" update gate (question 6) isn't built, since no
+    database change has needed it yet.
+  - Check on a real iPhone: sending when the installed app is brought
+    back to the front.
 

@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { newId, sendOrQueue } from "./offlineQueue";
 import type { ExecutionStage, FrictionKind } from "../domain/executionCoaching";
 
 // What a student reported getting in their way, the intervention offered,
@@ -16,13 +17,18 @@ export type NewCoachingInteraction = {
   interventionId: string;
 };
 
+// Works offline (PWA phase 2, 2c): the id is made here, so sending it twice
+// saves it once, and the answer (resolveInteraction) can follow it in the
+// queue.
 export async function recordFriction(
   studentId: string,
   input: NewCoachingInteraction,
 ): Promise<string> {
-  const { data, error } = await supabase
-    .from("coaching_interactions")
-    .insert({
+  const id = newId();
+  await sendOrQueue({
+    kind: "recordFriction",
+    row: {
+      id,
       student_id: studentId,
       assignment_id: input.assignmentId,
       work_item_id: input.workItemId,
@@ -30,12 +36,10 @@ export async function recordFriction(
       stage: input.stage,
       friction_kind: input.frictionKind,
       intervention_id: input.interventionId,
-    })
-    .select("id")
-    .single();
-
-  if (error) throw error;
-  return data.id;
+      created_at: new Date().toISOString(),
+    },
+  });
+  return id;
 }
 
 // How the student answered: an action chosen, the card set aside, or the
@@ -52,8 +56,7 @@ export async function resolveInteraction(
   if (change.actionId !== undefined) patch.action_id = change.actionId;
   if (change.note !== undefined) patch.note = change.note;
 
-  const { error } = await supabase.from("coaching_interactions").update(patch).eq("id", id);
-  if (error) throw error;
+  await sendOrQueue({ kind: "resolveInteraction", interactionId: id, patch });
 }
 
 /** The intervention ids of the student's most recent dismissals, newest first. */

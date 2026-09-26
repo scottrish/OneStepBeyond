@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { cachedRead } from "./offlineCache";
+import { sendOrQueue } from "./offlineQueue";
 
 export type WorkSessionStatus = "planned" | "in_progress" | "done";
 
@@ -146,28 +147,30 @@ export async function deleteWorkSession(id: string): Promise<void> {
 
 // Start: "planned" -> "in_progress", recording when (Today Execution and
 // Home's Next card). Returns the timestamp so the caller can keep it.
+// Works offline (PWA phase 2, 2c): sent now, or queued and sent when the
+// connection returns — with this time, not the time it's sent.
 export async function startWorkSession(id: string): Promise<string> {
   const startedAt = new Date().toISOString();
-  const { error } = await supabase
-    .from("work_sessions")
-    .update({ status: "in_progress", started_at: startedAt })
-    .eq("id", id);
-
-  if (error) throw error;
+  await sendOrQueue({ kind: "startSession", sessionId: id, at: startedAt });
   return startedAt;
 }
 
 // Done: -> "done", recording when, so elapsed time is known without a
 // timer (execution-coaching-v0.1.md). Returns the timestamp.
+// Works offline (PWA phase 2, 2c): sent now, or queued and sent when the
+// connection returns — with this time, not the time it's sent.
 export async function completeWorkSession(id: string): Promise<string> {
   const completedAt = new Date().toISOString();
-  const { error } = await supabase
-    .from("work_sessions")
-    .update({ status: "done", completed_at: completedAt })
-    .eq("id", id);
-
-  if (error) throw error;
+  await sendOrQueue({ kind: "completeSession", sessionId: id, at: completedAt });
   return completedAt;
+}
+
+// Done's "Yes — clear the other time" (execution-coaching-v0.1.md): removes
+// a finished step's other open sessions. Unlike deleteWorkSession (Plan's
+// Remove, online only), this works offline, and never removes a session
+// that's already done.
+export async function clearWorkSession(id: string): Promise<void> {
+  await sendOrQueue({ kind: "clearSession", sessionId: id });
 }
 
 // Today Execution's reschedule ("When would you rather do this?"): moves
@@ -190,17 +193,13 @@ export async function rescheduleWorkSession(
 // new working number and, the first time only, the value it replaces is
 // kept as originalPlannedMinutes (E1). The caller computes both, in this
 // codebase's simple read-then-write style (no Postgres functions yet).
+// Works offline (PWA phase 2, 2c).
 export async function reviseWorkSessionEstimate(
   id: string,
   plannedMinutes: number,
   originalPlannedMinutes: number,
 ): Promise<void> {
-  const { error } = await supabase
-    .from("work_sessions")
-    .update({ planned_minutes: plannedMinutes, original_planned_minutes: originalPlannedMinutes })
-    .eq("id", id);
-
-  if (error) throw error;
+  await sendOrQueue({ kind: "reviseEstimate", sessionId: id, plannedMinutes, originalPlannedMinutes });
 }
 
 export type StartTimeUpdate = {

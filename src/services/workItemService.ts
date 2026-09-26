@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
-import { cachedRead } from "./offlineCache";
+import { cachedRead, ownRead } from "./offlineCache";
+import { sendOrQueue } from "./offlineQueue";
 
 export type WorkItem = {
   id: string;
@@ -62,8 +63,13 @@ async function fetchListWorkItemsForStudent(
   return (data ?? []).map(toWorkItem);
 }
 
-// For Assignment Detail, which only needs one assignment's steps.
+// For Assignment Detail, which only needs one assignment's steps. Kept on
+// the device for offline use (PWA phase 2, 2c — decision Q6).
 export async function listWorkItems(assignmentId: string): Promise<WorkItem[]> {
+  return ownRead(`workItemsFor:${assignmentId}`, () => fetchListWorkItems(assignmentId));
+}
+
+async function fetchListWorkItems(assignmentId: string): Promise<WorkItem[]> {
   const { data, error } = await supabase
     .from("work_items")
     .select(SELECT_COLUMNS)
@@ -149,11 +155,8 @@ export async function completeAllForAssignment(
 // the Work Session's own status the Plan/Today screens track. Without
 // this, a task marked Done in Today Execution shows as complete on Plan
 // but never on Assignment Detail.
+// Works offline (PWA phase 2, 2c): sent now, or queued and sent when the
+// connection returns — with this time, not the time it's sent.
 export async function completeWorkItem(id: string): Promise<void> {
-  const { error } = await supabase
-    .from("work_items")
-    .update({ completed_at: new Date().toISOString() })
-    .eq("id", id);
-
-  if (error) throw error;
+  await sendOrQueue({ kind: "completeStep", workItemId: id, at: new Date().toISOString() });
 }

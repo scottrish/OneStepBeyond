@@ -73,3 +73,8 @@ Phase 2 is built in increments: **2a** (app shell offline + updates),
   only when the server can't be reached, and only for the signed-in
   student. The offline line is shown once, app-wide, in AppShell. See the
   spec's "Implementation Notes (as built) — 2b".
+- *2c as built (2026-09-26):* see `20260926-offline-action-queue.md`.
+  W3's "ticking off a step on Assignment Detail" turned out to be the
+  step completion inside Today's Done (Assignment Detail has no tick
+  control). The whole Done flow works offline, including completing the
+  assignment and both reflections.

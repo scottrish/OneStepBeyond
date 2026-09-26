@@ -3,6 +3,7 @@ import { act, render, screen } from "@testing-library/react";
 import OfflineLine from "./OfflineLine";
 import { memoryStore } from "../services/offlineStore";
 import { cachedRead, resetOfflineCacheForTests, setCacheOwner } from "../services/offlineCache";
+import { loadQueue, resetOfflineQueueForTests, sendOrQueue } from "../services/offlineQueue";
 
 function setOnline(online: boolean) {
   Object.defineProperty(navigator, "onLine", { value: online, configurable: true });
@@ -24,6 +25,7 @@ async function storePlanThenReadOffline() {
 describe("OfflineLine (PWA phase 2, 2b; decision B1)", () => {
   beforeEach(() => {
     resetOfflineCacheForTests(memoryStore());
+    resetOfflineQueueForTests();
   });
 
   afterEach(() => {
@@ -49,5 +51,19 @@ describe("OfflineLine (PWA phase 2, 2b; decision B1)", () => {
     render(<OfflineLine />);
     setOnline(false);
     expect(screen.queryByText(/showing your plan/i)).not.toBeInTheDocument();
+  });
+
+  it("with changes waiting (2c), adds that they'll be saved", async () => {
+    render(<OfflineLine />);
+    await storePlanThenReadOffline();
+    await loadQueue("s1");
+    setOnline(false);
+    await act(async () => {
+      await sendOrQueue({ kind: "startSession", sessionId: "a", at: "t" });
+    });
+
+    expect(
+      screen.getByText(/^You’re offline\. Showing your plan from .+\. Changes will be saved when you’re back online\.$/),
+    ).toBeInTheDocument();
   });
 });

@@ -67,7 +67,7 @@ export function useTodayExecution(studentId: string, date: string) {
       const [completedAt] = await Promise.all([
         workSessionService.completeWorkSession(id),
         closeStep ? workItemService.completeWorkItem(session.workItemId) : Promise.resolve(),
-        ...clearSessionIds.map((otherId) => workSessionService.deleteWorkSession(otherId)),
+        ...clearSessionIds.map((otherId) => workSessionService.clearWorkSession(otherId)),
       ]);
       setSessions((prev) =>
         prev

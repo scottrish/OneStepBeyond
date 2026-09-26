@@ -6,55 +6,19 @@ vi.mock("../lib/supabase", () => ({
   },
 }));
 
+vi.mock("./offlineQueue", () => ({
+  sendOrQueue: vi.fn().mockResolvedValue(undefined),
+  newId: () => "device-made-id",
+}));
+
 import { supabase } from "../lib/supabase";
+import { sendOrQueue } from "./offlineQueue";
 import { listForStudent, recordReflection } from "./reflectionService";
 
 const mockedFrom = supabase.from as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-});
-
-describe("recordReflection", () => {
-  it("inserts a reflection", async () => {
-    const insert = vi.fn(() => Promise.resolve({ error: null }));
-    mockedFrom.mockReturnValue({ insert });
-
-    await recordReflection("student-1", {
-      assignmentId: "a1",
-      trigger: "assignment_completed",
-      structuredResponse: "I missed a step",
-      freeText: null,
-      proposedAdjustment: "Add a step I missed",
-    });
-
-    expect(mockedFrom).toHaveBeenCalledWith("reflections");
-    expect(insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        student_id: "student-1",
-        assignment_id: "a1",
-        trigger: "assignment_completed",
-        structured_response: "I missed a step",
-        free_text: null,
-        proposed_adjustment: "Add a step I missed",
-      }),
-    );
-  });
-
-  it("throws when the insert errors", async () => {
-    const insert = vi.fn(() => Promise.resolve({ error: new Error("boom") }));
-    mockedFrom.mockReturnValue({ insert });
-
-    await expect(
-      recordReflection("student-1", {
-        assignmentId: "a1",
-        trigger: "assignment_completed",
-        structuredResponse: "Not sure",
-        freeText: null,
-        proposedAdjustment: null,
-      }),
-    ).rejects.toThrow("boom");
-  });
 });
 
 describe("listForStudent", () => {
@@ -107,5 +71,30 @@ describe("listForStudent", () => {
     mockedFrom.mockReturnValue(builder);
 
     await expect(listForStudent("student-1")).rejects.toThrow("boom");
+  });
+});
+
+describe("recordReflection (works offline, PWA phase 2 2c)", () => {
+  it("hands over the row with an id made on the device and when the student answered", async () => {
+    await recordReflection("student-1", {
+      assignmentId: "assignment-1",
+      trigger: "work_session_reflection",
+      structuredResponse: "about_right",
+      freeText: null,
+      proposedAdjustment: null,
+    });
+    expect(vi.mocked(sendOrQueue)).toHaveBeenCalledWith({
+      kind: "recordReflection",
+      row: {
+        id: "device-made-id",
+        student_id: "student-1",
+        assignment_id: "assignment-1",
+        trigger: "work_session_reflection",
+        structured_response: "about_right",
+        free_text: null,
+        proposed_adjustment: null,
+        occurred_at: expect.stringMatching(/^\d{4}-/),
+      },
+    });
   });
 });

@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../lib/supabase", () => ({ supabase: { from: vi.fn() } }));
 
+vi.mock("./offlineQueue", () => ({
+  sendOrQueue: vi.fn().mockResolvedValue(undefined),
+  newId: () => "device-made-id",
+}));
+
 import { supabase } from "../lib/supabase";
+import { sendOrQueue } from "./offlineQueue";
 import { listRecentDismissals, recordFriction, resolveInteraction } from "./coachingInteractionService";
 
 type QueryResult = { data: unknown; error: unknown };
@@ -23,71 +29,6 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("recordFriction", () => {
-  it("inserts the report and returns its id", async () => {
-    const builder = mockQuery({ data: { id: "c1" }, error: null });
-    mockedFrom.mockReturnValue(builder);
-
-    const id = await recordFriction("student-1", {
-      assignmentId: "a1",
-      workItemId: "w1",
-      workSessionId: "s1",
-      stage: "in_progress",
-      frictionKind: "distracted",
-      interventionId: "refocus",
-    });
-
-    expect(id).toBe("c1");
-    expect(mockedFrom).toHaveBeenCalledWith("coaching_interactions");
-    expect(builder.insert).toHaveBeenCalledWith({
-      student_id: "student-1",
-      assignment_id: "a1",
-      work_item_id: "w1",
-      work_session_id: "s1",
-      stage: "in_progress",
-      friction_kind: "distracted",
-      intervention_id: "refocus",
-    });
-  });
-
-  it("throws when the insert errors", async () => {
-    mockedFrom.mockReturnValue(mockQuery({ data: null, error: new Error("boom") }));
-    await expect(
-      recordFriction("student-1", {
-        assignmentId: "a1",
-        workItemId: null,
-        workSessionId: null,
-        stage: "before_start",
-        frictionKind: "other",
-        interventionId: "open-choice",
-      }),
-    ).rejects.toThrow("boom");
-  });
-});
-
-describe("resolveInteraction", () => {
-  it("records the response with when, and the action", async () => {
-    const builder = mockQuery({ data: null, error: null });
-    mockedFrom.mockReturnValue(builder);
-
-    await resolveInteraction("c1", { response: "selected", actionId: "five_minutes" });
-
-    expect(builder.update).toHaveBeenCalledWith(
-      expect.objectContaining({ response: "selected", action_id: "five_minutes", resolved_at: expect.any(String) }),
-    );
-    expect(builder.eq).toHaveBeenCalledWith("id", "c1");
-  });
-
-  it("can save just a note", async () => {
-    const builder = mockQuery({ data: null, error: null });
-    mockedFrom.mockReturnValue(builder);
-
-    await resolveInteraction("c1", { note: "Start with the graph" });
-
-    expect(builder.update).toHaveBeenCalledWith({ note: "Start with the graph" });
-  });
-});
-
 describe("listRecentDismissals", () => {
   it("returns the newest dismissed intervention ids", async () => {
     const builder = mockQuery({
@@ -100,5 +41,38 @@ describe("listRecentDismissals", () => {
     expect(builder.eq).toHaveBeenCalledWith("response", "dismissed");
     expect(builder.order).toHaveBeenCalledWith("created_at", { ascending: false });
     expect(builder.limit).toHaveBeenCalledWith(8);
+  });
+});
+
+describe("recording (works offline, PWA phase 2 2c)", () => {
+  it("recordFriction hands over the row with an id made on the device, and returns that id", async () => {
+    const id = await recordFriction("student-1", {
+      assignmentId: "a1",
+      workItemId: "w1",
+      workSessionId: "s1",
+      stage: "in_progress",
+      frictionKind: "too_big",
+      interventionId: "smallest-step",
+    });
+    expect(id).toBe("device-made-id");
+    expect(vi.mocked(sendOrQueue)).toHaveBeenCalledWith({
+      kind: "recordFriction",
+      row: expect.objectContaining({
+        id: "device-made-id",
+        student_id: "student-1",
+        work_session_id: "s1",
+        friction_kind: "too_big",
+        created_at: expect.stringMatching(/^\d{4}-/),
+      }),
+    });
+  });
+
+  it("resolveInteraction hands over the answer, with when it was given", async () => {
+    await resolveInteraction("i1", { response: "selected", actionId: "open-task" });
+    expect(vi.mocked(sendOrQueue)).toHaveBeenCalledWith({
+      kind: "resolveInteraction",
+      interactionId: "i1",
+      patch: { response: "selected", resolved_at: expect.stringMatching(/^\d{4}-/), action_id: "open-task" },
+    });
   });
 });

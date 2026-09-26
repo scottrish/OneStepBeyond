@@ -19,8 +19,14 @@ vi.mock("../services/offlineCache", () => ({
   clearOfflineData: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("../services/offlineQueue", () => ({
+  loadQueue: vi.fn().mockResolvedValue(undefined),
+  discardQueue: vi.fn(),
+}));
+
 import { supabase } from "../lib/supabase";
 import { clearOfflineData, setCacheOwner } from "../services/offlineCache";
+import { discardQueue, loadQueue } from "../services/offlineQueue";
 import { useAuth } from "./useAuth";
 
 const mockedAuth = supabase.auth as unknown as {
@@ -128,12 +134,16 @@ describe("useAuth", () => {
       });
 
       expect(setCacheOwner).toHaveBeenLastCalledWith("student-1");
+      // …and their unsent offline changes are loaded and sent (2c).
+      expect(loadQueue).toHaveBeenLastCalledWith("student-1");
       expect(result.current.user).toEqual(user);
 
       act(() => {
         onAuthStateChange("SIGNED_OUT", null);
       });
       expect(setCacheOwner).toHaveBeenLastCalledWith(null);
+      // An expired sign-in keeps the unsent changes for the same student.
+      expect(discardQueue).not.toHaveBeenCalled();
     });
 
     it("a failed server check leaves the owner alone", async () => {
@@ -154,11 +164,14 @@ describe("useAuth", () => {
       vi.mocked(clearOfflineData).mockImplementation(async () => {
         order.push("clear");
       });
+      vi.mocked(discardQueue).mockImplementation(() => {
+        order.push("discardQueue");
+      });
 
       const { result } = renderHook(() => useAuth());
       await act(() => result.current.signOut());
 
-      expect(order).toEqual(["signOut", "clear"]);
+      expect(order).toEqual(["signOut", "discardQueue", "clear"]);
     });
   });
 });

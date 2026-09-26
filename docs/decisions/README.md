@@ -46,3 +46,4 @@ directory.
 | 27 | [Execution coaching, part one: timing, revised estimates, and completion checks](20260925-execution-timing.md) | 2026-09-25 |
 | 28 | [Light/dark choice: saved on the device, applied before the first paint](20260925-appearance-on-device.md) | 2026-09-25 |
 | 29 | [PWA phase 2: how the app works offline and stays up to date](20260925-pwa-phase-2-approach.md) | 2026-09-25 |
+| 30 | [Offline actions: a queue beside the offline plan, sent directly when online](20260926-offline-action-queue.md) | 2026-09-26 |

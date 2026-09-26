@@ -6,7 +6,13 @@ vi.mock("../lib/supabase", () => ({
   },
 }));
 
+vi.mock("./offlineQueue", () => ({
+  sendOrQueue: vi.fn().mockResolvedValue(undefined),
+  newId: () => "device-made-id",
+}));
+
 import { supabase } from "../lib/supabase";
+import { sendOrQueue } from "./offlineQueue";
 import {
   createWorkSessions,
   deleteWorkSession,
@@ -16,6 +22,7 @@ import {
   rescheduleWorkSession,
   startWorkSession,
   completeWorkSession,
+  clearWorkSession,
   updateWorkSessionStartTimes,
 } from "./workSessionService";
 
@@ -180,40 +187,6 @@ describe("deleteWorkSession", () => {
   });
 });
 
-describe("startWorkSession", () => {
-  it("marks the session in progress and records when", async () => {
-    const builder = mockQuery({ data: null, error: null });
-    mockedFrom.mockReturnValue(builder);
-
-    const startedAt = await startWorkSession("session-1");
-
-    expect(startedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    expect(builder.update).toHaveBeenCalledWith({ status: "in_progress", started_at: startedAt });
-    expect(builder.eq).toHaveBeenCalledWith("id", "session-1");
-  });
-
-  it("throws when the update errors", async () => {
-    mockedFrom.mockReturnValue(mockQuery({ data: null, error: new Error("boom") }));
-    await expect(startWorkSession("session-1")).rejects.toThrow("boom");
-  });
-});
-
-describe("completeWorkSession", () => {
-  it("marks the session done and records when", async () => {
-    const builder = mockQuery({ data: null, error: null });
-    mockedFrom.mockReturnValue(builder);
-
-    const completedAt = await completeWorkSession("session-1");
-
-    expect(builder.update).toHaveBeenCalledWith({ status: "done", completed_at: completedAt });
-  });
-
-  it("throws when the update errors", async () => {
-    mockedFrom.mockReturnValue(mockQuery({ data: null, error: new Error("boom") }));
-    await expect(completeWorkSession("session-1")).rejects.toThrow("boom");
-  });
-});
-
 describe("rescheduleWorkSession", () => {
   it("moves the session to a new day and time and back to planned", async () => {
     const builder = mockQuery({ data: null, error: null });
@@ -227,22 +200,6 @@ describe("rescheduleWorkSession", () => {
       status: "planned",
       started_at: null,
     });
-  });
-});
-
-describe("reviseWorkSessionEstimate", () => {
-  it("writes the new estimate and the original it replaced", async () => {
-    const builder = mockQuery({ data: null, error: null });
-    mockedFrom.mockReturnValue(builder);
-
-    await reviseWorkSessionEstimate("session-1", 40, 30);
-
-    expect(builder.update).toHaveBeenCalledWith({ planned_minutes: 40, original_planned_minutes: 30 });
-  });
-
-  it("throws when the update errors", async () => {
-    mockedFrom.mockReturnValue(mockQuery({ data: null, error: new Error("boom") }));
-    await expect(reviseWorkSessionEstimate("session-1", 40, 30)).rejects.toThrow("boom");
   });
 });
 
@@ -274,5 +231,42 @@ describe("updateWorkSessionStartTimes", () => {
         { id: "s2", startTime: "15:45" },
       ]),
     ).rejects.toThrow("boom");
+  });
+});
+
+// Offline-capable writes (PWA phase 2, 2c): sent now or queued, by
+// offlineQueue; the writes themselves are tested in offlineSenders.test.ts.
+describe("offline-capable writes", () => {
+  const queued = () => vi.mocked(sendOrQueue).mock.calls.at(-1)?.[0];
+
+  it("Start hands over the session and the device's time, and returns it", async () => {
+    const startedAt = await startWorkSession("session-1");
+    expect(startedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(queued()).toEqual({ kind: "startSession", sessionId: "session-1", at: startedAt });
+  });
+
+  it("Done hands over the session and the device's time", async () => {
+    const completedAt = await completeWorkSession("session-1");
+    expect(queued()).toEqual({ kind: "completeSession", sessionId: "session-1", at: completedAt });
+  });
+
+  it("Need more time hands over the new estimate and the original it replaced", async () => {
+    await reviseWorkSessionEstimate("session-1", 40, 30);
+    expect(queued()).toEqual({
+      kind: "reviseEstimate",
+      sessionId: "session-1",
+      plannedMinutes: 40,
+      originalPlannedMinutes: 30,
+    });
+  });
+
+  it("clearing the other time hands over the session", async () => {
+    await clearWorkSession("session-2");
+    expect(queued()).toEqual({ kind: "clearSession", sessionId: "session-2" });
+  });
+
+  it("passes on what the student should see", async () => {
+    vi.mocked(sendOrQueue).mockRejectedValueOnce(new Error("boom"));
+    await expect(startWorkSession("session-1")).rejects.toThrow("boom");
   });
 });

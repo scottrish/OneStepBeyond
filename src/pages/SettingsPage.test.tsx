@@ -2,6 +2,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import SettingsPage from "./SettingsPage";
+
+// Unsaved offline changes (PWA phase 2, 2c), set per test.
+const offlineQueue = vi.hoisted(() => ({
+  state: { pending: 0, stuck: false, conflict: false },
+  retry: vi.fn(),
+  discard: vi.fn(),
+}));
+vi.mock("../hooks/useOfflineQueue", () => ({
+  useOfflineQueue: () => ({
+    ...offlineQueue.state,
+    retry: offlineQueue.retry,
+    discard: offlineQueue.discard,
+    dismissConflict: vi.fn(),
+  }),
+}));
 import { initAppearance, setAppearance } from "../lib/appearanceStore";
 
 function renderSettingsPage(overrides: Record<string, unknown> = {}) {
@@ -164,6 +179,69 @@ describe("SettingsPage", () => {
       query.matches = false;
       listener!();
       expect(document.documentElement.dataset.theme).toBe("dark");
+    });
+  });
+
+  describe("changes made offline (PWA phase 2, 2c)", () => {
+    afterEach(() => {
+      offlineQueue.state = { pending: 0, stuck: false, conflict: false };
+    });
+
+    it("with nothing waiting: no note, and Sign out signs out straight away", async () => {
+      const signOut = vi.fn();
+      renderSettingsPage({ signOut });
+      expect(screen.queryByText(/waiting to be saved/)).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: /sign out/i }));
+      expect(signOut).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows how many changes are waiting", () => {
+      offlineQueue.state = { pending: 3, stuck: false, conflict: false };
+      renderSettingsPage();
+      const note = screen.getByRole("region", { name: "Unsaved changes" });
+      expect(note).toHaveTextContent("3 changes waiting to be saved");
+      expect(note).toHaveTextContent("They’ll be saved when you’re back online.");
+      expect(within(note).queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("a change that hasn't gone through offers Try again and Discard — never 'failed'", async () => {
+      offlineQueue.state = { pending: 1, stuck: true, conflict: false };
+      renderSettingsPage();
+      const note = screen.getByRole("region", { name: "Unsaved changes" });
+      expect(note).toHaveTextContent("1 change waiting to be saved");
+      expect(note).not.toHaveTextContent(/fail|error/i);
+
+      await userEvent.click(within(note).getByRole("button", { name: "Try again" }));
+      expect(offlineQueue.retry).toHaveBeenCalledTimes(1);
+      await userEvent.click(within(note).getByRole("button", { name: "Discard" }));
+      expect(offlineQueue.discard).toHaveBeenCalledTimes(1);
+    });
+
+    it("signing out with changes waiting warns first; Stay signed in keeps them", async () => {
+      offlineQueue.state = { pending: 2, stuck: false, conflict: false };
+      const signOut = vi.fn();
+      renderSettingsPage({ signOut });
+
+      await userEvent.click(screen.getByRole("button", { name: /sign out/i }));
+      const dialog = screen.getByRole("dialog", { name: "Sign out?" });
+      expect(dialog).toHaveTextContent(
+        "You have changes that haven’t been saved yet. Signing out will lose them.",
+      );
+
+      await userEvent.click(within(dialog).getByRole("button", { name: "Stay signed in" }));
+      expect(signOut).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("…and Sign out anyway signs out", async () => {
+      offlineQueue.state = { pending: 2, stuck: false, conflict: false };
+      const signOut = vi.fn();
+      renderSettingsPage({ signOut });
+
+      await userEvent.click(screen.getByRole("button", { name: /sign out/i }));
+      await userEvent.click(screen.getByRole("button", { name: "Sign out anyway" }));
+      expect(signOut).toHaveBeenCalledTimes(1);
     });
   });
 });

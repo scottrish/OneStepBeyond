@@ -29,6 +29,20 @@ let lastFreshAt: string | null = null;
 let generation = 0;
 const listeners = new Set<() => void>();
 
+// Actions made offline (2c) are shown on every read: the offline queue
+// registers how. `mark` is taken before a read starts, so an action sent
+// while the read was on its way is still shown even if the server's
+// reply was assembled just before it arrived.
+type ReadOverlay = {
+  mark: () => number;
+  apply: (key: string, data: unknown, since: number) => unknown;
+};
+let readOverlay: ReadOverlay = { mark: () => 0, apply: (_key, data) => data };
+
+export function setReadOverlay(next: ReadOverlay): void {
+  readOverlay = next;
+}
+
 function notify() {
   listeners.forEach((listener) => listener());
 }
@@ -56,6 +70,12 @@ export function setCacheOwner(userId: string | null): void {
     try {
       const previous = await store.get(OWNER_KEY);
       if (previous !== userId) {
+        // Changes the previous student made offline and never sent are
+        // lost with the rest — noted, for debugging (question 2).
+        const unsent = typeof previous === "string" ? await store.get(`${previous}:queue`) : undefined;
+        if (Array.isArray(unsent) && unsent.length > 0) {
+          console.info(`Offline: discarded ${unsent.length} unsent change(s) from a previous account.`);
+        }
         // Saves for the new student wait for this (ownerChecked), and any
         // still in flight for the previous one fail the owner check.
         await store.clear();
@@ -81,6 +101,25 @@ export async function clearOfflineData(): Promise<void> {
   }
 }
 
+/** Who's signed in, as far as offline data is concerned. */
+export function currentOwner(): string | null {
+  return owner;
+}
+
+/** Something the signed-in student keeps on the device (the offline queue). */
+export async function loadOwned(studentId: string, key: string): Promise<unknown> {
+  await ownerChecked;
+  if (owner !== studentId) return undefined;
+  return store.get(`${studentId}:${key}`).catch(() => undefined);
+}
+
+export async function saveOwned(studentId: string, key: string, value: unknown): Promise<void> {
+  const startedIn = generation;
+  await ownerChecked;
+  if (generation !== startedIn || owner !== studentId) return;
+  await store.put(`${studentId}:${key}`, value).catch(() => {});
+}
+
 // Only a network failure (the server wasn't reached) falls back to the
 // stored copy — a server error while online still shows as an error.
 function serverUnreachable(): boolean {
@@ -90,6 +129,8 @@ function serverUnreachable(): boolean {
 export async function cachedRead<T>(studentId: string, key: string, fetcher: () => Promise<T>): Promise<T> {
   const fullKey = `${studentId}:${key}`;
   const mine = owner !== null && studentId === owner;
+  const since = readOverlay.mark();
+  const shown = (data: T): T => (mine ? (readOverlay.apply(key, data, since) as T) : data);
   try {
     const data = await fetcher();
     lastFreshAt = new Date().toISOString();
@@ -101,7 +142,7 @@ export async function cachedRead<T>(studentId: string, key: string, fetcher: () 
         .then(() => (generation === startedIn && owner === studentId ? store.put(fullKey, entry) : undefined))
         .catch(() => {});
     }
-    return data;
+    return shown(data);
   } catch (error) {
     if (mine && serverUnreachable()) {
       await ownerChecked;
@@ -109,11 +150,19 @@ export async function cachedRead<T>(studentId: string, key: string, fetcher: () 
       if (entry && Date.now() - Date.parse(entry.savedAt) <= MAX_AGE_MS) {
         fromStorage.set(fullKey, entry.savedAt);
         notify();
-        return entry.data as T;
+        return shown(entry.data as T);
       }
     }
     throw error;
   }
+}
+
+/**
+ * A read with no student id of its own (Assignment Detail's), kept for
+ * the signed-in student. Only student screens make these reads.
+ */
+export function ownRead<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  return owner ? cachedRead(owner, key, fetcher) : fetcher();
 }
 
 /**

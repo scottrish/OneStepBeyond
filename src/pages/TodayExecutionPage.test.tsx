@@ -22,6 +22,7 @@ vi.mock("../services/workSessionService", () => ({
   reviseWorkSessionEstimate: vi.fn(),
   rescheduleWorkSession: vi.fn(),
   deleteWorkSession: vi.fn(),
+  clearWorkSession: vi.fn(),
 }));
 vi.mock("../services/coachingInteractionService", () => ({
   recordFriction: vi.fn(),
@@ -71,6 +72,7 @@ const mockedWorkSessionService = workSessionService as unknown as {
   reviseWorkSessionEstimate: ReturnType<typeof vi.fn>;
   rescheduleWorkSession: ReturnType<typeof vi.fn>;
   deleteWorkSession: ReturnType<typeof vi.fn>;
+  clearWorkSession: ReturnType<typeof vi.fn>;
 };
 const mockedCoaching = coachingInteractionService as unknown as {
   recordFriction: ReturnType<typeof vi.fn>;
@@ -541,7 +543,7 @@ describe("TodayExecutionPage", () => {
     it("with the step's time on other days, asks 'Is the whole task done?'; Yes clears that time and completes the step", async () => {
       mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session({ status: "in_progress" })]);
       mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([tomorrowSession]);
-      mockedWorkSessionService.deleteWorkSession.mockResolvedValue(undefined);
+      mockedWorkSessionService.clearWorkSession.mockResolvedValue(undefined);
       const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
       render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
@@ -557,7 +559,7 @@ describe("TodayExecutionPage", () => {
 
       await waitFor(() => expect(mockedWorkSessionService.completeWorkSession).toHaveBeenCalledWith("s1"));
       expect(mockedWorkItemService.completeWorkItem).toHaveBeenCalledWith("w1");
-      expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("s9");
+      expect(mockedWorkSessionService.clearWorkSession).toHaveBeenCalledWith("s9");
       expect(await screen.findByText(/did this take longer than you expected/i)).toBeInTheDocument();
     });
 
@@ -572,7 +574,7 @@ describe("TodayExecutionPage", () => {
 
       await waitFor(() => expect(mockedWorkSessionService.completeWorkSession).toHaveBeenCalledWith("s1"));
       expect(mockedWorkItemService.completeWorkItem).not.toHaveBeenCalled();
-      expect(mockedWorkSessionService.deleteWorkSession).not.toHaveBeenCalled();
+      expect(mockedWorkSessionService.clearWorkSession).not.toHaveBeenCalled();
       expect(await screen.findByText(/did this take longer than you expected/i)).toBeInTheDocument();
     });
 

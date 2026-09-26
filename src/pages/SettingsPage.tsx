@@ -3,7 +3,9 @@ import { BookOpen, CalendarClock, ChevronRight, Clock, LogOut, SunMoon, Users } 
 import { Button } from "@/components/ui/button";
 import ResponsiveSheet from "@/components/ResponsiveSheet";
 import { APPEARANCE_CHOICES, appearanceLabel } from "../domain/appearance";
+import { SIGN_OUT_WARNING, STUCK_NOTE, waitingLabel } from "../domain/offlineWording";
 import { useAppearance } from "../hooks/useAppearance";
+import { useOfflineQueue } from "../hooks/useOfflineQueue";
 
 type SettingsPageProps = {
   onBack: () => void;
@@ -31,6 +33,15 @@ export default function SettingsPage({
 }: SettingsPageProps) {
   const [appearance, setAppearance] = useAppearance();
   const [choosingAppearance, setChoosingAppearance] = useState(false);
+  // Changes made offline and not yet saved (PWA phase 2, 2c, question 3):
+  // never invisible. Signing out would lose them, so it asks first (question 2).
+  const offlineQueue = useOfflineQueue();
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+
+  function handleSignOut() {
+    if (offlineQueue.pending > 0) setConfirmingSignOut(true);
+    else void signOut();
+  }
 
   // Descriptions deliberately avoid each other's titles, so every row's
   // accessible name ("{title} {description}") matches only its own title.
@@ -77,6 +88,30 @@ export default function SettingsPage({
           title, one-line description, and trailing chevron. The text
           column truncates safely (minmax(0,1fr)) so a long description
           never pushes the chevron off-screen. */}
+      {offlineQueue.pending > 0 && (
+        <section
+          aria-label="Unsaved changes"
+          className="mb-4 rounded-2xl border border-border bg-card p-4 text-sm text-card-foreground"
+        >
+          <p className="font-medium">{waitingLabel(offlineQueue.pending)}</p>
+          {offlineQueue.stuck ? (
+            <>
+              <p className="mt-1 text-muted-foreground">{STUCK_NOTE}</p>
+              <div className="mt-3 flex gap-2">
+                <Button className="min-h-11 flex-1" onClick={offlineQueue.retry}>
+                  Try again
+                </Button>
+                <Button variant="outline" className="min-h-11 flex-1" onClick={offlineQueue.discard}>
+                  Discard
+                </Button>
+              </div>
+            </>
+          ) : (
+            <p className="mt-1 text-muted-foreground">They’ll be saved when you’re back online.</p>
+          )}
+        </section>
+      )}
+
       <ul className="flex flex-col gap-3">
         {destinations.map(({ label, description, icon: Icon, onSelect }) => (
           <li key={label}>
@@ -125,12 +160,35 @@ export default function SettingsPage({
 
       <Button
         variant="ghost"
-        onClick={signOut}
+        onClick={handleSignOut}
         className="mt-6 w-full justify-start gap-3 px-4 font-normal"
       >
         <LogOut className="size-5 text-muted-foreground" />
         Sign out
       </Button>
+
+      <ResponsiveSheet
+        open={confirmingSignOut}
+        onOpenChange={setConfirmingSignOut}
+        title="Sign out?"
+        description={SIGN_OUT_WARNING}
+      >
+        <div className="flex flex-col gap-2">
+          <Button className="min-h-11" onClick={() => setConfirmingSignOut(false)}>
+            Stay signed in
+          </Button>
+          <Button
+            variant="outline"
+            className="min-h-11"
+            onClick={() => {
+              setConfirmingSignOut(false);
+              void signOut();
+            }}
+          >
+            Sign out anyway
+          </Button>
+        </div>
+      </ResponsiveSheet>
     </div>
   );
 }

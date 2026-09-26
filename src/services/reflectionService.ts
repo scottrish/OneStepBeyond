@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { newId, sendOrQueue } from "./offlineQueue";
 
 // docs/features/manual-work-breakdown-reflection-v0.1.md §10-12 — the
 // student's own account of whether their Work Breakdown worked, stored
@@ -49,20 +50,25 @@ function toReflection(row: {
   };
 }
 
+// Works offline (PWA phase 2, 2c): the id is made here, so sending it twice
+// saves it once, and occurred_at is when the student answered.
 export async function recordReflection(
   studentId: string,
   input: NewReflection,
 ): Promise<void> {
-  const { error } = await supabase.from("reflections").insert({
-    student_id: studentId,
-    assignment_id: input.assignmentId,
-    trigger: input.trigger,
-    structured_response: input.structuredResponse,
-    free_text: input.freeText,
-    proposed_adjustment: input.proposedAdjustment,
+  await sendOrQueue({
+    kind: "recordReflection",
+    row: {
+      id: newId(),
+      student_id: studentId,
+      assignment_id: input.assignmentId,
+      trigger: input.trigger,
+      structured_response: input.structuredResponse,
+      free_text: input.freeText,
+      proposed_adjustment: input.proposedAdjustment,
+      occurred_at: new Date().toISOString(),
+    },
   });
-
-  if (error) throw error;
 }
 
 // docs/features/coach-parent-dashboard-feature-spec-v0.1.md — read-only

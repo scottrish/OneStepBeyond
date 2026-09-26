@@ -7,7 +7,7 @@ vi.mock("../services/workSessionService", () => ({
   completeWorkSession: vi.fn(),
   reviseWorkSessionEstimate: vi.fn(),
   rescheduleWorkSession: vi.fn(),
-  deleteWorkSession: vi.fn(),
+  clearWorkSession: vi.fn(),
 }));
 vi.mock("../services/workItemService", () => ({
   completeWorkItem: vi.fn(),
@@ -23,7 +23,7 @@ const mockedWorkSessionService = workSessionService as unknown as {
   completeWorkSession: ReturnType<typeof vi.fn>;
   reviseWorkSessionEstimate: ReturnType<typeof vi.fn>;
   rescheduleWorkSession: ReturnType<typeof vi.fn>;
-  deleteWorkSession: ReturnType<typeof vi.fn>;
+  clearWorkSession: ReturnType<typeof vi.fn>;
 };
 const mockedWorkItemService = workItemService as unknown as {
   completeWorkItem: ReturnType<typeof vi.fn>;
@@ -159,7 +159,7 @@ describe("useTodayExecution", () => {
     mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([{ ...session, status: "in_progress" }]);
     mockedWorkSessionService.completeWorkSession.mockResolvedValue("2026-03-16T16:40:00.000Z");
     mockedWorkItemService.completeWorkItem.mockResolvedValue(undefined);
-    mockedWorkSessionService.deleteWorkSession.mockResolvedValue(undefined);
+    mockedWorkSessionService.clearWorkSession.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useTodayExecution("student-1", "2026-03-16"));
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -167,8 +167,8 @@ describe("useTodayExecution", () => {
     await act(() => result.current.complete("s1", { clearSessionIds: ["s2", "s3"] }));
 
     expect(mockedWorkItemService.completeWorkItem).toHaveBeenCalledWith("w1");
-    expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("s2");
-    expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("s3");
+    expect(mockedWorkSessionService.clearWorkSession).toHaveBeenCalledWith("s2");
+    expect(mockedWorkSessionService.clearWorkSession).toHaveBeenCalledWith("s3");
   });
 
   it("reschedule to another day moves the session and drops it from today's list", async () => {

@@ -394,7 +394,7 @@ All items are from [daily-planning-and-completion-v2-proposal.md](features/daily
 
 | # | Step | Spec |
 |---|---|---|
-| 13 | PWA phase 2: service worker, offline, background sync, push | **Spec approved 2026-09-25:** [pwa-phase-2-offline-v0.1.md](features/pwa-phase-2-offline-v0.1.md) (`docs/decisions/20260925-pwa-phase-2-approach.md`). Three increments, each its own analyze → implement cycle: ✅ **2a** app shell offline + updates (done 2026-09-25), ✅ **2b** last-known plan (done 2026-09-26), **2c** offline session actions (next). Push notifications deferred (backlog) |
+| 13 | PWA phase 2: service worker, offline, background sync, push | **Spec approved 2026-09-25:** [pwa-phase-2-offline-v0.1.md](features/pwa-phase-2-offline-v0.1.md) (`docs/decisions/20260925-pwa-phase-2-approach.md`). Three increments, each its own analyze → implement cycle: ✅ **Done 2026-09-26.** ✅ **2a** app shell offline + updates (2026-09-25), ✅ **2b** last-known plan (2026-09-26), ✅ **2c** offline session actions (2026-09-26, `docs/decisions/20260926-offline-action-queue.md`). Push notifications deferred (backlog) |
 
 **Critical path:** step 1 → steps 4–6 → step 9 → step 10 → step 12.
 Steps 3 and 11 are off the critical path and can happen while a decision
