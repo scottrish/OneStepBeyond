@@ -304,6 +304,70 @@ try {
     "the account's page shows its record, with who did it",
     detailAfter.data?.actions?.[0]?.also_disabled === true && detailAfter.data?.actions?.[0]?.admin_email === admin.email,
   );
+
+  // ——— The admin log (admin-action-log-v0.1.md) ———
+  // An action on an account that's since been deleted still shows.
+  const gone = await makeUser("gone");
+  await adminDb.rpc("admin_set_disabled", { p_user: gone.id, p_disabled: true });
+  await service.auth.admin.deleteUser(gone.id);
+
+  const mine = { p_admin_id: admin.id, p_limit: 200 };
+  const expected = Number(psql(`select count(*) from public.admin_actions where admin_id = '${admin.id}'`));
+  const logAll = await adminDb.rpc("admin_list_actions", mine);
+  const times = (logAll.data ?? []).map((row) => row.created_at);
+  check(
+    "the log lists every action by this admin, newest first, with the total",
+    !logAll.error && logAll.data.length === expected && logAll.data[0].total_count === expected &&
+      times.every((t, i) => i === 0 || times[i - 1] >= t),
+    logAll.error?.message ?? `${logAll.data?.length} of ${expected}`,
+  );
+  const nonAdminLog = await plainDb.rpc("admin_list_actions", {});
+  const nonAdminAdmins = await plainDb.rpc("admin_list_log_admins");
+  check("a non-admin can't read the log", nonAdminLog.error?.code === "42501" && nonAdminAdmins.error?.code === "42501");
+
+  const goneEntry = logAll.data?.find((row) => row.target_user_id === gone.id);
+  check("an action on a deleted account still shows, with no email", !!goneEntry && goneEntry.target_email === null);
+  check(
+    "entries carry the admin's and the account's emails",
+    logAll.data?.every((row) => row.admin_email === admin.email) &&
+      logAll.data?.some((row) => row.target_email === student.email),
+  );
+
+  const disables = await adminDb.rpc("admin_list_actions", { ...mine, p_action: "disable" });
+  check(
+    "filter by action",
+    disables.data?.length > 0 && disables.data.every((row) => row.action === "disable"),
+    `${disables.data?.length}`,
+  );
+  const plainOnly = await adminDb.rpc("admin_list_actions", { ...mine, p_account_search: plain.email });
+  check(
+    "filter by account email",
+    plainOnly.data?.map((row) => row.action).sort().join(",") === "disable,enable",
+    plainOnly.data?.map((row) => row.action).join(","),
+  );
+  const combined = await adminDb.rpc("admin_list_actions", { ...mine, p_action: "enable", p_account_search: plain.email });
+  check("filters combine", combined.data?.length === 1 && combined.data[0].action === "enable");
+  const future = await adminDb.rpc("admin_list_actions", { ...mine, p_from: new Date(Date.now() + 3600_000).toISOString() });
+  const past = await adminDb.rpc("admin_list_actions", { ...mine, p_to: new Date(stamp - 3600_000).toISOString() });
+  const window = await adminDb.rpc("admin_list_actions", {
+    ...mine,
+    p_from: new Date(stamp - 60_000).toISOString(),
+    p_to: new Date(Date.now() + 60_000).toISOString(),
+  });
+  check(
+    "filter by date range (from inclusive, to exclusive)",
+    future.data?.length === 0 && past.data?.length === 0 && window.data?.length === expected,
+  );
+  const page1 = await adminDb.rpc("admin_list_actions", { ...mine, p_limit: 3, p_offset: 0 });
+  const page2 = await adminDb.rpc("admin_list_actions", { ...mine, p_limit: 3, p_offset: 3 });
+  const ids1 = new Set((page1.data ?? []).map((row) => row.id));
+  check(
+    "pages don't overlap, and each carries the total",
+    page1.data?.length === 3 && page2.data?.length === 3 && page2.data.every((row) => !ids1.has(row.id)) &&
+      page2.data[0].total_count === expected,
+  );
+  const admins = await adminDb.rpc("admin_list_log_admins");
+  check("the Admin filter lists admins who appear in the log", admins.data?.some((row) => row.admin_id === admin.id && row.admin_email === admin.email));
 } finally {
   for (const id of created) await service.auth.admin.deleteUser(id);
   psql(`delete from public.admin_actions where admin_id::text in (${created.map((id) => `'${id}'`).join(",") || "''"})`);

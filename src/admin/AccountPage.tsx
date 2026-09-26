@@ -2,15 +2,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import ResponsiveSheet from "@/components/ResponsiveSheet";
 import ErrorBanner from "../components/ErrorBanner";
-import { formatAdminDate, roleLabels } from "../domain/adminAccounts";
-import {
-  ALL_CATEGORIES,
-  CLEAR_CATEGORIES,
-  isAllCategories,
-  removalLines,
-  type ClearCategory,
-} from "../domain/adminClearing";
-import type { AdminActionRecord, SupportLink } from "../services/adminService";
+import { describeAdminAction, formatAdminDate, roleLabels } from "../domain/adminAccounts";
+import { ALL_CATEGORIES, CLEAR_CATEGORIES, isAllCategories, removalLines, type ClearCategory } from "../domain/adminClearing";
+import type { SupportLink } from "../services/adminService";
 import ClearDataSheet from "./ClearDataSheet";
 import StatusBadge from "./StatusBadge";
 import { useAdminAccount } from "./useAdminAccount";
@@ -22,16 +16,18 @@ import { useAdminAccount } from "./useAdminAccount";
 
 const ROLE_LABEL: Record<SupportLink["role"], string> = { coach: "Coach", parent_guardian: "Parent" };
 
-function describeAction(action: AdminActionRecord): string {
-  if (action.action === "disable") return "Turned off";
-  if (action.action === "enable") return "Turned back on";
-  const labels = action.categories.length === ALL_CATEGORIES.length && isAllCategories(action.categories)
-    ? "all data"
-    : CLEAR_CATEGORIES.filter((c) => action.categories.includes(c.id)).map((c) => c.label.toLowerCase()).join(", ");
-  return `Cleared ${labels}${action.alsoDisabled ? ", and turned off" : ""}`;
-}
-
-export default function AccountPage({ userId, meId, onBack }: { userId: string; meId: string; onBack: () => void }) {
+export default function AccountPage({
+  userId,
+  meId,
+  onBack,
+  // Where Back goes: the account list, or the admin log (G3).
+  backLabel = "← All accounts",
+}: {
+  userId: string;
+  meId: string;
+  onBack: () => void;
+  backLabel?: string;
+}) {
   const { detail, loading, loadError, retry, actionError, setDisabled, clear } = useAdminAccount(userId);
   const [confirmingStatus, setConfirmingStatus] = useState(false);
   const [chosen, setChosen] = useState<ClearCategory[]>([]);
@@ -44,7 +40,7 @@ export default function AccountPage({ userId, meId, onBack }: { userId: string; 
     return (
       <div>
         <Button variant="ghost" onClick={onBack} className="mb-3 -ml-3 px-3">
-          ← All accounts
+          {backLabel}
         </Button>
         <ErrorBanner message="Couldn’t load this account." onRetry={retry} />
       </div>
@@ -90,7 +86,7 @@ export default function AccountPage({ userId, meId, onBack }: { userId: string; 
   return (
     <div className="max-w-3xl">
       <Button variant="ghost" onClick={onBack} className="mb-3 -ml-3 px-3">
-        ← All accounts
+        {backLabel}
       </Button>
 
       <h1 className="mb-2 break-all text-[clamp(1.4rem,5vw,1.9rem)] leading-tight">{account.email}</h1>
@@ -227,7 +223,7 @@ export default function AccountPage({ userId, meId, onBack }: { userId: string; 
               const lines = removalLines(action.counts);
               return (
                 <li key={action.id} className="rounded-lg border border-border bg-card p-3">
-                  <p className="font-medium">{describeAction(action)}</p>
+                  <p className="font-medium">{describeAdminAction(action)}</p>
                   {lines.length > 0 && <p className="text-muted-foreground">{lines.join(", ")}</p>}
                   <p className="text-xs text-muted-foreground">
                     {new Date(action.createdAt).toLocaleString("en-US", {

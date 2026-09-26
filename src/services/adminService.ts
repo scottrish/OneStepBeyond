@@ -180,3 +180,72 @@ export async function clearAccount(
   if (error) throw error;
   return data as { removed: Record<string, number>; disabled: boolean };
 }
+
+// ——— The admin log (admin-action-log-v0.1.md) ———
+
+export type AdminLogEntry = AdminActionRecord & {
+  adminId: string;
+  targetUserId: string;
+  // Null once the account has been deleted: entries outlive accounts.
+  targetEmail: string | null;
+};
+
+export type AdminLogQuery = {
+  action: AdminActionRecord["action"] | null;
+  adminId: string | null;
+  accountSearch: string;
+  // The viewer's own days, "YYYY-MM-DD", or "" for open-ended.
+  fromDay: string;
+  toDay: string;
+  page: number;
+};
+
+export const LOG_ENTRIES_PER_PAGE = 50;
+
+type LogRow = ActionRow & { admin_id: string; target_user_id: string; target_email: string | null; total_count: number };
+
+/** A page of every admin action, newest first. `from`/`to` are ISO bounds (see dateRangeBounds). */
+export async function listActions(
+  query: AdminLogQuery,
+  bounds: { from: string | null; to: string | null },
+): Promise<{ entries: AdminLogEntry[]; total: number }> {
+  const { data, error } = await supabase.rpc("admin_list_actions", {
+    p_action: query.action,
+    p_admin_id: query.adminId,
+    p_account_search: query.accountSearch.trim() === "" ? null : query.accountSearch.trim(),
+    p_from: bounds.from,
+    p_to: bounds.to,
+    p_limit: LOG_ENTRIES_PER_PAGE,
+    p_offset: query.page * LOG_ENTRIES_PER_PAGE,
+  });
+
+  if (error) throw error;
+
+  const rows = (data ?? []) as LogRow[];
+  return {
+    entries: rows.map((row) => ({
+      id: row.id,
+      action: row.action,
+      categories: row.categories,
+      alsoDisabled: row.also_disabled,
+      counts: row.counts,
+      createdAt: row.created_at,
+      adminEmail: row.admin_email,
+      adminId: row.admin_id,
+      targetUserId: row.target_user_id,
+      targetEmail: row.target_email,
+    })),
+    total: rows.length > 0 ? Number(rows[0]!.total_count) : 0,
+  };
+}
+
+/** The admins who appear in the log (email null if their account is gone), for the Admin filter. */
+export async function listLogAdmins(): Promise<{ id: string; email: string | null }[]> {
+  const { data, error } = await supabase.rpc("admin_list_log_admins");
+
+  if (error) throw error;
+  return ((data ?? []) as { admin_id: string; admin_email: string | null }[]).map((row) => ({
+    id: row.admin_id,
+    email: row.admin_email,
+  }));
+}

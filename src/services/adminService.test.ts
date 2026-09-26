@@ -8,6 +8,9 @@ import {
   clearAccount,
   getAccount,
   listAccounts,
+  listActions,
+  listLogAdmins,
+  LOG_ENTRIES_PER_PAGE,
   previewClear,
   setAccountDisabled,
 } from "./adminService";
@@ -112,5 +115,49 @@ describe("adminService (admin-account-management-v0.1.md)", () => {
   it("passes on the database's refusal", async () => {
     rpc.mockResolvedValue({ data: null, error: { message: "This is for administrators only.", code: "42501" } });
     await expect(setAccountDisabled("u1", true)).rejects.toMatchObject({ code: "42501" });
+  });
+
+  it("the admin log: filters, bounds and paging go to the database; rows come back shaped", async () => {
+    rpc.mockResolvedValue({
+      data: [
+        {
+          id: "a1",
+          created_at: "2026-09-26T15:00:00Z",
+          action: "disable",
+          categories: [],
+          also_disabled: false,
+          counts: {},
+          admin_id: "admin-1",
+          admin_email: "admin@example.com",
+          target_user_id: "u9",
+          target_email: null,
+          total_count: 61,
+        },
+      ],
+      error: null,
+    });
+
+    const result = await listActions(
+      { action: "disable", adminId: "admin-1", accountSearch: " kid ", fromDay: "2026-09-01", toDay: "", page: 1 },
+      { from: "2026-09-01T04:00:00.000Z", to: null },
+    );
+
+    expect(rpc).toHaveBeenCalledWith("admin_list_actions", {
+      p_action: "disable",
+      p_admin_id: "admin-1",
+      p_account_search: "kid",
+      p_from: "2026-09-01T04:00:00.000Z",
+      p_to: null,
+      p_limit: LOG_ENTRIES_PER_PAGE,
+      p_offset: LOG_ENTRIES_PER_PAGE,
+    });
+    expect(result.total).toBe(61);
+    expect(result.entries[0]).toMatchObject({ targetUserId: "u9", targetEmail: null, adminEmail: "admin@example.com" });
+  });
+
+  it("the admins in the log", async () => {
+    rpc.mockResolvedValue({ data: [{ admin_id: "admin-1", admin_email: null }], error: null });
+    expect(await listLogAdmins()).toEqual([{ id: "admin-1", email: null }]);
+    expect(rpc).toHaveBeenCalledWith("admin_list_log_admins");
   });
 });

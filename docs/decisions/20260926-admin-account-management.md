@@ -70,3 +70,10 @@ account's rows. The product owner settled A1–A7 and Q1–Q5 on 2026-09-26.
   someone else signs in there (Q1). That's by design in PWA 2c.
 - **The Diagnostic dashboard could later list students from
   `admin_list_accounts`** instead of `listKnownStudentIds`.
+
+*Update 2026-09-26, the admin log* (`admin-action-log-v0.1.md`): the
+whole record is now readable in the app, still only through
+superuser-checked functions (`admin_list_actions`,
+`admin_list_log_admins`, migration `20260926130000_admin_action_log.sql`).
+`admin_actions` itself stays closed to direct reads.
+

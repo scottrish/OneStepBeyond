@@ -578,6 +578,11 @@ built — schedule it as one piece of work, not two.
   category or all of it (optionally turning it off in the same step),
   with a record of every action. Database checks:
   `node scripts/check-admin-functions.mjs`.
+- ✅ **Done 2026-09-26.** **Admin log** (added 2026-09-26). **Spec:**
+  [admin-action-log-v0.1.md](features/admin-action-log-v0.1.md), with
+  L1–L5 approved. It's an "Admin log" view on `/admin` listing every
+  admin action across all accounts, filterable, and linked to each
+  account's page. It builds on the admin page, done above.
 - **Offline fast fallback** (added 2026-09-26; low priority, an
   optimization). **Spec:**
   [offline-fast-fallback-v0.1.md](features/offline-fast-fallback-v0.1.md).
