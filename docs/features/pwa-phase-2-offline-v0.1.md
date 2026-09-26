@@ -2,7 +2,9 @@
 
 **Status:** Approved 2026-09-25. **Increment 2a built 2026-09-25**
 (tag `v-pre-pwa-offline-shell` marks the state before; see
-"Implementation Notes (as built) — 2a"); 2b and 2c not yet built. W1–W4 approved as
+"Implementation Notes (as built) — 2a"). **Increment 2b built
+2026-09-26** (tag `v-pre-pwa-offline-data`; see "Implementation Notes
+(as built) — 2b"). 2c not yet built. W1–W4 approved as
 recommended, and W5 (push notifications) deferred
 (`docs/decisions/20260925-pwa-phase-2-approach.md`). This is roadmap
 Phase 7 step 13 ("After parity"), phase 2 of
@@ -117,9 +119,12 @@ installed app from iOS 16.4.
   once a new one takes over.
 - **Student data (2b)**, kept by the services layer in IndexedDB (W2A)
   for the signed-in student only:
-  - today's and the next 6 days' work sessions (Today, Home, Look Ahead,
-    Plan's day view);
-  - open assignments and their steps; courses; activities; study hours.
+  - the student's work sessions (each day read, plus the full list
+    Home and Look Ahead use);
+  - assignments and their steps; courses; activities; study hours.
+  - *As built (2b):* these are the seven list reads the student screens
+    already make, stored whole, rather than a "today plus 6 days" slice.
+    The screens then read exactly what they read online.
 
   This is exactly what the offline screens read. It's refreshed on every
   successful load, so it's always the latest copy the device saw.
@@ -271,7 +276,10 @@ installed app from iOS 16.4.
 - **2b:** after one online visit, turning the connection off and
   reopening shows Today, Home and Plan's day view from the stored copy,
   with "You're offline. Showing your plan from {time}." Signing out
-  clears the copy. A copy older than 7 days isn't shown.
+  clears the copy. A copy older than 7 days isn't shown. Another
+  student's data is never stored, even when the supporter dashboard reads
+  it on this device. Offline, an action that needs the server says
+  "You'll need to be online to do this."
 - **2c:** offline, starting, extending (Need more time) and finishing a
   session, and ticking a step, all update the screen straight away and
   save correctly, with the original times, when the connection returns.
@@ -374,3 +382,59 @@ installed app from iOS 16.4.
   requests fail, and uses its own messages. It doesn't store data
   offline (by design). Check on a real iPhone that an installed app takes
   up a new version on the next launch.
+
+## Implementation Notes (as built) — 2b, 2026-09-26
+
+- **Decisions:** B1, the offline line is shown once, app-wide, at the
+  top of every student screen (`src/components/OfflineLine.tsx` in
+  AppShell), not repeated per screen. B2, a small hand-written IndexedDB
+  wrapper (`src/services/offlineStore.ts`, database `osb-offline`) with
+  an in-memory version for tests, rather than a library. B3, a request
+  that fails for lack of a connection reads "You'll need to be online to
+  do this." (`src/lib/errorMessage.ts`, via
+  `src/domain/offlineWording.ts`).
+- **Storing** (`src/services/offlineCache.ts`, `cachedRead`): seven
+  service reads keep their last successful result, keyed
+  `{studentId}:{read}`:
+  - `listActivities`, `listAssignments`, `listCourses`, `getPreferences`,
+    `listWorkItemsForStudent`;
+  - `listWorkSessionsForDate` (one entry per day read) and
+    `listWorkSessionsForStudent`.
+
+  Hooks and screens are unchanged: they get the stored copy exactly as
+  they'd get the server's.
+- **When the stored copy is used:** only when a read fails **and** the
+  server can't be reached (`networkStatus`, 2a). A server error while
+  online is still shown as an error, never hidden behind old data. A copy
+  older than 7 days is ignored.
+- **Whose data:** only the signed-in student's. `useAuth` sets the
+  owner the moment it knows who's signed in (before any screen reads). A
+  read for any other student id (the supporter dashboard) is neither
+  stored nor served. If a different student signs in, everything stored
+  is cleared first. Signing out clears it all. A save still in flight
+  when that happens is dropped (a generation check), which was a race
+  caught by the unit tests.
+- **Back online:** `useAsyncData` and `useAllWorkSessions` read again
+  by themselves when the connection returns, so the line disappears and
+  the screens catch up.
+- **Verified in a real browser** (Chromium, a production build via
+  `vite preview`, 320 px, local Supabase), 10 checks:
+  - online, the seven reads are stored under the student's id, with no
+    offline line;
+  - offline after a reload, Home, Assignments and Plan show the stored
+    plan with the one line ("You're offline. Showing your plan from
+    12:34 AM."), with no "Couldn't load" and no alert;
+  - offline, Today's Start says "You'll need to be online to do this.";
+  - back online, the line goes away;
+  - signing out leaves nothing in IndexedDB.
+- **Not yet:**
+  - **Assignment Detail** (`getAssignment`) isn't stored. Offline it
+    says "Couldn't load this assignment." It was outside 2b's screens
+    (Today, Home, Plan). Worth adding in 2c, or as a small follow-up.
+  - Home's Start swallows a failed save and opens Today (by design,
+    step 11), so the offline message appears on Today's own Start. 2c
+    makes Start work offline anyway.
+  - In Playwright, `navigator.onLine` reads true after an offline reload,
+    so the first reads wait for Supabase's retries (about 7 s) before
+    falling back. A real device reporting offline falls back at once.
+

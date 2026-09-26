@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { cachedRead } from "./offlineCache";
 
 export type WorkItem = {
   id: string;
@@ -37,10 +38,17 @@ function toWorkItem(row: {
   };
 }
 
+// Kept on the device for offline use (PWA phase 2, 2b — offlineCache).
+export async function listWorkItemsForStudent(
+  studentId: string,
+): Promise<WorkItem[]> {
+  return cachedRead(studentId, "workItems", () => fetchListWorkItemsForStudent(studentId));
+}
+
 // For the Assignments list, which needs every assignment's work items at
 // once (remaining-effort text, structured/progress-bar check) — one
 // indexed query grouped client-side, rather than one query per assignment.
-export async function listWorkItemsForStudent(
+async function fetchListWorkItemsForStudent(
   studentId: string,
 ): Promise<WorkItem[]> {
   const { data, error } = await supabase

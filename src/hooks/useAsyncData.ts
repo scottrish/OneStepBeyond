@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { errorMessage } from "../lib/errorMessage";
+import { useOnlineStatus } from "./useOnlineStatus";
 
 export type UseAsyncDataResult<T> = {
   data: T;
@@ -57,6 +58,19 @@ export function useAsyncData<T>(fetcher: () => Promise<T>, initialValue: T): Use
   useEffect(() => {
     load();
   }, [load]);
+
+  // Back online: read again, so a screen showing the stored plan (PWA
+  // phase 2, 2b) or an offline message (2a) catches up by itself.
+  const online = useOnlineStatus();
+  const wasOffline = useRef(!online);
+  useEffect(() => {
+    if (!online) {
+      wasOffline.current = true;
+    } else if (wasOffline.current) {
+      wasOffline.current = false;
+      load();
+    }
+  }, [online, load]);
 
   function retry() {
     setLoading(true);

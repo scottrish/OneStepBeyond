@@ -14,7 +14,13 @@ vi.mock("../lib/supabase", () => ({
   },
 }));
 
+vi.mock("../services/offlineCache", () => ({
+  setCacheOwner: vi.fn(),
+  clearOfflineData: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { supabase } from "../lib/supabase";
+import { clearOfflineData, setCacheOwner } from "../services/offlineCache";
 import { useAuth } from "./useAuth";
 
 const mockedAuth = supabase.auth as unknown as {
@@ -25,7 +31,7 @@ const mockedAuth = supabase.auth as unknown as {
   signOut: ReturnType<typeof vi.fn>;
 };
 
-const user = { email: "person@example.com" } as User;
+const user = { id: "student-1", email: "person@example.com" } as User;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -109,5 +115,50 @@ describe("useAuth", () => {
     await act(() => result.current.signOut());
 
     expect(mockedAuth.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  describe("offline store (PWA phase 2, 2b)", () => {
+    it("the signed-in student owns the offline store, set before the user reaches screens", async () => {
+      const { result } = renderHook(() => useAuth());
+      await waitFor(() => expect(mockedAuth.onAuthStateChange).toHaveBeenCalled());
+
+      const onAuthStateChange = mockedAuth.onAuthStateChange.mock.calls[0][0];
+      act(() => {
+        onAuthStateChange("SIGNED_IN", { user } as Session);
+      });
+
+      expect(setCacheOwner).toHaveBeenLastCalledWith("student-1");
+      expect(result.current.user).toEqual(user);
+
+      act(() => {
+        onAuthStateChange("SIGNED_OUT", null);
+      });
+      expect(setCacheOwner).toHaveBeenLastCalledWith(null);
+    });
+
+    it("a failed server check leaves the owner alone", async () => {
+      mockedAuth.getUser.mockResolvedValue({ data: { user: null }, error: new Error("Failed to fetch") });
+      renderHook(() => useAuth());
+      await waitFor(() => expect(mockedAuth.getUser).toHaveBeenCalled());
+      await act(async () => {});
+
+      expect(setCacheOwner).not.toHaveBeenCalled();
+    });
+
+    it("signing out clears the stored data, after the sign-out itself", async () => {
+      const order: string[] = [];
+      mockedAuth.signOut.mockImplementation(async () => {
+        order.push("signOut");
+        return { error: null };
+      });
+      vi.mocked(clearOfflineData).mockImplementation(async () => {
+        order.push("clear");
+      });
+
+      const { result } = renderHook(() => useAuth());
+      await act(() => result.current.signOut());
+
+      expect(order).toEqual(["signOut", "clear"]);
+    });
   });
 });

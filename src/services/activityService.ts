@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { cachedRead } from "./offlineCache";
 
 export type Activity = {
   id: string;
@@ -42,7 +43,12 @@ function toActivity(row: {
   };
 }
 
+// Kept on the device for offline use (PWA phase 2, 2b — offlineCache).
 export async function listActivities(studentId: string): Promise<Activity[]> {
+  return cachedRead(studentId, "activities", () => fetchListActivities(studentId));
+}
+
+async function fetchListActivities(studentId: string): Promise<Activity[]> {
   const { data, error } = await supabase
     .from("activities")
     .select(SELECT_COLUMNS)

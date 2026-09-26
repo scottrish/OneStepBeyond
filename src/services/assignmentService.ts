@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { cachedRead } from "./offlineCache";
 
 export type Assignment = {
   id: string;
@@ -48,7 +49,12 @@ function toAssignment(row: {
   };
 }
 
+// Kept on the device for offline use (PWA phase 2, 2b — offlineCache).
 export async function listAssignments(studentId: string): Promise<Assignment[]> {
+  return cachedRead(studentId, "assignments", () => fetchListAssignments(studentId));
+}
+
+async function fetchListAssignments(studentId: string): Promise<Assignment[]> {
   const { data, error } = await supabase
     .from("assignments")
     .select(SELECT_COLUMNS)

@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { cachedRead } from "./offlineCache";
 
 export type WorkSessionStatus = "planned" | "in_progress" | "done";
 
@@ -57,9 +58,17 @@ function toWorkSession(row: {
   };
 }
 
+// Kept on the device for offline use (PWA phase 2, 2b — offlineCache).
+export async function listWorkSessionsForDate(
+  studentId: string,
+  date: string,
+): Promise<WorkSession[]> {
+  return cachedRead(studentId, `workSessions:${date}`, () => fetchListWorkSessionsForDate(studentId, date));
+}
+
 // For a single day's Day step (what's already planned) and for
 // availableMinutes' "already planned" subtraction.
-export async function listWorkSessionsForDate(
+async function fetchListWorkSessionsForDate(
   studentId: string,
   date: string,
 ): Promise<WorkSession[]> {
@@ -74,10 +83,15 @@ export async function listWorkSessionsForDate(
   return (data ?? []).map(toWorkSession);
 }
 
+// Kept on the device for offline use (PWA phase 2, 2b — offlineCache).
+export async function listWorkSessionsForStudent(studentId: string): Promise<WorkSession[]> {
+  return cachedRead(studentId, "workSessions:all", () => fetchListWorkSessionsForStudent(studentId));
+}
+
 // For the Estimate step's estimationDrift coaching signal, which looks
 // at the student's history of done sessions across every date, not just
 // the day being planned.
-export async function listWorkSessionsForStudent(studentId: string): Promise<WorkSession[]> {
+async function fetchListWorkSessionsForStudent(studentId: string): Promise<WorkSession[]> {
   const { data, error } = await supabase
     .from("work_sessions")
     .select(SELECT_COLUMNS)

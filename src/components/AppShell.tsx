@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
+import OfflineLine from "./OfflineLine";
 import { CalendarCheck, House, ListChecks, Plus, Settings2 } from "lucide-react";
 
 // Bottom tab bar, ported from ../OneStepBeyondPrototype/src/components/efc/AppShell.tsx.
@@ -41,6 +42,7 @@ export default function AppShell({ activeTab, onTabChange, onQuickAdd, onOpenSet
     <div className="min-h-dvh bg-background lg:bg-muted/40">
       <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col bg-background pb-[calc(var(--tab-bar-height)+env(safe-area-inset-bottom)+1.5rem)] lg:border-x lg:border-border">
         <main className="mx-auto w-full max-w-2xl flex-1 px-5 pt-[calc(1.25rem+env(safe-area-inset-top))] sm:px-8 sm:pt-[calc(2rem+env(safe-area-inset-top))] lg:px-10">
+          <OfflineLine />
           {children}
         </main>
       </div>

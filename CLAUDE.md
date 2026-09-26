@@ -175,9 +175,10 @@ mobile-first web app that **will** become a PWA, built in two phases
 - **Phase 2 (offline), in progress:**
   `docs/features/pwa-phase-2-offline-v0.1.md`, decided in
   `docs/decisions/20260925-pwa-phase-2-approach.md`. Increment 2a (the
-  app opens offline; safe updates via `vite-plugin-pwa`) is built. 2b
-  (last-known plan offline, stored by `src/services/`) and 2c (offline
-  session actions) follow, each through `analyze-feature`. Push
+  app opens offline; safe updates via `vite-plugin-pwa`) and 2b (the
+  last-known plan offline, stored per student by `src/services/offlineCache.ts`)
+  are built. 2c (offline session actions) follows, through
+  `analyze-feature`. Push
   notifications are deferred to their own spec. The service worker is
   off in development; test offline behaviour against a production build
   (`vite preview`). Keep every data access behind `src/services/`, since

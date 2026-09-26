@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { cachedRead } from "./offlineCache";
 
 export type Preferences = {
   weekdayFinishTime: string;
@@ -33,9 +34,14 @@ function toPreferences(row: {
   };
 }
 
+// Kept on the device for offline use (PWA phase 2, 2b — offlineCache).
+export async function getPreferences(studentId: string): Promise<Preferences> {
+  return cachedRead(studentId, "preferences", () => fetchGetPreferences(studentId));
+}
+
 // No row yet is a valid, expected state — not an error — so this
 // returns the defaults rather than throwing.
-export async function getPreferences(studentId: string): Promise<Preferences> {
+async function fetchGetPreferences(studentId: string): Promise<Preferences> {
   const { data, error } = await supabase
     .from("student_preferences")
     .select(SELECT_COLUMNS)

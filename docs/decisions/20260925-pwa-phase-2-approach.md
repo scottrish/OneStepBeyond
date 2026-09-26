@@ -68,3 +68,8 @@ Phase 2 is built in increments: **2a** (app shell offline + updates),
   the riskiest (queue, conflicts, auth refresh).
 - Push notifications stay in the backlog until a spec gives them a clear
   reason.
+- *2b as built (2026-09-26):* W2A is a hand-written IndexedDB wrapper
+  (`src/services/offlineStore.ts`), not a library. Stored reads are used
+  only when the server can't be reached, and only for the signed-in
+  student. The offline line is shown once, app-wide, in AppShell. See the
+  spec's "Implementation Notes (as built) — 2b".

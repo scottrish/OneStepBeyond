@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useOnlineStatus } from "./useOnlineStatus";
 import * as workSessionService from "../services/workSessionService";
 import type { WorkSession } from "../services/workSessionService";
 
@@ -57,6 +58,19 @@ export function useAllWorkSessions(studentId: string): UseAllWorkSessionsResult 
   }, [studentId]);
 
   useEffect(() => fetchSessions(), [fetchSessions]);
+
+  // Back online: read again (PWA phase 2, 2b).
+  const online = useOnlineStatus();
+  const wasOffline = useRef(!online);
+  useEffect(() => {
+    if (!online) {
+      wasOffline.current = true;
+      return;
+    }
+    if (!wasOffline.current) return;
+    wasOffline.current = false;
+    return fetchSessions();
+  }, [online, fetchSessions]);
 
   return { sessions, loading, refetch: fetchSessions };
 }

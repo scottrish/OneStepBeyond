@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useAsyncData } from "./useAsyncData";
 
@@ -76,5 +76,41 @@ describe("useAsyncData", () => {
 
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(result.current.loading).toBe(false);
+  });
+
+  describe("back online (PWA phase 2, 2b)", () => {
+    function setOnline(online: boolean) {
+      Object.defineProperty(navigator, "onLine", { value: online, configurable: true });
+      act(() => {
+        window.dispatchEvent(new Event(online ? "online" : "offline"));
+      });
+    }
+
+    afterEach(() => {
+      Object.defineProperty(navigator, "onLine", { value: true, configurable: true });
+    });
+
+    it("reads again by itself when the connection returns", async () => {
+      const fetcher = vi.fn().mockResolvedValueOnce("stored").mockResolvedValue("fresh");
+      const { result } = renderHook(() => useAsyncData(fetcher, ""));
+      await waitFor(() => expect(result.current.data).toBe("stored"));
+
+      setOnline(false);
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      setOnline(true);
+
+      await waitFor(() => expect(result.current.data).toBe("fresh"));
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    });
+
+    it("doesn't read again while staying online", async () => {
+      const fetcher = vi.fn().mockResolvedValue("x");
+      const { result } = renderHook(() => useAsyncData(fetcher, ""));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      setOnline(true);
+
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    });
   });
 });
