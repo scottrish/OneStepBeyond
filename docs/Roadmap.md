@@ -394,7 +394,7 @@ All items are from [daily-planning-and-completion-v2-proposal.md](features/daily
 
 | # | Step | Spec |
 |---|---|---|
-| 13 | PWA phase 2: service worker, offline, background sync, push | Not written yet. Needs its own spec + decision record (`docs/decisions/20260924-pwa-in-two-phases.md` lists what it must answer) |
+| 13 | PWA phase 2: service worker, offline, background sync, push | **Spec approved 2026-09-25:** [pwa-phase-2-offline-v0.1.md](features/pwa-phase-2-offline-v0.1.md) (`docs/decisions/20260925-pwa-phase-2-approach.md`). Three increments, each its own analyze → implement cycle: **2a** app shell offline + updates (next), **2b** last-known plan, **2c** offline session actions. Push notifications deferred (backlog) |
 
 **Critical path:** step 1 → steps 4–6 → step 9 → step 10 → step 12.
 Steps 3 and 11 are off the critical path and can happen while a decision
@@ -547,6 +547,12 @@ built — schedule it as one piece of work, not two.
   flagged as needed once that happened, never done. Discovered
   2026-08-17 while auditing this same file for the Assignment Detail
   global-overlay change; not fixed as part of that unrelated work.
+- **Push notifications** (deferred 2026-09-25, decision W5 in
+  `docs/decisions/20260925-pwa-phase-2-approach.md`). They need
+  server-side sending (keys, stored subscriptions, a scheduler), a clear
+  product reason to notify ("Notifications should be rare", Design
+  Principles), and on iPhones an installed app on iOS 16.4 or later.
+  Write a spec when there's a specific notification worth sending.
 - ✅ **Done 2026-09-25.** **Choose light or dark mode in Settings** (added 2026-09-25 at
   product-owner request). **Spec:**
   [appearance-light-dark-v0.1.md](features/appearance-light-dark-v0.1.md),
