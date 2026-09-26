@@ -55,7 +55,8 @@ vi.mock("./services/workSessionService", () => ({
   listWorkSessionsForStudent: vi.fn().mockResolvedValue([]),
   createWorkSessions: vi.fn(),
   deleteWorkSession: vi.fn(),
-  updateWorkSessionStatus: vi.fn().mockResolvedValue(undefined),
+  startWorkSession: vi.fn().mockResolvedValue("2026-03-16T16:00:00.000Z"),
+  completeWorkSession: vi.fn().mockResolvedValue("2026-03-16T16:30:00.000Z"),
 }));
 // Support is an App-level overlay now (docs/decisions/
 // 20260924-secondary-screens-app-level-overlays.md), reachable from the

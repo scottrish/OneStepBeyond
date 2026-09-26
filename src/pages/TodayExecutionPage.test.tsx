@@ -5,6 +5,7 @@ import type { User } from "@supabase/supabase-js";
 
 vi.mock("../services/assignmentService", () => ({
   listAssignments: vi.fn(),
+  completeAssignment: vi.fn(),
 }));
 vi.mock("../services/workItemService", () => ({
   listWorkItemsForStudent: vi.fn(),
@@ -15,9 +16,14 @@ vi.mock("../services/courseService", () => ({
 }));
 vi.mock("../services/workSessionService", () => ({
   listWorkSessionsForDate: vi.fn(),
-  updateWorkSessionStatus: vi.fn(),
-  updateWorkSessionPlannedMinutes: vi.fn(),
+  listWorkSessionsForStudent: vi.fn(),
+  startWorkSession: vi.fn(),
+  completeWorkSession: vi.fn(),
+  reviseWorkSessionEstimate: vi.fn(),
   deleteWorkSession: vi.fn(),
+}));
+vi.mock("../services/decompositionAttemptService", () => ({
+  recordDecompositionAttempt: vi.fn(),
 }));
 vi.mock("../services/reflectionService", () => ({
   recordReflection: vi.fn(),
@@ -32,6 +38,7 @@ import TodayExecutionPage from "./TodayExecutionPage";
 
 const mockedAssignmentService = assignmentService as unknown as {
   listAssignments: ReturnType<typeof vi.fn>;
+  completeAssignment: ReturnType<typeof vi.fn>;
 };
 const mockedWorkItemService = workItemService as unknown as {
   listWorkItemsForStudent: ReturnType<typeof vi.fn>;
@@ -42,8 +49,10 @@ const mockedCourseService = courseService as unknown as {
 };
 const mockedWorkSessionService = workSessionService as unknown as {
   listWorkSessionsForDate: ReturnType<typeof vi.fn>;
-  updateWorkSessionStatus: ReturnType<typeof vi.fn>;
-  updateWorkSessionPlannedMinutes: ReturnType<typeof vi.fn>;
+  listWorkSessionsForStudent: ReturnType<typeof vi.fn>;
+  startWorkSession: ReturnType<typeof vi.fn>;
+  completeWorkSession: ReturnType<typeof vi.fn>;
+  reviseWorkSessionEstimate: ReturnType<typeof vi.fn>;
   deleteWorkSession: ReturnType<typeof vi.fn>;
 };
 const mockedReflectionService = reflectionService as unknown as {
@@ -95,10 +104,18 @@ beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(TODAY);
   mockedAssignmentService.listAssignments.mockResolvedValue([assignment]);
-  mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
+  // Two steps, so finishing the first doesn't finish the assignment; the
+  // completion checks have their own tests below.
+  mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+    workItem(),
+    workItem({ id: "w2", title: "Write intro", position: 1 }),
+  ]);
   mockedWorkItemService.completeWorkItem.mockResolvedValue(undefined);
   mockedCourseService.listCourses.mockResolvedValue([course]);
   mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([]);
+  mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([]);
+  mockedWorkSessionService.startWorkSession.mockResolvedValue("2026-03-16T16:00:00.000Z");
+  mockedWorkSessionService.completeWorkSession.mockResolvedValue("2026-03-16T16:30:00.000Z");
 });
 
 afterEach(() => {
@@ -130,7 +147,6 @@ describe("TodayExecutionPage", () => {
 
   it("Start marks the session in progress and reveals Done/Need more time/stuck", async () => {
     mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session()]);
-    mockedWorkSessionService.updateWorkSessionStatus.mockResolvedValue(undefined);
     const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
     render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
@@ -138,10 +154,8 @@ describe("TodayExecutionPage", () => {
 
     await userEventInstance.click(screen.getByRole("button", { name: /^start$/i }));
 
-    expect(mockedWorkSessionService.updateWorkSessionStatus).toHaveBeenCalledWith(
-      "s1",
-      "in_progress",
-    );
+    // Records when it started, for elapsed time (execution-coaching-v0.1.md).
+    expect(mockedWorkSessionService.startWorkSession).toHaveBeenCalledWith("s1");
     expect(await screen.findByRole("button", { name: /^done$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /need more time/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /i.m stuck/i })).toBeInTheDocument();
@@ -151,7 +165,6 @@ describe("TodayExecutionPage", () => {
     mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
       session({ status: "in_progress" }),
     ]);
-    mockedWorkSessionService.updateWorkSessionStatus.mockResolvedValue(undefined);
     mockedReflectionService.recordReflection.mockResolvedValue(undefined);
     const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
@@ -160,7 +173,8 @@ describe("TodayExecutionPage", () => {
 
     await userEventInstance.click(screen.getByRole("button", { name: /^done$/i }));
 
-    expect(mockedWorkSessionService.updateWorkSessionStatus).toHaveBeenCalledWith("s1", "done");
+    // Records when it finished, silently — no timer, nothing to type.
+    expect(mockedWorkSessionService.completeWorkSession).toHaveBeenCalledWith("s1");
     // Assignment Detail's Steps checklist reads the Work Item's own
     // completedAt, not the session's status.
     expect(mockedWorkItemService.completeWorkItem).toHaveBeenCalledWith("w1");
@@ -185,7 +199,6 @@ describe("TodayExecutionPage", () => {
     mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
       session({ status: "in_progress" }),
     ]);
-    mockedWorkSessionService.updateWorkSessionStatus.mockResolvedValue(undefined);
     const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
     render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
@@ -200,11 +213,11 @@ describe("TodayExecutionPage", () => {
     expect(await screen.findByText(/that.s everything for today/i)).toBeInTheDocument();
   });
 
-  it("Need more time adds 10 minutes without changing anything else", async () => {
+  it("Need more time adds 10 minutes and shows the revised estimate honestly", async () => {
     mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
       session({ status: "in_progress", plannedMinutes: 30 }),
     ]);
-    mockedWorkSessionService.updateWorkSessionPlannedMinutes.mockResolvedValue(undefined);
+    mockedWorkSessionService.reviseWorkSessionEstimate.mockResolvedValue(undefined);
     const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
     render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
@@ -212,10 +225,19 @@ describe("TodayExecutionPage", () => {
 
     await userEventInstance.click(screen.getByRole("button", { name: /need more time/i }));
 
-    expect(mockedWorkSessionService.updateWorkSessionPlannedMinutes).toHaveBeenCalledWith(
-      "s1",
-      40,
-    );
+    expect(mockedWorkSessionService.reviseWorkSessionEstimate).toHaveBeenCalledWith("s1", 40, 30);
+    expect(await screen.findByText("about 40m · first planned 30m")).toBeInTheDocument();
+  });
+
+  it("'After that' shows a revised estimate with the original alongside", async () => {
+    mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+      session({ status: "in_progress" }),
+      session({ id: "s2", workItemId: "w2", startTime: "17:00", plannedMinutes: 40, originalPlannedMinutes: 30 }),
+    ]);
+
+    render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+
+    expect(await screen.findByText("about 40m · first planned 30m")).toBeInTheDocument();
   });
 
   it("I'm stuck shows non-judgmental coaching copy with keep-going and move-to-tomorrow choices", async () => {
@@ -333,5 +355,98 @@ describe("TodayExecutionPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /change today.s plan/i }));
 
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  describe("completion-time checks (execution-coaching-v0.1.md)", () => {
+    const tomorrowSession = session({ id: "s9", date: "2026-03-17", startTime: null });
+
+    it("with the step's time on other days, asks 'Is the whole task done?'; Yes clears that time and completes the step", async () => {
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session({ status: "in_progress" })]);
+      mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([tomorrowSession]);
+      mockedWorkSessionService.deleteWorkSession.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+      await userEventInstance.click(await screen.findByRole("button", { name: /^done$/i }));
+
+      expect(screen.getByRole("heading", { name: "Is the whole task done?" })).toBeInTheDocument();
+      expect(
+        screen.getByText("You also have time set aside for this on Tuesday, March 17 · 30m."),
+      ).toBeInTheDocument();
+      expect(mockedWorkSessionService.completeWorkSession).not.toHaveBeenCalled();
+
+      await userEventInstance.click(screen.getByRole("button", { name: "Yes — clear the other time" }));
+
+      await waitFor(() => expect(mockedWorkSessionService.completeWorkSession).toHaveBeenCalledWith("s1"));
+      expect(mockedWorkItemService.completeWorkItem).toHaveBeenCalledWith("w1");
+      expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("s9");
+      expect(await screen.findByText(/did this take longer than you expected/i)).toBeInTheDocument();
+    });
+
+    it("'Not yet — keep the rest of the plan' completes the session but leaves the step and its other time", async () => {
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session({ status: "in_progress" })]);
+      mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([tomorrowSession]);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+      await userEventInstance.click(await screen.findByRole("button", { name: /^done$/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: "Not yet — keep the rest of the plan" }));
+
+      await waitFor(() => expect(mockedWorkSessionService.completeWorkSession).toHaveBeenCalledWith("s1"));
+      expect(mockedWorkItemService.completeWorkItem).not.toHaveBeenCalled();
+      expect(mockedWorkSessionService.deleteWorkSession).not.toHaveBeenCalled();
+      expect(await screen.findByText(/did this take longer than you expected/i)).toBeInTheDocument();
+    });
+
+    it("finishing the last open step asks 'Is the whole assignment done?'; Yes → breakdown reflection → turned-in reminder, skipping the session question", async () => {
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        workItem(),
+        workItem({ id: "w2", title: "Write intro", position: 1, completedAt: "2026-03-15T00:00:00Z" }),
+      ]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session({ status: "in_progress" })]);
+      mockedAssignmentService.completeAssignment.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+      await userEventInstance.click(await screen.findByRole("button", { name: /^done$/i }));
+
+      expect(await screen.findByRole("heading", { name: "Is the whole assignment done?" })).toBeInTheDocument();
+      expect(screen.getByText("That was the last step")).toBeInTheDocument();
+      await userEventInstance.click(screen.getByRole("button", { name: "Yes, mark it complete" }));
+
+      expect(mockedAssignmentService.completeAssignment).toHaveBeenCalledWith("a1");
+      expect(await screen.findByText(/did the way you broke this down work/i)).toBeInTheDocument();
+      await userEventInstance.click(screen.getByRole("button", { name: /skip this question/i }));
+
+      expect(screen.getByRole("heading", { name: "Mark it turned in at school" })).toBeInTheDocument();
+      await userEventInstance.click(screen.getByRole("button", { name: "Got it" }));
+
+      expect(screen.queryByText(/did this take longer than you expected/i)).not.toBeInTheDocument();
+      expect(await screen.findByText(/that.s everything for today/i)).toBeInTheDocument();
+    });
+
+    it("'Not yet' on the assignment goes on to the usual session question", async () => {
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session({ status: "in_progress" })]);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+      await userEventInstance.click(await screen.findByRole("button", { name: /^done$/i }));
+      await userEventInstance.click(await screen.findByRole("button", { name: "Not yet" }));
+
+      expect(mockedAssignmentService.completeAssignment).not.toHaveBeenCalled();
+      expect(await screen.findByText(/did this take longer than you expected/i)).toBeInTheDocument();
+    });
+
+    it("with neither condition, Done goes straight to the session question, as before", async () => {
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session({ status: "in_progress" })]);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+      await userEventInstance.click(await screen.findByRole("button", { name: /^done$/i }));
+
+      expect(await screen.findByText(/did this take longer than you expected/i)).toBeInTheDocument();
+      expect(screen.queryByText(/is the whole/i)).not.toBeInTheDocument();
+    });
   });
 });

@@ -9,6 +9,15 @@ export type WorkSession = {
   plannedMinutes: number;
   startTime: string | null;
   status: WorkSessionStatus;
+  // When the session was started and marked done (execution-coaching-
+  // v0.1.md, automatic elapsed time) — null if it never was, or it
+  // predates recording. Optional so hand-built sessions stay valid.
+  startedAt?: string | null;
+  completedAt?: string | null;
+  // plannedMinutes is the working estimate; this is what it was before the
+  // student first revised it, or null if never revised (docs/decisions/
+  // 20260925-execution-timing.md, E1).
+  originalPlannedMinutes?: number | null;
 };
 
 export type NewWorkSession = {
@@ -16,9 +25,13 @@ export type NewWorkSession = {
   date: string;
   plannedMinutes: number;
   startTime: string | null;
+  // Carried when a session is moved to another day, so a revised
+  // estimate keeps its history.
+  originalPlannedMinutes?: number | null;
 };
 
-const SELECT_COLUMNS = "id, work_item_id, date, planned_minutes, start_time, status";
+const SELECT_COLUMNS =
+  "id, work_item_id, date, planned_minutes, start_time, status, started_at, completed_at, original_planned_minutes";
 
 function toWorkSession(row: {
   id: string;
@@ -27,6 +40,9 @@ function toWorkSession(row: {
   planned_minutes: number;
   start_time: string | null;
   status: WorkSessionStatus;
+  started_at?: string | null;
+  completed_at?: string | null;
+  original_planned_minutes?: number | null;
 }): WorkSession {
   return {
     id: row.id,
@@ -35,6 +51,9 @@ function toWorkSession(row: {
     plannedMinutes: row.planned_minutes,
     startTime: row.start_time,
     status: row.status,
+    startedAt: row.started_at ?? null,
+    completedAt: row.completed_at ?? null,
+    originalPlannedMinutes: row.original_planned_minutes ?? null,
   };
 }
 
@@ -89,6 +108,7 @@ export async function createWorkSessions(
         date: session.date,
         planned_minutes: session.plannedMinutes,
         start_time: session.startTime,
+        original_planned_minutes: session.originalPlannedMinutes ?? null,
       })),
     )
     .select(SELECT_COLUMNS);
@@ -110,28 +130,44 @@ export async function deleteWorkSession(id: string): Promise<void> {
   if (error) throw error;
 }
 
-// Today Execution's Start ("planned" -> "in_progress") and Done
-// ("in_progress" -> "done") transitions.
-export async function updateWorkSessionStatus(
-  id: string,
-  status: WorkSessionStatus,
-): Promise<void> {
-  const { error } = await supabase.from("work_sessions").update({ status }).eq("id", id);
+// Start: "planned" -> "in_progress", recording when (Today Execution and
+// Home's Next card). Returns the timestamp so the caller can keep it.
+export async function startWorkSession(id: string): Promise<string> {
+  const startedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from("work_sessions")
+    .update({ status: "in_progress", started_at: startedAt })
+    .eq("id", id);
 
   if (error) throw error;
+  return startedAt;
 }
 
-// Today Execution's "Need more time" action — the caller computes the
-// new total (current plannedMinutes + 10) rather than this function
-// incrementing server-side, consistent with this codebase's simple
-// read-then-write style elsewhere (no Postgres functions/RPCs yet).
-export async function updateWorkSessionPlannedMinutes(
+// Done: -> "done", recording when, so elapsed time is known without a
+// timer (execution-coaching-v0.1.md). Returns the timestamp.
+export async function completeWorkSession(id: string): Promise<string> {
+  const completedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from("work_sessions")
+    .update({ status: "done", completed_at: completedAt })
+    .eq("id", id);
+
+  if (error) throw error;
+  return completedAt;
+}
+
+// A student-revised estimate ("Need more time"): plannedMinutes becomes the
+// new working number and, the first time only, the value it replaces is
+// kept as originalPlannedMinutes (E1). The caller computes both, in this
+// codebase's simple read-then-write style (no Postgres functions yet).
+export async function reviseWorkSessionEstimate(
   id: string,
   plannedMinutes: number,
+  originalPlannedMinutes: number,
 ): Promise<void> {
   const { error } = await supabase
     .from("work_sessions")
-    .update({ planned_minutes: plannedMinutes })
+    .update({ planned_minutes: plannedMinutes, original_planned_minutes: originalPlannedMinutes })
     .eq("id", id);
 
   if (error) throw error;

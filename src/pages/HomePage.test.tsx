@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { User } from "@supabase/supabase-js";
 import HomePage from "./HomePage";
@@ -31,7 +31,7 @@ vi.mock("../services/activityService", () => ({
 vi.mock("../services/workSessionService", () => ({
   listWorkSessionsForDate: vi.fn().mockResolvedValue([]),
   listWorkSessionsForStudent: vi.fn().mockResolvedValue([]),
-  updateWorkSessionStatus: vi.fn().mockResolvedValue(undefined),
+  startWorkSession: vi.fn().mockResolvedValue("2026-03-16T16:00:00.000Z"),
 }));
 
 vi.mock("../services/preferencesService", () => ({
@@ -67,7 +67,7 @@ const mockedActivityService = activityService as unknown as {
 const mockedWorkSessionService = workSessionService as unknown as {
   listWorkSessionsForDate: ReturnType<typeof vi.fn>;
   listWorkSessionsForStudent: ReturnType<typeof vi.fn>;
-  updateWorkSessionStatus: ReturnType<typeof vi.fn>;
+  startWorkSession: ReturnType<typeof vi.fn>;
 };
 const mockedPreferencesService = preferencesService as unknown as {
   getPreferences: ReturnType<typeof vi.fn>;
@@ -113,7 +113,7 @@ beforeEach(() => {
   mockedActivityService.listActivities.mockResolvedValue([]);
   mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([]);
   mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([]);
-  mockedWorkSessionService.updateWorkSessionStatus.mockResolvedValue(undefined);
+  mockedWorkSessionService.startWorkSession.mockResolvedValue("2026-03-16T16:00:00.000Z");
   mockedPreferencesService.getPreferences.mockResolvedValue({
     weekdayFinishTime: "21:00",
     saturdayHours: 10, sundayHours: 10,
@@ -304,15 +304,46 @@ describe("HomePage", () => {
         },
       ]);
 
-      renderHomePage();
+      // Hold the save open, to check Today isn't opened before it lands
+      // (otherwise Today can load the session as still "planned").
+      let finishSave: (value: string) => void = () => {};
+      mockedWorkSessionService.startWorkSession.mockImplementationOnce(
+        () => new Promise<string>((resolve) => (finishSave = resolve)),
+      );
+      const onStartExecution = vi.fn();
+
+      renderHomePage({ onStartExecution });
 
       await screen.findByText("Draft outline");
       await userEvent.click(screen.getByRole("button", { name: /^start$/i }));
 
-      expect(mockedWorkSessionService.updateWorkSessionStatus).toHaveBeenCalledWith(
-        "s1",
-        "in_progress",
-      );
+      // Records when it started, as Today's own Start does.
+      expect(mockedWorkSessionService.startWorkSession).toHaveBeenCalledWith("s1");
+      expect(onStartExecution).not.toHaveBeenCalled();
+
+      finishSave("2026-03-16T16:00:00.000Z");
+      await waitFor(() => expect(onStartExecution).toHaveBeenCalledTimes(1));
+    });
+
+    it("still opens Today if saving the start fails", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([
+        { id: "a1", courseId: "course-1", title: "Cell structure project", dueDate: "2026-03-25", effortMinutes: 60, notes: null, completedAt: null },
+      ]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([
+        { id: "w1", assignmentId: "a1", title: "Draft outline", effortMinutes: 30, completedAt: null, position: 0 },
+      ]);
+      mockedCourseService.listCourses.mockResolvedValue([course]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        { id: "s1", workItemId: "w1", date: TODAY_ISO, plannedMinutes: 30, startTime: "16:00", status: "planned" },
+      ]);
+      mockedWorkSessionService.startWorkSession.mockRejectedValueOnce(new Error("offline"));
+      const onStartExecution = vi.fn();
+
+      renderHomePage({ onStartExecution });
+      await screen.findByText("Draft outline");
+      await userEvent.click(screen.getByRole("button", { name: /^start$/i }));
+
+      await waitFor(() => expect(onStartExecution).toHaveBeenCalledTimes(1));
     });
 
     it("shows 'Continue' instead of 'Start' once the session is already in progress, and doesn't re-issue the status update", async () => {
@@ -362,7 +393,7 @@ describe("HomePage", () => {
 
       await userEvent.click(continueButton);
 
-      expect(mockedWorkSessionService.updateWorkSessionStatus).not.toHaveBeenCalled();
+      expect(mockedWorkSessionService.startWorkSession).not.toHaveBeenCalled();
       expect(onStartExecution).toHaveBeenCalledTimes(1);
     });
 

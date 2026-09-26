@@ -12,9 +12,10 @@ import {
   deleteWorkSession,
   listWorkSessionsForDate,
   listWorkSessionsForStudent,
-  updateWorkSessionPlannedMinutes,
+  reviseWorkSessionEstimate,
+  startWorkSession,
+  completeWorkSession,
   updateWorkSessionStartTimes,
-  updateWorkSessionStatus,
 } from "./workSessionService";
 
 type QueryResult = { data: unknown; error: unknown };
@@ -62,6 +63,9 @@ describe("listWorkSessionsForDate", () => {
         plannedMinutes: 30,
         startTime: "16:00:00",
         status: "planned",
+        startedAt: null,
+        completedAt: null,
+        originalPlannedMinutes: null,
       },
     ]);
   });
@@ -94,6 +98,9 @@ describe("listWorkSessionsForStudent", () => {
         plannedMinutes: 30,
         startTime: "16:00:00",
         status: "planned",
+        startedAt: null,
+        completedAt: null,
+        originalPlannedMinutes: null,
       },
     ]);
   });
@@ -107,10 +114,22 @@ describe("listWorkSessionsForStudent", () => {
 
 describe("createWorkSessions", () => {
   it("inserts and returns the created sessions", async () => {
-    mockedFrom.mockReturnValue(mockQuery({ data: [row], error: null }));
+    const builder = mockQuery({ data: [row], error: null });
+    mockedFrom.mockReturnValue(builder);
 
     const sessions = await createWorkSessions("student-1", [
       { workItemId: "w1", date: "2026-03-16", plannedMinutes: 30, startTime: "16:00" },
+    ]);
+
+    expect(builder.insert).toHaveBeenCalledWith([
+      {
+        student_id: "student-1",
+        work_item_id: "w1",
+        date: "2026-03-16",
+        planned_minutes: 30,
+        start_time: "16:00",
+        original_planned_minutes: null,
+      },
     ]);
 
     expect(sessions).toEqual([
@@ -121,6 +140,9 @@ describe("createWorkSessions", () => {
         plannedMinutes: 30,
         startTime: "16:00:00",
         status: "planned",
+        startedAt: null,
+        completedAt: null,
+        originalPlannedMinutes: null,
       },
     ]);
   });
@@ -157,37 +179,53 @@ describe("deleteWorkSession", () => {
   });
 });
 
-describe("updateWorkSessionStatus", () => {
-  it("updates a session's status", async () => {
-    mockedFrom.mockReturnValue(mockQuery({ data: null, error: null }));
+describe("startWorkSession", () => {
+  it("marks the session in progress and records when", async () => {
+    const builder = mockQuery({ data: null, error: null });
+    mockedFrom.mockReturnValue(builder);
 
-    await expect(
-      updateWorkSessionStatus("session-1", "in_progress"),
-    ).resolves.toBeUndefined();
+    const startedAt = await startWorkSession("session-1");
+
+    expect(startedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(builder.update).toHaveBeenCalledWith({ status: "in_progress", started_at: startedAt });
+    expect(builder.eq).toHaveBeenCalledWith("id", "session-1");
   });
 
   it("throws when the update errors", async () => {
     mockedFrom.mockReturnValue(mockQuery({ data: null, error: new Error("boom") }));
-
-    await expect(updateWorkSessionStatus("session-1", "done")).rejects.toThrow("boom");
+    await expect(startWorkSession("session-1")).rejects.toThrow("boom");
   });
 });
 
-describe("updateWorkSessionPlannedMinutes", () => {
-  it("updates a session's planned minutes", async () => {
-    mockedFrom.mockReturnValue(mockQuery({ data: null, error: null }));
+describe("completeWorkSession", () => {
+  it("marks the session done and records when", async () => {
+    const builder = mockQuery({ data: null, error: null });
+    mockedFrom.mockReturnValue(builder);
 
-    await expect(
-      updateWorkSessionPlannedMinutes("session-1", 40),
-    ).resolves.toBeUndefined();
+    const completedAt = await completeWorkSession("session-1");
+
+    expect(builder.update).toHaveBeenCalledWith({ status: "done", completed_at: completedAt });
   });
 
   it("throws when the update errors", async () => {
     mockedFrom.mockReturnValue(mockQuery({ data: null, error: new Error("boom") }));
+    await expect(completeWorkSession("session-1")).rejects.toThrow("boom");
+  });
+});
 
-    await expect(
-      updateWorkSessionPlannedMinutes("session-1", 40),
-    ).rejects.toThrow("boom");
+describe("reviseWorkSessionEstimate", () => {
+  it("writes the new estimate and the original it replaced", async () => {
+    const builder = mockQuery({ data: null, error: null });
+    mockedFrom.mockReturnValue(builder);
+
+    await reviseWorkSessionEstimate("session-1", 40, 30);
+
+    expect(builder.update).toHaveBeenCalledWith({ planned_minutes: 40, original_planned_minutes: 30 });
+  });
+
+  it("throws when the update errors", async () => {
+    mockedFrom.mockReturnValue(mockQuery({ data: null, error: new Error("boom") }));
+    await expect(reviseWorkSessionEstimate("session-1", 40, 30)).rejects.toThrow("boom");
   });
 });
 

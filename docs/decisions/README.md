@@ -43,3 +43,4 @@ directory.
 | 24 | [Course colour choice, and deleting a course with everything in it](20260925-course-colour-and-delete.md) | 2026-09-25 |
 | 25 | [Plan opens for one assignment, with its work already chosen](20260925-plan-target.md) | 2026-09-25 |
 | 26 | [Breakdown choices live on Assignment Detail; Plan lists every assignment](20260925-plan-rows-and-one-piece.md) | 2026-09-25 |
+| 27 | [Execution coaching, part one: timing, revised estimates, and completion checks](20260925-execution-timing.md) | 2026-09-25 |

@@ -3,8 +3,9 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 
 vi.mock("../services/workSessionService", () => ({
   listWorkSessionsForDate: vi.fn(),
-  updateWorkSessionStatus: vi.fn(),
-  updateWorkSessionPlannedMinutes: vi.fn(),
+  startWorkSession: vi.fn(),
+  completeWorkSession: vi.fn(),
+  reviseWorkSessionEstimate: vi.fn(),
   deleteWorkSession: vi.fn(),
 }));
 vi.mock("../services/workItemService", () => ({
@@ -17,8 +18,9 @@ import { useTodayExecution } from "./useTodayExecution";
 
 const mockedWorkSessionService = workSessionService as unknown as {
   listWorkSessionsForDate: ReturnType<typeof vi.fn>;
-  updateWorkSessionStatus: ReturnType<typeof vi.fn>;
-  updateWorkSessionPlannedMinutes: ReturnType<typeof vi.fn>;
+  startWorkSession: ReturnType<typeof vi.fn>;
+  completeWorkSession: ReturnType<typeof vi.fn>;
+  reviseWorkSessionEstimate: ReturnType<typeof vi.fn>;
   deleteWorkSession: ReturnType<typeof vi.fn>;
 };
 const mockedWorkItemService = workItemService as unknown as {
@@ -63,9 +65,9 @@ describe("useTodayExecution", () => {
     expect(result.current.loadError).toBe("network down");
   });
 
-  it("start marks a session in_progress", async () => {
+  it("start marks a session in_progress and keeps when it started", async () => {
     mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session]);
-    mockedWorkSessionService.updateWorkSessionStatus.mockResolvedValue(undefined);
+    mockedWorkSessionService.startWorkSession.mockResolvedValue("2026-03-16T16:02:00.000Z");
 
     const { result } = renderHook(() => useTodayExecution("student-1", "2026-03-16"));
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -76,18 +78,16 @@ describe("useTodayExecution", () => {
     });
 
     expect(succeeded).toBe(true);
-    expect(mockedWorkSessionService.updateWorkSessionStatus).toHaveBeenCalledWith(
-      "s1",
-      "in_progress",
-    );
+    expect(mockedWorkSessionService.startWorkSession).toHaveBeenCalledWith("s1");
     expect(result.current.sessions[0]?.status).toBe("in_progress");
+    expect(result.current.sessions[0]?.startedAt).toBe("2026-03-16T16:02:00.000Z");
   });
 
   it("complete marks both the session and its underlying Work Item done", async () => {
     mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
       { ...session, status: "in_progress" },
     ]);
-    mockedWorkSessionService.updateWorkSessionStatus.mockResolvedValue(undefined);
+    mockedWorkSessionService.completeWorkSession.mockResolvedValue("2026-03-16T16:40:00.000Z");
     mockedWorkItemService.completeWorkItem.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useTodayExecution("student-1", "2026-03-16"));
@@ -95,7 +95,8 @@ describe("useTodayExecution", () => {
 
     await act(() => result.current.complete("s1"));
 
-    expect(mockedWorkSessionService.updateWorkSessionStatus).toHaveBeenCalledWith("s1", "done");
+    expect(mockedWorkSessionService.completeWorkSession).toHaveBeenCalledWith("s1");
+    expect(result.current.sessions[0]?.completedAt).toBe("2026-03-16T16:40:00.000Z");
     // Assignment Detail's Steps checklist reads the Work Item's own
     // completedAt, not the session's status — both must be marked done.
     expect(mockedWorkItemService.completeWorkItem).toHaveBeenCalledWith("w1");
@@ -106,7 +107,7 @@ describe("useTodayExecution", () => {
     mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
       { ...session, status: "in_progress" },
     ]);
-    mockedWorkSessionService.updateWorkSessionStatus.mockResolvedValue(undefined);
+    mockedWorkSessionService.completeWorkSession.mockResolvedValue("2026-03-16T16:40:00.000Z");
     mockedWorkItemService.completeWorkItem.mockRejectedValue({ message: "boom" });
 
     const { result } = renderHook(() => useTodayExecution("student-1", "2026-03-16"));
@@ -121,20 +122,51 @@ describe("useTodayExecution", () => {
     expect(result.current.actionError).toBe("boom");
   });
 
-  it("needMoreTime adds 10 minutes to the session's planned duration", async () => {
+  it("needMoreTime adds 10 minutes and keeps the original estimate", async () => {
     mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session]);
-    mockedWorkSessionService.updateWorkSessionPlannedMinutes.mockResolvedValue(undefined);
+    mockedWorkSessionService.reviseWorkSessionEstimate.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useTodayExecution("student-1", "2026-03-16"));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(() => result.current.needMoreTime("s1"));
 
-    expect(mockedWorkSessionService.updateWorkSessionPlannedMinutes).toHaveBeenCalledWith(
-      "s1",
-      40,
-    );
+    expect(mockedWorkSessionService.reviseWorkSessionEstimate).toHaveBeenCalledWith("s1", 40, 30);
     expect(result.current.sessions[0]?.plannedMinutes).toBe(40);
+    expect(result.current.sessions[0]?.originalPlannedMinutes).toBe(30);
+
+    // A second revision keeps the first original.
+    await act(() => result.current.needMoreTime("s1"));
+    expect(mockedWorkSessionService.reviseWorkSessionEstimate).toHaveBeenLastCalledWith("s1", 50, 30);
+  });
+
+  it("complete can leave the step open ('Not yet — keep the rest of the plan')", async () => {
+    mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([{ ...session, status: "in_progress" }]);
+    mockedWorkSessionService.completeWorkSession.mockResolvedValue("2026-03-16T16:40:00.000Z");
+
+    const { result } = renderHook(() => useTodayExecution("student-1", "2026-03-16"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(() => result.current.complete("s1", { closeStep: false }));
+
+    expect(mockedWorkSessionService.completeWorkSession).toHaveBeenCalledWith("s1");
+    expect(mockedWorkItemService.completeWorkItem).not.toHaveBeenCalled();
+  });
+
+  it("complete can clear the step's other sessions ('Yes — clear the other time')", async () => {
+    mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([{ ...session, status: "in_progress" }]);
+    mockedWorkSessionService.completeWorkSession.mockResolvedValue("2026-03-16T16:40:00.000Z");
+    mockedWorkItemService.completeWorkItem.mockResolvedValue(undefined);
+    mockedWorkSessionService.deleteWorkSession.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useTodayExecution("student-1", "2026-03-16"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(() => result.current.complete("s1", { clearSessionIds: ["s2", "s3"] }));
+
+    expect(mockedWorkItemService.completeWorkItem).toHaveBeenCalledWith("w1");
+    expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("s2");
+    expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("s3");
   });
 
   it("defer deletes the session and removes it locally", async () => {
@@ -152,7 +184,7 @@ describe("useTodayExecution", () => {
 
   it("sets actionError when an action fails", async () => {
     mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session]);
-    mockedWorkSessionService.updateWorkSessionStatus.mockRejectedValue({ message: "boom" });
+    mockedWorkSessionService.startWorkSession.mockRejectedValue({ message: "boom" });
 
     const { result } = renderHook(() => useTodayExecution("student-1", "2026-03-16"));
     await waitFor(() => expect(result.current.loading).toBe(false));

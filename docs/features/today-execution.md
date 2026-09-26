@@ -38,12 +38,18 @@ stuck" without it feeling like failure.
   items are visible only as a lightweight "After that" list (title +
   duration), not expanded.
 - Actions on the current task:
-  - **Start** (while `planned`) → marks it in progress.
+  - **Start** (while `planned`) → marks it in progress. *(Since
+    2026-09-25 it also records when, silently — `execution-coaching-v0.1.md`.)*
   - **Done** → marks it complete, records actual duration (assumed equal
     to planned; no timer required, matching V1 spec), advances to the next
     item, and immediately asks the one reflection question below.
+    *(Amended 2026-09-25: it records when, so elapsed time is known without
+    a timer; and it first asks "Is the whole task done?" / "Is the whole
+    assignment done?" when those apply — see `execution-coaching-v0.1.md`
+    and `docs/decisions/20260925-execution-timing.md`.)*
   - **Need more time** → adds 10 minutes to the planned duration in place;
-    no penalty framing.
+    no penalty framing. *(Amended 2026-09-25: the original estimate is
+    kept and shown, "about 40m · first planned 30m".)*
   - **I'm stuck** → shows a coaching note: *"Being stuck is information,
     not failure. What is the smallest piece of this you could still do? Or
     do you want to move it to tomorrow?"* with two calm choices: "Move to

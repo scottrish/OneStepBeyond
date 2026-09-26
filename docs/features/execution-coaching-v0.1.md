@@ -1,6 +1,12 @@
 # Feature: Execution Coaching (self-service "what's getting in the way?")
 
-**Status:** Proposed, not yet approved. Produced from a prototype-sync
+**Status:** Approved 2026-09-25, built in two parts
+(`docs/decisions/20260925-execution-timing.md`). **Part 12a is built**
+(tag `v-pre-execution-timing` marks the state before): automatic elapsed
+time, the revised estimate, and the two completion-time checks. **Part
+12b is not yet built:** the friction picker, interventions, own first
+action and reschedule flow. See "Implementation Notes (as built)" at the
+end. Produced from a prototype-sync
 audit of `../OneStepBeyondPrototype` (baseline commit `834368f`; `main`
 HEAD `744026a`; re-synced 2026-09-24 against the unmerged
 `mobile-redesign` branch at `1ce3145`, which moves this feature's
@@ -273,3 +279,30 @@ with the original noted alongside it ("about {current} · first planned
   already places on this app's other coaching-shaped features.
 - Reworking "defer" — it stays as today's simpler "drop from today's
   list" action; the repair flow is additive, not a replacement.
+
+## Implementation Notes (as built — part 12a, 2026-09-25)
+
+- **Decisions:** `docs/decisions/20260925-execution-timing.md`
+  - E1: the revised estimate is stored as `original_planned_minutes`,
+    with `planned_minutes` kept as the working number.
+  - E3: when the assignment is completed, the session question is
+    skipped.
+  - E5: built in two parts.
+  - E2 and E4 apply to part 12b.
+- **Migration** `20260925140000_work_session_timing.sql`: adds
+  `started_at`, `completed_at` and `original_planned_minutes` (all
+  nullable). The migration reviewer found no SQL issues. It caught one app
+  issue, now fixed: moving a session to another day dropped its original
+  estimate.
+- **Code:**
+  - `startWorkSession`, `completeWorkSession` and
+    `reviseWorkSessionEstimate` in `workSessionService`;
+  - `revisedEstimate`, `estimateLabel` and `otherOpenSessionsFor` in
+    `src/domain/executionTiming.ts`;
+  - Today Execution is split into `src/pages/today/` (`TaskCard`,
+    `CompletionCheck`, `SessionReflection`).
+- **Where these apply:** Home's Next card "Start" records the start time
+  too. The assignment check reuses `isAssignmentFinishable`,
+  `ReflectionPrompt` and `TurnedInReminder` from steps 6 and 7.
+- **Not yet:** nothing reads elapsed time. The coach dashboard's friction
+  panel and any risk or estimate coaching come in their own specs.

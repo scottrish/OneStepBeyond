@@ -2,15 +2,24 @@ import { useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/EmptyState";
+import TurnedInReminder from "@/components/TurnedInReminder";
 import ErrorBanner from "../components/ErrorBanner";
 import { effortLabel } from "../domain/effortPresets";
-import { todayISODate } from "../domain/planningDate";
+import { estimateLabel, otherOpenSessionsFor } from "../domain/executionTiming";
+import { isAssignmentFinishable } from "../domain/planningCandidates";
+import { longPlanDate, todayISODate } from "../domain/planningDate";
 import { sortByStartTime } from "../domain/sessionOrder";
+import { useAllWorkSessions } from "../hooks/useAllWorkSessions";
 import { useAssignmentsList } from "../hooks/useAssignmentsList";
 import { useCourses } from "../hooks/useCourses";
 import { useReflection } from "../hooks/useReflection";
 import { useTodayExecution } from "../hooks/useTodayExecution";
+import type { Assignment } from "../services/assignmentService";
 import type { WorkSession } from "../services/workSessionService";
+import ReflectionPrompt from "./ReflectionPrompt";
+import CompletionCheck from "./today/CompletionCheck";
+import SessionReflection from "./today/SessionReflection";
+import TaskCard from "./today/TaskCard";
 
 type TodayExecutionPageProps = {
   user: User;
@@ -20,18 +29,19 @@ type TodayExecutionPageProps = {
   onBack: () => void;
 };
 
-// docs/features/today-execution.md's Reflection section — exactly three
-// tap choices, no free text, always skippable. Deliberately not
-// ReflectionPrompt.tsx (Work Breakdown Reflection's own component): that
-// flow is multi-stage with free text and a follow-up question, which
-// this increment's spec explicitly excludes ("No free text, no multi-
-// question survey").
-const REFLECTION_CHOICES = [
-  "Shorter than I thought",
-  "About right",
-  "Longer than I thought",
-] as const;
-
+// What happens after Done (execution-coaching-v0.1.md, "Completion-time
+// checks"; docs/decisions/20260925-execution-timing.md):
+// - "Is the whole task done?" — only if the step has other open sessions;
+// - "Is the whole assignment done?" — only if that was its last open step;
+//   Yes → the breakdown reflection → the turned-in reminder (E3: the
+//   session question is skipped then — one reflection is enough);
+// - otherwise, the usual session question.
+type Finish =
+  | { stage: "task"; session: WorkSession; others: WorkSession[] }
+  | { stage: "assignment"; session: WorkSession; assignment: Assignment }
+  | { stage: "breakdownReflection"; assignment: Assignment }
+  | { stage: "reminder"; assignment: Assignment }
+  | { stage: "sessionReflection"; session: WorkSession };
 
 export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageProps) {
   const studentId = user.id;
@@ -54,14 +64,23 @@ export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageP
     loading: assignmentsLoading,
     loadError: assignmentsLoadError,
     retry: retryAssignments,
+    actionError: assignmentActionError,
+    completeAssignment,
   } = useAssignmentsList(studentId);
+  // Every day's sessions: finishing asks about the step's time on other days.
+  const {
+    sessions: allSessions,
+    loading: allSessionsLoading,
+    refetch: refetchAllSessions,
+  } = useAllWorkSessions(studentId);
   const { courses } = useCourses(studentId);
   const { actionError: reflectionError, submitReflection } = useReflection(studentId);
 
   const [stuckSessionId, setStuckSessionId] = useState<string | null>(null);
-  const [reflectingSessionId, setReflectingSessionId] = useState<string | null>(null);
+  const [finish, setFinish] = useState<Finish | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const loading = sessionsLoading || assignmentsLoading;
+  const loading = sessionsLoading || assignmentsLoading || allSessionsLoading;
   const loadError = sessionsLoadError ?? assignmentsLoadError;
 
   function retry() {
@@ -89,15 +108,56 @@ export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageP
   const upNext = activeSessions.slice(1);
   const allDone = sessions.length > 0 && activeSessions.length === 0;
 
-  async function handleDone(session: WorkSession) {
-    const succeeded = await complete(session.id);
-    if (succeeded) setReflectingSessionId(session.id);
+  function handleDone(session: WorkSession) {
+    // Today's own list is current; other days come from the all-days load.
+    const everyDay = [...sessions, ...allSessions.filter((s) => s.date !== today)];
+    const others = otherOpenSessionsFor(session, everyDay);
+    if (others.length > 0) setFinish({ stage: "task", session, others });
+    else void finishSession(session, { closeStep: true, clear: [] });
   }
 
-  async function handleReflection(choice: string | null) {
-    const session = sessions.find((s) => s.id === reflectingSessionId);
-    setReflectingSessionId(null);
-    if (!session || choice === null) return;
+  async function finishSession(
+    session: WorkSession,
+    { closeStep, clear }: { closeStep: boolean; clear: WorkSession[] },
+  ) {
+    setBusy(true);
+    const completed = await complete(session.id, {
+      closeStep,
+      clearSessionIds: clear.map((s) => s.id),
+    });
+    setBusy(false);
+    if (!completed) {
+      setFinish(null);
+      return;
+    }
+    if (clear.length > 0) refetchAllSessions();
+
+    const { assignment } = contextFor(session);
+    if (closeStep && assignment) {
+      const doneNow = new Date().toISOString();
+      const items = workItems.map((item) =>
+        item.id === session.workItemId ? { ...item, completedAt: doneNow } : item,
+      );
+      if (isAssignmentFinishable(assignment, items)) {
+        setFinish({ stage: "assignment", session, assignment });
+        return;
+      }
+    }
+    setFinish({ stage: "sessionReflection", session });
+  }
+
+  async function finishAssignment(assignment: Assignment) {
+    setBusy(true);
+    const completed = await completeAssignment(assignment.id);
+    setBusy(false);
+    // It always had steps (that's what made it finishable), so the
+    // breakdown reflection comes first (manual-work-breakdown-reflection-v0.1.md §9).
+    if (completed) setFinish({ stage: "breakdownReflection", assignment });
+  }
+
+  async function handleSessionReflection(session: WorkSession, choice: string | null) {
+    setFinish(null);
+    if (choice === null) return;
     const { assignment } = contextFor(session);
     if (!assignment) return;
     await submitReflection({
@@ -114,42 +174,66 @@ export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageP
     await defer(sessionId);
   }
 
-  const reflectingSession = reflectingSessionId
-    ? sessions.find((s) => s.id === reflectingSessionId)
-    : undefined;
-
-  if (reflectingSession) {
+  if (finish?.stage === "task") {
+    const { session, others } = finish;
     return (
-      <div>
-        <h1 className="mb-6 text-2xl">Did this take longer than you expected?</h1>
-        <div
-          role="radiogroup"
-          aria-label="Did this take longer than you expected?"
-          className="mb-4 flex flex-col gap-2"
-        >
-          {REFLECTION_CHOICES.map((choice) => (
-            <Button
-              key={choice}
-              type="button"
-              role="radio"
-              aria-checked={false}
-              variant="outline"
-              className="h-11 justify-start"
-              onClick={() => handleReflection(choice)}
-            >
-              {choice}
-            </Button>
-          ))}
-        </div>
-        <Button
-          variant="ghost"
-          className="text-xs text-muted-foreground"
-          onClick={() => handleReflection(null)}
-        >
-          Skip this question
-        </Button>
-        {reflectionError && <ErrorBanner message={reflectionError} />}
-      </div>
+      <CompletionCheck
+        eyebrow="Before you finish"
+        title="Is the whole task done?"
+        subject={contextFor(session).item?.title ?? "Study session"}
+        detail={`You also have time set aside for this on ${others
+          .map((o) => `${longPlanDate(o.date)} · ${effortLabel(o.plannedMinutes)}`)
+          .join(", ")}.`}
+        yesLabel="Yes — clear the other time"
+        noLabel="Not yet — keep the rest of the plan"
+        busy={busy}
+        onYes={() => void finishSession(session, { closeStep: true, clear: others })}
+        onNo={() => void finishSession(session, { closeStep: false, clear: [] })}
+      />
+    );
+  }
+
+  if (finish?.stage === "assignment") {
+    const { session, assignment } = finish;
+    return (
+      <>
+        <CompletionCheck
+          eyebrow="That was the last step"
+          title="Is the whole assignment done?"
+          subject={assignment.title}
+          yesLabel="Yes, mark it complete"
+          noLabel="Not yet"
+          busy={busy}
+          onYes={() => void finishAssignment(assignment)}
+          onNo={() => setFinish({ stage: "sessionReflection", session })}
+        />
+        {assignmentActionError && <ErrorBanner message={assignmentActionError} className="mt-4" />}
+      </>
+    );
+  }
+
+  if (finish?.stage === "breakdownReflection") {
+    const { assignment } = finish;
+    return (
+      <ReflectionPrompt
+        studentId={studentId}
+        assignmentId={assignment.id}
+        onDone={() => setFinish({ stage: "reminder", assignment })}
+      />
+    );
+  }
+
+  if (finish?.stage === "reminder") {
+    return <TurnedInReminder title={finish.assignment.title} onDone={() => setFinish(null)} />;
+  }
+
+  if (finish?.stage === "sessionReflection") {
+    const { session } = finish;
+    return (
+      <SessionReflection
+        error={reflectionError}
+        onAnswer={(choice) => void handleSessionReflection(session, choice)}
+      />
     );
   }
 
@@ -185,81 +269,21 @@ export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageP
             <section>
               {(() => {
                 const { item, assignment } = contextFor(current);
-                const stuck = stuckSessionId === current.id;
                 return (
-                  <>
-                    <div className="mb-4 rounded-3xl border border-border bg-card p-5">
-                      <p className="text-lg font-medium text-foreground">
-                        {item?.title ?? "Study session"}
-                      </p>
-                      {item && assignment && (
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {assignment.title} · {courseName(assignment.courseId)}
-                        </p>
-                      )}
-                      <p className="mt-3 text-sm text-muted-foreground">
-                        {effortLabel(current.plannedMinutes)}
-                      </p>
-
-                      {stuck ? (
-                        <div className="mt-4 rounded-2xl bg-accent/70 px-4 py-4">
-                          <p className="mb-4 text-sm leading-relaxed text-accent-foreground">
-                            Being stuck is information, not failure. What is the smallest piece
-                            of this you could still do? Or do you want to move it to tomorrow?
-                          </p>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="ghost"
-                              className="flex-1 rounded-2xl"
-                              onClick={() => handleMoveToTomorrow(current.id)}
-                            >
-                              Move to tomorrow
-                            </Button>
-                            <Button
-                              className="flex-1 rounded-2xl"
-                              onClick={() => setStuckSessionId(null)}
-                            >
-                              Keep going
-                            </Button>
-                          </div>
-                        </div>
-                      ) : current.status === "planned" ? (
-                        <Button
-                          size="lg"
-                          className="mt-4 w-full rounded-2xl"
-                          onClick={() => start(current.id)}
-                        >
-                          Start
-                        </Button>
-                      ) : (
-                        <>
-                          <Button
-                            size="lg"
-                            className="mt-4 w-full rounded-2xl"
-                            onClick={() => handleDone(current)}
-                          >
-                            Done
-                          </Button>
-                          <div className="mt-2 flex gap-2">
-                            <Button
-                              variant="ghost"
-                              className="flex-1 rounded-2xl text-sm"
-                              onClick={() => needMoreTime(current.id)}
-                            >
-                              Need more time
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              className="flex-1 rounded-2xl text-sm"
-                              onClick={() => setStuckSessionId(current.id)}
-                            >
-                              I&rsquo;m stuck
-                            </Button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </>
+                  <TaskCard
+                    session={current}
+                    title={item?.title ?? "Study session"}
+                    context={
+                      item && assignment ? `${assignment.title} · ${courseName(assignment.courseId)}` : null
+                    }
+                    stuck={stuckSessionId === current.id}
+                    onStart={() => void start(current.id)}
+                    onDone={() => handleDone(current)}
+                    onNeedMoreTime={() => void needMoreTime(current.id)}
+                    onStuck={() => setStuckSessionId(current.id)}
+                    onKeepGoing={() => setStuckSessionId(null)}
+                    onMoveToTomorrow={() => void handleMoveToTomorrow(current.id)}
+                  />
                 );
               })()}
 
@@ -277,9 +301,7 @@ export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageP
                           <span className="min-w-0 flex-1 truncate">
                             {item?.title ?? "Study session"}
                           </span>
-                          <span className="shrink-0 text-xs">
-                            {effortLabel(session.plannedMinutes)}
-                          </span>
+                          <span className="shrink-0 text-xs">{estimateLabel(session)}</span>
                         </li>
                       );
                     })}

@@ -214,12 +214,19 @@ export default function HomePage({
   // when still "planned" — a session already "in_progress" (the student
   // started it, then came back to Home without finishing) is left alone;
   // the button itself reflects this below rather than always reading
-  // "Start" regardless of what's actually true. Fire-and-forget: if the
-  // update fails, Today Execution still shows its own "Start" for this
-  // task, a safe fallback rather than a dead end here.
-  function handleStart() {
+  // "Start" regardless of what's actually true. Records the start time too,
+  // like Today's own Start (execution-coaching-v0.1.md). Waits for the
+  // save before opening Today: otherwise Today can load the session while
+  // it's still "planned" and ask to Start it again (found in a real-browser
+  // check, 2026-09-25). If the save fails, Today still opens and shows its
+  // own "Start" — a safe fallback rather than a dead end here.
+  async function handleStart() {
     if (next && next.status === "planned") {
-      workSessionService.updateWorkSessionStatus(next.id, "in_progress");
+      try {
+        await workSessionService.startWorkSession(next.id);
+      } catch {
+        // Fall through: Today offers its own Start.
+      }
     }
     onStartExecution();
   }

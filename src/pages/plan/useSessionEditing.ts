@@ -111,6 +111,8 @@ export function useSessionEditing({
           workItemId: session.workItemId,
           date: moveTargetDate,
           plannedMinutes: session.plannedMinutes,
+          // A revised estimate keeps its "first planned" history.
+          originalPlannedMinutes: session.originalPlannedMinutes ?? null,
           // The target day's open slots differ from the original day's,
           // so there's no reliable time to carry over — left unset
           // rather than guessed.

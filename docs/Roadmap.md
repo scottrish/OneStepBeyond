@@ -388,7 +388,7 @@ All items are from [daily-planning-and-completion-v2-proposal.md](features/daily
 
 | # | Step | Spec | Decision needed first | Notes |
 |---|---|---|---|---|
-| 12 | Execution coaching: friction picker, interventions, repair flow, completion checks, automatic elapsed time, revised estimates | [execution-coaching-v0.1.md](features/execution-coaching-v0.1.md) | — (the spec already resolves its own open point by omitting the Assignment-Brief action) | Largest step. **New table + work-session changes**: tag, and run migration review. Needs steps 1, 6, and Plan. After it ships: add a friction-panel addendum to `coach-parent-dashboard-feature-spec-v0.1.md` |
+| 12 | 🟡 **12a done 2026-09-25** (timing, revised estimate, completion checks); **12b next** (friction picker, interventions, reschedule). Execution coaching: friction picker, interventions, repair flow, completion checks, automatic elapsed time, revised estimates | [execution-coaching-v0.1.md](features/execution-coaching-v0.1.md) | — (the spec already resolves its own open point by omitting the Assignment-Brief action) | Largest step. **New table + work-session changes**: tag, and run migration review. Needs steps 1, 6, and Plan. After it ships: add a friction-panel addendum to `coach-parent-dashboard-feature-spec-v0.1.md` |
 
 ## After parity
 
@@ -547,6 +547,25 @@ built — schedule it as one piece of work, not two.
   flagged as needed once that happened, never done. Discovered
   2026-08-17 while auditing this same file for the Assignment Detail
   global-overlay change; not fixed as part of that unrelated work.
+- **Choose light or dark mode in Settings** (added 2026-09-25 at
+  product-owner request). Today the app follows the device's setting
+  only (`prefers-color-scheme` in `src/index.css`). A manual toggle was
+  deliberately left out of `design-system-adoption.md` and
+  `mobile-app-shell-and-touch-ergonomics-v0.1.md`. Proposed shape: a
+  Settings entry, **Appearance**, with **Match my device** (the default,
+  today's behaviour), **Light** and **Dark**. Needs its own short spec,
+  which should settle:
+  - whether the choice is saved per device (browser storage) or on the
+    student's account (a new `student_preferences` column, so a
+    migration);
+  - moving the dark palette from the media query to a class or
+    `data-theme` attribute, while keeping "Match my device" working;
+  - keeping the `theme-color` meta tags (the phone's status bar in the
+    installed app) in step with the choice;
+  - avoiding a flash of the wrong theme on load.
+
+  Both palettes already exist and have been contrast-checked, so no new
+  colours are needed.
 
 ---
 

@@ -364,6 +364,37 @@ describe("PlanPage", () => {
 
   // docs/features/iterations/daily-planning/daily-planning.i04.md FR-3
   describe("moving an already-planned item to a different day", () => {
+    it("keeps a revised estimate's original when moving (execution-coaching-v0.1.md)", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
+      mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
+        {
+          id: "session-1",
+          workItemId: "w1",
+          date: "2026-03-16",
+          plannedMinutes: 40,
+          originalPlannedMinutes: 30,
+          startTime: "16:00",
+          status: "planned",
+        },
+      ]);
+      mockedWorkSessionService.createWorkSessions.mockResolvedValue([]);
+      mockedWorkSessionService.deleteWorkSession.mockResolvedValue(undefined);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+      render(<ControlledPlanPage user={user} />);
+      await userEventInstance.click(await screen.findByRole("button", { name: "Edit Draft outline" }));
+      const movePicker = screen.getByRole("radiogroup", { name: /choose a day to move draft outline to/i });
+      await userEventInstance.click(within(movePicker).getByRole("radio", { name: /tue/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: /move here/i }));
+
+      await waitFor(() =>
+        expect(mockedWorkSessionService.createWorkSessions).toHaveBeenCalledWith("student-1", [
+          expect.objectContaining({ plannedMinutes: 40, originalPlannedMinutes: 30 }),
+        ]),
+      );
+    });
+
     it("moves a not-yet-started session to a chosen day, removing it from the original day", async () => {
       mockedAssignmentService.listAssignments.mockResolvedValue([assignment()]);
       mockedWorkItemService.listWorkItemsForStudent.mockResolvedValue([workItem()]);
@@ -412,7 +443,14 @@ describe("PlanPage", () => {
 
       await waitFor(() =>
         expect(mockedWorkSessionService.createWorkSessions).toHaveBeenCalledWith("student-1", [
-          { workItemId: "w1", date: "2026-03-17", plannedMinutes: 30, startTime: null },
+          {
+            workItemId: "w1",
+            date: "2026-03-17",
+            plannedMinutes: 30,
+            startTime: null,
+            // A revised estimate's history travels with the move.
+            originalPlannedMinutes: null,
+          },
         ]),
       );
       await waitFor(() =>
