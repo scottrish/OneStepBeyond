@@ -19,7 +19,6 @@ import { useWorkItems } from "../hooks/useWorkItems";
 import type { AssignmentEdit } from "../services/assignmentService";
 import AssignmentDetailDeleteConfirm from "./AssignmentDetailDeleteConfirm";
 import AssignmentDetailEditForm from "./AssignmentDetailEditForm";
-import AssignmentDetailPlanSheet from "./AssignmentDetailPlanSheet";
 import AssignmentDetailSteps from "./AssignmentDetailSteps";
 import ReflectionPrompt from "./ReflectionPrompt";
 import WorkBreakdownPage from "./WorkBreakdownPage";
@@ -39,11 +38,9 @@ type AssignmentDetailPageProps = {
   // "Plan it as one piece" made this step: open Plan's Select with it
   // chosen — on Plan's day if opened from Plan, otherwise today.
   onPlanPick: (workItemId: string) => void;
-  // A breakdown made in order to plan ("Plan work for today" → "Break it
-  // into steps first"), or any breakdown confirmed while opened from Plan:
-  // open Plan's Select with the new steps chosen — on Plan's day if
-  // opened from Plan, otherwise today (assignment-detail-no-steps-v0.1.md,
-  // N3 and N4).
+  // A breakdown confirmed while opened from Plan: back to Plan's Select
+  // for that day, with the new steps chosen (assignment-detail-no-steps-
+  // v0.1.md, N4).
   onPlanBrokenDown: () => void;
 };
 
@@ -86,12 +83,12 @@ export default function AssignmentDetailPage({
 
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  // Which breakdown is open: the card's "Break this down" ("steps"), or
-  // one started from "Plan work for today" ("plan"), which carries on into
-  // Plan once confirmed (N3).
-  const [breakingDown, setBreakingDown] = useState<"steps" | "plan" | null>(null);
-  // "Plan work for today" with no steps asks how to make them first (N2).
-  const [choosingHowToPlan, setChoosingHowToPlan] = useState(false);
+  const [breakingDown, setBreakingDown] = useState(false);
+  // A step being edited, or a completed step's delete being confirmed —
+  // reported by AssignmentDetailSteps, so ← Back can close it first (N7, R1).
+  const [stepOpen, setStepOpen] = useState(false);
+  // Remounting the Steps section discards whatever its open form held.
+  const [stepsKey, setStepsKey] = useState(0);
   const [finishStage, setFinishStage] = useState<FinishStage>(null);
   const [addingStep, setAddingStep] = useState(false);
   const {
@@ -103,8 +100,7 @@ export default function AssignmentDetailPage({
   // docs/features/assignment-detail-cta-hierarchy.md item 3b — inline
   // add/edit/delete replaces WorkBreakdownPage/"Edit breakdown" once at
   // least one Work Item exists. With no steps, WorkBreakdownPage is
-  // reached from the "No steps yet" card's "Break this down", or from
-  // "Plan work for today" → "Break it into steps first"
+  // reached from the "No steps yet" card's "Break this down"
   // (assignment-detail-no-steps-v0.1.md). The section's own add/edit/
   // delete UI and local state live in AssignmentDetailSteps; the effort-
   // rollup/DecompositionAttempt side effects on top of plain CRUD live in
@@ -174,11 +170,10 @@ export default function AssignmentDetailPage({
         user={user}
         assignment={assignment}
         confirmedItems={workItems}
-        onCancel={() => setBreakingDown(null)}
+        onCancel={() => setBreakingDown(false)}
         onConfirmed={() => {
-          const toPlan = breakingDown === "plan" || openedFromPlan;
-          setBreakingDown(null);
-          if (toPlan) {
+          setBreakingDown(false);
+          if (openedFromPlan) {
             onPlanBrokenDown();
             return;
           }
@@ -207,16 +202,25 @@ export default function AssignmentDetailPage({
 
   const finishable = assignment ? isAssignmentFinishable(assignment, workItems) : false;
 
-  // "Plan work for today" always ends in planned steps: with none yet, it
-  // first asks how to make them (assignment-detail-no-steps-v0.1.md).
-  function handlePlanWorkForToday() {
-    if (workItems.length === 0) setChoosingHowToPlan(true);
-    else onGoToPlan();
+  // The app's ← Back closes whatever is open on this screen first — the
+  // edit form, the delete confirmation, the add-step form, a step being
+  // edited — exactly like its own Cancel; only with nothing open does it
+  // leave (assignment-detail-no-steps-v0.1.md, N7 and R1).
+  function handleBack() {
+    if (editing) return setEditing(false);
+    if (confirmingDelete) return setConfirmingDelete(false);
+    if (addingStep || stepOpen) {
+      setAddingStep(false);
+      setStepOpen(false);
+      setStepsKey((key) => key + 1);
+      return;
+    }
+    onBack();
   }
 
   return (
     <div>
-      <Button variant="ghost" onClick={onBack} className="mb-3 -ml-3 px-3">
+      <Button variant="ghost" onClick={handleBack} className="mb-3 -ml-3 px-3">
         ← Back
       </Button>
 
@@ -315,15 +319,17 @@ export default function AssignmentDetailPage({
           )}
 
           <AssignmentDetailSteps
+            key={stepsKey}
             workItems={workItems}
             onAdd={(title, effortMinutes) => addStep(title, effortMinutes, workItems)}
             onEdit={(id, patch) => editStep(id, patch, workItems)}
             onDelete={(id) => deleteStep(id)}
             adding={addingStep}
             onAddingChange={setAddingStep}
-            // One card for every assignment with no steps, worded by size
-            // (assignment-detail-no-steps-v0.1.md). Its buttons are quiet:
-            // "Plan work for today" below is the screen's one main action.
+            onStepOpenChange={setStepOpen}
+            // One card for every assignment with no steps, worded by size —
+            // the one place to start (assignment-detail-no-steps-v0.1.md,
+            // N5 and N6). Breaking it down leads; the other two are quiet.
             emptyState={
               <EmptyState
                 title="No steps yet."
@@ -334,11 +340,19 @@ export default function AssignmentDetailPage({
                 }
                 action={
                   <div className="flex flex-col items-center gap-2">
-                    <Button variant="secondary" className="rounded-2xl" onClick={() => setBreakingDown("steps")}>
+                    <Button variant="secondary" className="rounded-2xl" onClick={() => setBreakingDown(true)}>
                       Break this down
                     </Button>
                     <Button variant="ghost" className="rounded-2xl" onClick={() => setAddingStep(true)}>
-                      Just add a step
+                      Add the first step
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="rounded-2xl"
+                      disabled={planningOnePiece}
+                      onClick={() => void handlePlanAsOnePiece()}
+                    >
+                      {planningOnePiece ? "Planning…" : "Plan it as one piece"}
                     </Button>
                   </div>
                 }
@@ -367,41 +381,29 @@ export default function AssignmentDetailPage({
             }
           />
 
-          <div className="mt-8 flex flex-col gap-3">
-            <Button size="lg" className="w-full" onClick={handlePlanWorkForToday}>
-              Plan work for today
-            </Button>
-            {/* Not offered until there's at least one step: a brand-new
-                assignment is something to plan, not to mark done
-                (product-owner decision 2026-09-26; see the Roadmap's
-                "Assignment Detail with no steps" item). */}
-            {assignment.completedAt ? (
-              <p className="text-center text-sm font-medium text-primary">Completed</p>
-            ) : workItems.length === 0 ? null : (
-              <Button
-                variant="ghost"
-                className="w-full text-muted-foreground"
-                onClick={finishAssignment}
-              >
-                Mark assignment complete
-              </Button>
-            )}
-          </div>
-
-          <AssignmentDetailPlanSheet
-            open={choosingHowToPlan}
-            big={suggestBreakdown}
-            busy={planningOnePiece}
-            onBreakDown={() => {
-              setChoosingHowToPlan(false);
-              setBreakingDown("plan");
-            }}
-            onPlanAsOnePiece={() => {
-              setChoosingHowToPlan(false);
-              void handlePlanAsOnePiece();
-            }}
-            onClose={() => setChoosingHowToPlan(false)}
-          />
+          {/* "Plan work for today" and "Mark assignment complete" appear
+              once there's at least one step: with none, the card above is
+              where to start (N6; 2026-09-26). */}
+          {(workItems.length > 0 || assignment.completedAt) && (
+            <div className="mt-8 flex flex-col gap-3">
+              {workItems.length > 0 && (
+                <Button size="lg" className="w-full" onClick={onGoToPlan}>
+                  Plan work for today
+                </Button>
+              )}
+              {assignment.completedAt ? (
+                <p className="text-center text-sm font-medium text-primary">Completed</p>
+              ) : workItems.length === 0 ? null : (
+                <Button
+                  variant="ghost"
+                  className="w-full text-muted-foreground"
+                  onClick={finishAssignment}
+                >
+                  Mark assignment complete
+                </Button>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

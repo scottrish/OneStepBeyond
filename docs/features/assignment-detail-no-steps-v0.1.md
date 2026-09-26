@@ -2,7 +2,12 @@
 
 **Status:** Built 2026-09-26. N1–N4 were confirmed as recommended
 (`docs/decisions/20260926-assignment-detail-no-steps.md`). See
-"Implementation Notes (as built)".
+"Implementation Notes (as built)". **Revision N5 (2026-09-26), built
+the same day:** "Plan it as one piece" is back on the card, and "Just add
+a step" is now "Add the first step". This changed requirements 1 and 5
+and the acceptance criteria below. **Revisions N6, N7 and R1 (approved
+and built 2026-09-26):** see "Revision N6 and N7" below. N6 replaces N2,
+N3 and requirements 2 and 4.
 
 ## Summary
 
@@ -87,18 +92,179 @@ several buttons matters.
 lightweight way to start without the full breakdown, and it doesn't
 compete with planning.
 
-**N2. What "Plan work for today" does with no steps.**
+**N2. What "Plan work for today" does with no steps.** *(Replaced by
+N6.)*
 - **Option A (recommended): a sheet**, "How do you want to plan this?",
   with two choices (below).
 - **Option B:** go straight into the breakdown, with "Plan it as one
   piece" offered inside it. That's fewer taps, but it hides the quick
   path behind the longer one.
 
+**N5 (product owner, 2026-09-26, after the first build). The card's
+buttons.**
+- "Plan it as one piece" goes back on the card, for every size. As
+  built, it had moved into "Plan work for today"'s sheet only, and the
+  product owner hadn't realised it would leave the card. The hint text
+  still encourages breaking it down.
+- The labels are **Break this down**, **Add the first step** (was "Just
+  add a step") and **Plan it as one piece**. The old "Just add a step"
+  was easy to confuse with "Plan it as one piece", because both end in
+  one step. "First" makes clear that more steps can follow.
+
 **N3. Where "Break it into steps first" leads after confirming.**
+*(Replaced by N6.)*
 *Recommended:* into Plan's Select, with the new steps chosen. The
 student asked to plan, so planning continues. The card's own **Break
 this down** keeps today's behaviour and returns to Assignment Detail,
 because it wasn't a request to plan.
+
+## Revision N6 and N7 (approved and built 2026-09-26, with R1)
+
+### Why
+
+- **N6.** After N5, a student with no steps sees two different sets of
+  choices. The card offers Break this down / Add the first step / Plan
+  it as one piece, and "Plan work for today" then opens a sheet offering
+  Break it into steps first / Plan it as one piece. That's the same
+  decision, asked twice, in different words.
+- **N7.** "Add the first step" (and "Add another step") opens a form in
+  place of the card on Assignment Detail. It looks like a screen of its
+  own, but the app's **← Back** at the top belongs to Assignment Detail:
+  it leaves the assignment entirely, and only the form's Cancel returns
+  to the card. Reported by the product owner, 2026-09-26. The browser's
+  own back isn't part of this.
+
+### N6. "Plan work for today" appears only once there's a step
+
+1. With no steps, **"Plan work for today" is hidden**, like "Mark
+   assignment complete" (requirement 7). The "No steps yet" card is the
+   one place to start:
+   - **Break this down**
+   - **Add the first step**
+   - **Plan it as one piece**
+   
+   Its hint text stays as it is, and still encourages breaking it down.
+2. **The "How do you want to plan this?" sheet is removed**
+   (`AssignmentDetailPlanSheet.tsx`), along with its "Break it into steps
+   first" path.
+3. Once there's at least one step, **"Plan work for today" appears** and
+   behaves as today: Plan's Select with the steps that still need time
+   chosen.
+4. **After the card's "Break this down" is confirmed:**
+   - not opened from Plan: back to Assignment Detail with the new steps
+     listed, where "Plan work for today" now shows;
+   - opened from Plan: back to Plan's day with the new steps chosen, as
+     now (N4 stays).
+5. **The card's "Plan it as one piece"** is unchanged: one step, then
+   Plan's Select with it chosen.
+6. **Hidden, not disabled.** A disabled button doesn't say why, and
+   screen readers skip it. The card already says what to do first.
+
+**Trade-off:** for a big assignment, planning takes one more tap after
+the breakdown: confirm → Assignment Detail → "Plan work for today".
+That's accepted, in return for one consistent set of choices.
+
+**With no steps, the screen has no solid button.** "Break this down"
+(secondary) leads. This changes the Accessibility line "exactly one solid
+button" to "at most one solid button".
+
+### N7. The app's ← Back closes an open form before leaving
+
+While one of these is open on Assignment Detail, **← Back closes it and
+stays on Assignment Detail**, exactly like that form's own Cancel:
+
+- the **add-step form** ("Add the first step", "Add another step", or
+  "Not yet — add a step" on the all-done card), discarding what was
+  typed;
+- the **edit-assignment form** (the pencil);
+- the **delete confirmation** (the bin).
+
+With none of them open, ← Back leaves Assignment Detail as today.
+
+Out of scope for N7:
+- the breakdown flow (it has its own Back, which already returns to
+  Assignment Detail);
+- the reflection and turned-in reminder after completing (they have
+  their own ways out);
+- the browser or phone back (no router; it would need its own spec).
+
+**R1 (approved): editing a single step inline** (a step's menu → Edit)
+is closed by ← Back too, and so is a completed step's delete
+confirmation. The rule is simply "Back closes whatever is open first".
+
+### Acceptance criteria (N6, N7)
+
+- **No steps:** there's no "Plan work for today" and no "Mark assignment
+  complete". The card shows its three buttons, and no sheet can open.
+- **After adding the first step,** or after a breakdown confirmed from
+  Assignment Detail, "Plan work for today" appears and opens Plan's
+  Select with the steps chosen.
+- **Opened from Plan,** a confirmed breakdown returns to Plan's day with
+  the new steps chosen (unchanged).
+- **The card's "Plan it as one piece"** → Plan's Select with the step
+  chosen (unchanged).
+- **With the add-step form open, ← Back** closes the form, shows the
+  card (or the step list) again, and stays on Assignment Detail. Nothing
+  is saved. The same goes for the edit-assignment form and the delete
+  confirmation (and, if R1 is accepted, a step being edited).
+- **With nothing open, ← Back** leaves Assignment Detail, as today.
+
+### As built (2026-09-26)
+
+- **`AssignmentDetailPage.tsx`:**
+  - "Plan work for today" renders only with at least one step;
+  - the sheet and its state are removed;
+  - a confirmed breakdown returns to Detail, or to Plan when opened from
+    Plan;
+  - `handleBack` closes, in order: the edit form, the delete
+    confirmation, then the add-step form or an open step edit or step
+    delete confirmation. For the last group, the Steps section remounts
+    (`key`), which discards whatever was typed. Only with nothing open
+    does it call `onBack`.
+- **`AssignmentDetailSteps.tsx`:** a new `onStepOpenChange` reports a
+  step being edited or a completed step's delete being confirmed.
+- **`AssignmentDetailPlanSheet.tsx`** is deleted.
+- **`App.tsx`:** `handlePlanBrokenDown` keeps Plan's day. It's only
+  called when opened from Plan now.
+- **Tests:**
+  - `AssignmentDetailPage.test.tsx`:
+    - no "Plan work for today" or solid button without steps;
+    - adding the first step makes it appear;
+    - the card's breakdown returns to Detail, where it appears;
+    - N4 unchanged;
+    - five ← Back tests: the add form (discarding what was typed), the
+      edit form, the delete confirmation, a step edit, and a completed
+      step's delete confirmation.
+  - `App.test.tsx`: from Assignments, the card's breakdown → Detail →
+    "Plan work for today" → Plan today with the new step chosen.
+- **Browser check** (320 px, 8 checks): N6 with no steps; ← Back
+  closing the add form, discarding what was typed; "Plan work for today"
+  appearing after the first step; R1; the edit form; with nothing open,
+  Back leaving; "Plan work for today" → Plan with the step chosen.
+
+### Changes planned before building (kept for reference)
+
+- **`AssignmentDetailPage.tsx`:**
+  - hide "Plan work for today" when `workItems.length === 0`;
+  - remove the sheet, `choosingHowToPlan`, and the `"plan"` breakdown
+    source (a breakdown confirms to Detail, or to Plan when opened from
+    Plan);
+  - ← Back calls a new `handleBack` that closes whatever is open first
+    (adding, editing, confirmingDelete, and the step being edited if R1
+    is accepted).
+- **Delete `AssignmentDetailPlanSheet.tsx`.**
+- **`AssignmentDetailSteps.tsx`,** only if R1 is accepted: lift
+  `editingStepId` so the page can close it (or accept a "close" signal).
+- **`App.tsx`:** `handlePlanBrokenDown` stays for the from-Plan case. Its
+  "not from Plan → today" branch is no longer reached from Assignment
+  Detail, and could be simplified.
+- **Tests:**
+  - replace the sheet tests with "no Plan work for today without steps"
+    and "appears after the first step";
+  - the App test for the sheet's breakdown path becomes "card breakdown
+    → Detail → Plan work for today";
+  - new ← Back tests for each open form.
+- **Docs:** the decision record's revision, and the Roadmap.
 
 ## Functional Requirements
 
@@ -111,15 +277,22 @@ because it wasn't a request to plan.
        first?"
      - otherwise: "Small steps are easier to start than a whole
        assignment."
-   - Buttons: **Break this down** (secondary) and **Just add a step**
-     (ghost, if N1 is kept). Neither is solid.
+   - Buttons (N5): **Break this down** (secondary), then **Add the first
+     step** and **Plan it as one piece** (ghost), for every size. None is
+     solid.
+     - **Add the first step:** the inline add form. The student names the
+       step and its time, and stays on Assignment Detail.
+     - **Plan it as one piece:** one step the size of the whole
+       assignment, then Plan's Select with it chosen (on Plan's day if
+       opened from Plan, otherwise today).
    - The separate "This one is fairly big…" card and the "Yes, help me
      start" label are removed.
-2. **"Plan work for today" stays the only solid main button**, at the
-   bottom, in every state.
+2. ~~**"Plan work for today" stays the only solid main button**, at the
+   bottom, in every state.~~ *Replaced by N6:* it appears only once
+   there's a step; with none, there's no solid button.
 3. **With steps:** unchanged. Plan's Select opens with the steps that
    still need time chosen.
-4. **With no steps**, it opens a sheet (`ResponsiveSheet`) titled "How
+4. *(Replaced by N6: removed.)* ~~**With no steps**, it opens a sheet (`ResponsiveSheet`) titled "How
    do you want to plan this?", with:
    - **Break it into steps first:** the breakdown flow (with the
      understanding prompt). On confirm, Plan's Select opens with the new
@@ -129,9 +302,11 @@ because it wasn't a request to plan.
      Select with it chosen.
    - For a big assignment (`suggestBreakdown`), "Break it into steps
      first" is listed first and styled as the main choice. Otherwise the
-     two are equal.
-5. **"Plan it as one piece" leaves the card.** It's only offered in the
-   sheet, because it's a way to plan, not a way to break down.
+     two are equal.~~
+5. ~~**"Plan it as one piece" leaves the card.**~~ *Reversed by N5:* it's
+   on the card (requirement 1) **and** in "Plan work for today"'s sheet
+   (requirement 4). Both use the label "Plan it as one piece" and do the
+   same thing.
 6. **Opened from Plan** (`openedFromPlan`): both sheet choices return to
    Plan's day, not today, as "Plan it as one piece" and a confirmed
    breakdown already do.
@@ -147,14 +322,16 @@ because it wasn't a request to plan.
   Both choices are at least 44 px tall, and "Never mind" closes it.
 - The card's hint is plain text. The big variant isn't shown by colour
   alone.
-- With no steps there is exactly one solid (`bg-primary`) button on the
-  screen.
+- At most one solid (`bg-primary`) button on the screen: "Plan work for
+  today" with steps, none without (N6).
 
 ## Acceptance Criteria
 
 - A big assignment with no steps shows **one** box: "No steps yet.",
-  the "fairly big" hint, **Break this down** and **Just add a step**,
-  and no "Yes, help me start".
+  the "fairly big" hint, **Break this down**, **Add the first step** and
+  **Plan it as one piece** (N5), and no "Yes, help me start".
+- The card's **Add the first step** opens the add form. The card's
+  **Plan it as one piece** → Plan's Select with that one step chosen.
 - A smaller assignment with no steps shows the same box with the usual
   hint.
 - In both, the only solid button is **Plan work for today**, and
@@ -179,7 +356,8 @@ because it wasn't a request to plan.
   - a single solid button;
   - the sheet and its two paths, including the confirm → `onGoToPlan` /
     Plan's day wiring and the cancel path;
-  - "Plan it as one piece" absent from the card.
+  - the card's three buttons and labels at both sizes (N5), and the
+    card's "Plan it as one piece" path.
 - **Existing tests to update:**
   - the nudge-card tests ("Yes, help me start");
   - the empty-state tests;
@@ -248,4 +426,20 @@ screens and which buttons are shown changes.
   - a small assignment → "Plan it as one piece" → Plan today with it
     chosen;
   - desktop shows the same card.
+
+**Revision N5 (built 2026-09-26):**
+- **The card's buttons:** Break this down (secondary), Add the first
+  step (ghost), and Plan it as one piece (ghost; "Planning…" while it
+  works), for every size. The sheet is unchanged.
+- **Tests:**
+  - `AssignmentDetailPage.test.tsx`: the three buttons at both sizes,
+    with the one-piece button quiet, and the card's "Plan it as one
+    piece" → `onPlanPick`, with no sheet;
+  - renamed label assertions;
+  - `App.test.tsx`: opened from Plan, the card's "Plan it as one piece"
+    returns to Plan's Tuesday with the step chosen, while the
+    from-Assignments test still goes through the sheet.
+- **Browser check** (320 px): the card shows the three buttons in
+  order; "Plan work for today" is still the only solid button; the
+  card's "Plan it as one piece" → Plan today with the step chosen.
 

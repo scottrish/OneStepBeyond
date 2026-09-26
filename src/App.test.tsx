@@ -455,7 +455,7 @@ describe("App", () => {
     );
   });
 
-  describe("'Plan work for today' → 'Plan it as one piece' from Assignment Detail (items 3 and 4)", () => {
+  describe("'Plan it as one piece' from Assignment Detail's card (items 3 and 4; N5)", () => {
     // An unbroken assignment; "Plan it as one piece" creates its one step,
     // which every later load then returns.
     function unbrokenEssay() {
@@ -508,7 +508,7 @@ describe("App", () => {
       await userEventInstance.click(
         await screen.findByRole("button", { name: /reading response.*not broken into steps yet/i }),
       );
-      await userEventInstance.click(await screen.findByRole("button", { name: "Plan work for today" }));
+      // Straight from the "No steps yet" card (N5).
       await userEventInstance.click(await screen.findByRole("button", { name: "Plan it as one piece" }));
 
       expect(await screen.findByText(/let.s plan tuesday/i)).toBeInTheDocument();
@@ -526,7 +526,6 @@ describe("App", () => {
       await userEventInstance.click(await screen.findByRole("radio", { name: "Tue" }));
       await userEventInstance.click(screen.getByRole("button", { name: "Assignments" }));
       await userEventInstance.click((await screen.findAllByRole("button", { name: /reading response/i }))[0]!);
-      await userEventInstance.click(await screen.findByRole("button", { name: "Plan work for today" }));
       await userEventInstance.click(await screen.findByRole("button", { name: "Plan it as one piece" }));
 
       expect(await screen.findByText(/let.s plan today/i)).toBeInTheDocument();
@@ -536,7 +535,7 @@ describe("App", () => {
     });
   });
 
-  describe("a breakdown made to plan it (assignment-detail-no-steps-v0.1.md, N3 and N4)", () => {
+  describe("breaking it down from Assignment Detail (assignment-detail-no-steps-v0.1.md, N4 and N6)", () => {
     // An unbroken assignment; the breakdown creates one step, which every
     // later load then returns.
     function unbrokenEssay() {
@@ -592,7 +591,7 @@ describe("App", () => {
       await userEventInstance.click(screen.getByRole("button", { name: /looks good/i }));
     }
 
-    it("opened from Assignments: 'Plan work for today' → 'Break it into steps first' → Plan today, the new step chosen", async () => {
+    it("opened from Assignments: 'Break this down' → back on Detail → 'Plan work for today' → Plan today, the new step chosen", async () => {
       unbrokenEssay();
       const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       render(<App />);
@@ -601,9 +600,11 @@ describe("App", () => {
       await userEventInstance.click(await screen.findByRole("radio", { name: "Tue" }));
       await userEventInstance.click(screen.getByRole("button", { name: "Assignments" }));
       await userEventInstance.click((await screen.findAllByRole("button", { name: /reading response/i }))[0]!);
-      await userEventInstance.click(await screen.findByRole("button", { name: "Plan work for today" }));
-      await userEventInstance.click(await screen.findByRole("button", { name: "Break it into steps first" }));
+      expect(screen.queryByRole("button", { name: "Plan work for today" })).not.toBeInTheDocument();
+      await userEventInstance.click(await screen.findByRole("button", { name: "Break this down" }));
       await breakDownIntoOneStep(userEventInstance);
+      // Back on Assignment Detail, which can now plan it.
+      await userEventInstance.click(await screen.findByRole("button", { name: "Plan work for today" }));
 
       expect(await screen.findByText(/let.s plan today/i)).toBeInTheDocument();
       await waitFor(() =>

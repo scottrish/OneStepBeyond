@@ -140,13 +140,10 @@ export default function App() {
     handleTabChange("plan");
   }
 
-  // A breakdown made in order to plan: Detail's "Plan work for today" →
-  // "Break it into steps first", or any breakdown confirmed with Detail
-  // opened from Plan. Plan's Select with the new steps chosen — on Plan's
-  // day if Detail was opened from Plan, otherwise today
-  // (docs/features/assignment-detail-no-steps-v0.1.md, N3 and N4).
+  // A breakdown confirmed with Assignment Detail opened from Plan: back to
+  // Plan's Select for the same day, with the new steps chosen
+  // (docs/features/assignment-detail-no-steps-v0.1.md, N4).
   function handlePlanBrokenDown(assignmentId: string) {
-    if (!assignmentOpenedFromPlan) setPlanDate(todayISODate());
     setPlanStep("select");
     setPlanTarget({ kind: "assignment", assignmentId });
     handleTabChange("plan");

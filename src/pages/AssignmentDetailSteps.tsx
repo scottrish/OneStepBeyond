@@ -18,6 +18,10 @@ type AssignmentDetailStepsProps = {
   // controlled by the page.
   adding: boolean;
   onAddingChange: (adding: boolean) => void;
+  // Whether a step is being edited, or a completed step's delete is being
+  // confirmed — so the page's ← Back can close it first
+  // (assignment-detail-no-steps-v0.1.md, N7 and R1).
+  onStepOpenChange?: (open: boolean) => void;
   // Shown instead of the list when there are no steps and the form is closed.
   emptyState?: ReactNode;
   // Shown under the list (e.g. the all-done card) while the form is closed.
@@ -39,6 +43,7 @@ export default function AssignmentDetailSteps({
   onDelete,
   adding: addingStep,
   onAddingChange: setAddingStep,
+  onStepOpenChange,
   emptyState,
   belowList,
 }: AssignmentDetailStepsProps) {
@@ -48,6 +53,16 @@ export default function AssignmentDetailSteps({
   const [editStepTitle, setEditStepTitle] = useState("");
   const [editStepEffort, setEditStepEffort] = useState(DEFAULT_EFFORT_MINUTES);
   const [confirmingDeleteStepId, setConfirmingDeleteStepId] = useState<string | null>(null);
+
+  function openStepEdit(id: string | null) {
+    setEditingStepId(id);
+    onStepOpenChange?.(id !== null || confirmingDeleteStepId !== null);
+  }
+
+  function openDeleteConfirm(id: string | null) {
+    setConfirmingDeleteStepId(id);
+    onStepOpenChange?.(id !== null || editingStepId !== null);
+  }
 
   async function handleAddStep() {
     const succeeded = await onAdd(newStepTitle.trim(), newStepEffort);
@@ -59,14 +74,14 @@ export default function AssignmentDetailSteps({
   }
 
   function startEditingStep(item: WorkItem) {
-    setEditingStepId(item.id);
+    openStepEdit(item.id);
     setEditStepTitle(item.title);
     setEditStepEffort(item.effortMinutes);
   }
 
   async function handleSaveStepEdit(id: string) {
     const succeeded = await onEdit(id, { title: editStepTitle.trim(), effortMinutes: editStepEffort });
-    if (succeeded) setEditingStepId(null);
+    if (succeeded) openStepEdit(null);
   }
 
   // Deleting an incomplete step is immediate, matching WorkBreakdownPage's
@@ -75,12 +90,12 @@ export default function AssignmentDetailSteps({
   // AssignmentDetailPage already applies to whole-assignment deletion.
   async function handleDeleteStep(id: string) {
     const succeeded = await onDelete(id);
-    if (succeeded) setConfirmingDeleteStepId(null);
+    if (succeeded) openDeleteConfirm(null);
   }
 
   function handleDeleteStepClick(item: WorkItem) {
     if (item.completedAt !== null) {
-      setConfirmingDeleteStepId(item.id);
+      openDeleteConfirm(item.id);
     } else {
       handleDeleteStep(item.id);
     }
@@ -116,7 +131,7 @@ export default function AssignmentDetailSteps({
                   ))}
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setEditingStepId(null)}>
+                  <Button variant="ghost" size="sm" onClick={() => openStepEdit(null)}>
                     Cancel
                   </Button>
                   <Button
@@ -140,7 +155,7 @@ export default function AssignmentDetailSteps({
                     variant="ghost"
                     size="sm"
                     className="flex-1"
-                    onClick={() => setConfirmingDeleteStepId(null)}
+                    onClick={() => openDeleteConfirm(null)}
                   >
                     Cancel
                   </Button>
@@ -257,7 +272,7 @@ export default function AssignmentDetailSteps({
           </div>
         </div>
       ) : workItems.length > 0 ? (
-        // With no steps, the "No steps yet" state offers "Just add a step".
+        // With no steps, the "No steps yet" state offers "Add the first step".
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setAddingStep(true)}>
             + Add another step

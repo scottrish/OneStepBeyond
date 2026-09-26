@@ -64,3 +64,46 @@ Plan's day if opened from Plan, otherwise today. It replaces
 - "Plan work for today" with steps is unchanged. It still always means
   today, even when opened from Plan on another day (P2 in
   `20260925-plan-target.md`).
+
+## Revision (2026-09-26, N5): built the same day
+
+After the first build, the product owner said "Plan it as one piece"
+shouldn't have left the card; decision 3 above had moved it. The
+revision:
+- **"Plan it as one piece" is back on the "No steps yet" card**, for
+  every size, as a quiet (ghost) button. It stays in the "Plan work for
+  today" sheet too, with the same label and behaviour. This supersedes
+  decision 3.
+- **"Just add a step" is renamed "Add the first step".** The old label
+  was easy to confuse with "Plan it as one piece", since both end in one
+  step. "First" says more steps can follow.
+- **The card's buttons are Break this down (secondary), Add the first
+  step (ghost) and Plan it as one piece (ghost).** The hint still
+  encourages breaking it down ("This one is fairly big — smaller steps…"
+  or "Small steps are easier to start…"), and "Plan work for today"
+  stays the only solid button.
+
+Considered and not taken: "Skip steps and plan it" as the one-piece
+label (clearer about what's given up, but the product owner kept the
+familiar "Plan it as one piece"), and showing it on the card only for
+small assignments.
+
+## Revision (2026-09-26, N6, N7 and R1): approved and built the same day
+
+Details are in the spec, "Revision N6 and N7 (proposed)".
+
+- **N6: "Plan work for today" is hidden until there's a step,** and the
+  "How do you want to plan this?" sheet is removed. That supersedes
+  decisions 2 and 3 above. With no steps, the "No steps yet" card is the
+  only place to start. After a breakdown confirmed from Assignment
+  Detail, the student returns there and "Plan work for today" appears.
+  Coming from Plan, it's unchanged (decision 4). *Why:* the card and the
+  sheet asked the same question twice, in different words. *Trade-off:*
+  one more tap to plan a big assignment after breaking it down.
+- **N7: the app's ← Back on Assignment Detail closes an open form
+  first** (the add-step form, the edit-assignment form, the delete
+  confirmation, a step being edited or a completed step's delete being
+  confirmed (R1)), and only leaves Assignment Detail when nothing is
+  open. *Why:* the add-step form looks
+  like its own screen, but Back left the assignment entirely.
+

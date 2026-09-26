@@ -533,6 +533,13 @@ built — schedule it as one piece of work, not two.
 
   Built 2026-09-26 with N1–N4 as recommended
   (`docs/decisions/20260926-assignment-detail-no-steps.md`).
+  **Revision N5, done 2026-09-26:** "Plan it as one piece" is back on
+  the card (every size), and "Just add a step" is now "Add the first
+  step". **Revisions N6, N7 and R1, done 2026-09-26:**
+  - N6: "Plan work for today" is hidden until there's a step, and the
+    sheet is removed;
+  - N7 and R1: the app's ← Back closes whatever is open on Assignment
+    Detail first.
 - Course Setup: archiving a course at the end of a term/year — deferred
   by the 2026-08-14 resolution in `course-setup.md`. (Deleting a course
   and manual color selection, deferred by that same resolution, are now
