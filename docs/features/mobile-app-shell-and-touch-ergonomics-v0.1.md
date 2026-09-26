@@ -346,6 +346,9 @@ service worker and no offline behavior**.
 - **Standalone behavior:** §1's safe-area padding is what keeps content
   clear of the status bar and home indicator when there is no browser
   chrome. Test standalone mode as the primary case, not an afterthought.
+- *Superseded 2026-09-25 by PWA phase 2, increment 2a
+  (`pwa-phase-2-offline-v0.1.md`): there is now a service worker, built by
+  `vite-plugin-pwa`. The manifest and icons below are unchanged.*
 - **Explicitly not in this phase:** a service worker (not even a no-op
   one), caching, an offline page, a custom install prompt or
   `beforeinstallprompt` handling, push notifications, and any

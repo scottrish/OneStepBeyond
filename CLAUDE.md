@@ -169,15 +169,20 @@ This applies directly to the app's platform direction. This is a
 mobile-first web app that **will** become a PWA, built in two phases
 (`docs/decisions/20260924-pwa-in-two-phases.md`):
 
-- **Phase 1 (installable), current scope:** a web app manifest, app
-  icons, and standalone meta tags, delivered with the mobile shell
+- **Phase 1 (installable), built:** a web app manifest, app icons, and
+  standalone meta tags, delivered with the mobile shell
   (`docs/features/mobile-app-shell-and-touch-ergonomics-v0.1.md` §7).
-  **No service worker.**
-- **Phase 2 (offline and background), after prototype parity:** service
-  worker, offline behavior, background sync, and push notifications. It
-  gets its own feature spec and decision record. Don't add any of it
-  earlier, not even a no-op service worker or a PWA build plugin. Keep
-  every data access behind `src/services/` so Phase 2 stays additive.
+- **Phase 2 (offline), in progress:**
+  `docs/features/pwa-phase-2-offline-v0.1.md`, decided in
+  `docs/decisions/20260925-pwa-phase-2-approach.md`. Increment 2a (the
+  app opens offline; safe updates via `vite-plugin-pwa`) is built. 2b
+  (last-known plan offline, stored by `src/services/`) and 2c (offline
+  session actions) follow, each through `analyze-feature`. Push
+  notifications are deferred to their own spec. The service worker is
+  off in development; test offline behaviour against a production build
+  (`vite preview`). Keep every data access behind `src/services/`, since
+  offline data and queued writes build on that layer, never on
+  components.
 
 The app **may** also later be wrapped in something like Capacitor for
 native distribution. That is still undecided. Don't install Capacitor

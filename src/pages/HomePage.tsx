@@ -24,6 +24,7 @@ import * as workSessionService from "../services/workSessionService";
 import ComingUpList from "./home/ComingUpList";
 import NeedsAttentionCard from "./home/NeedsAttentionCard";
 import NextCard from "./home/NextCard";
+import UpdateNote from "./home/UpdateNote";
 import TodaysActivitiesList from "./home/TodaysActivitiesList";
 
 type HomePageProps = {
@@ -275,6 +276,8 @@ export default function HomePage({
           </DropdownMenu>
         </div>
       </header>
+
+      <UpdateNote />
 
       {loadError && <ErrorBanner message="Couldn’t load your day." onRetry={retry} className="mt-4" />}
 

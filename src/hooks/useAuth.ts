@@ -6,8 +6,13 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
+    // getUser() asks the server. Offline it fails — and must not sign the
+    // student out on screen: onAuthStateChange below has already restored
+    // the session kept on this device, so a failure changes nothing (PWA
+    // phase 2, docs/features/pwa-phase-2-offline-v0.1.md, 2a). The server
+    // still enforces who can read what.
+    supabase.auth.getUser().then(({ data, error }) => {
+      if (!error) setUser(data.user);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange(

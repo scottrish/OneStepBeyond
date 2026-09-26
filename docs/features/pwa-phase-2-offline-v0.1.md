@@ -1,6 +1,8 @@
 # Feature: PWA phase 2 — works offline, stays up to date
 
-**Status:** Approved 2026-09-25, not yet built. W1–W4 approved as
+**Status:** Approved 2026-09-25. **Increment 2a built 2026-09-25**
+(tag `v-pre-pwa-offline-shell` marks the state before; see
+"Implementation Notes (as built) — 2a"); 2b and 2c not yet built. W1–W4 approved as
 recommended, and W5 (push notifications) deferred
 (`docs/decisions/20260925-pwa-phase-2-approach.md`). This is roadmap
 Phase 7 step 13 ("After parity"), phase 2 of
@@ -311,3 +313,64 @@ installed app from iOS 16.4.
 - Capacitor or native wrapping (still undecided; CLAUDE.md).
 - Syncing between the student's own devices beyond what the server
   already does.
+
+## Implementation Notes (as built) — 2a, 2026-09-25
+
+- **Decisions:** W1 (`vite-plugin-pwa`) and W4 (the update note), plus
+  O1 and O2 from the analysis. O1: offline, load errors say "You're
+  offline. This will load when you're back online." and retry by
+  themselves. O2: "Later" lasts until the app is next opened.
+- **Build** (`vite.config.ts`):
+  - the service worker pre-stores the built app (18 files: the page,
+    every code chunk including the dashboard and invite pages, the icons,
+    and the manifest);
+  - it serves the app's page for any address in the app;
+  - Google Fonts: the stylesheet is refreshed in the background, and the
+    font files are stored for a year;
+  - Supabase is never cached;
+  - `manifest: false`, so phase 1's manifest is kept;
+  - it's off in development, and registered from `src/main.tsx` in
+    production builds only (`src/lib/registerServiceWorker.ts`).
+- **Updates:** `src/lib/pwaUpdateStore.ts` and `src/pages/home/UpdateNote.tsx`
+  ("A new version is ready." Refresh / Later), on Home only.
+- **Found during analysis — offline, a signed-in student was shown
+  Login.** `useAuth` let a failed `getUser()` (a network request) clear
+  the user that the stored session had just restored. It now ignores a
+  failed check. The server still enforces who can read what.
+- **Found in the real browser — `navigator.onLine` can't be trusted on
+  its own.** It can say "online" with no internet (Wi-Fi without a
+  connection, or just after the app opens offline).
+  - `src/lib/networkStatus.ts` wraps the Supabase client's fetch. It
+    fails at once when the browser knows it's offline (as an AbortError,
+    so Supabase doesn't spend about 7 seconds retrying), and notes
+    whether each request reached the server.
+  - `useOnlineStatus` means "the browser says online **and** the last
+    request got through".
+  - The browser's `online` event (or returning to the app) clears the
+    "unreachable" mark, so waiting screens retry by themselves. That was
+    a bug caught by the same check: without it, the app stayed "offline"
+    after the connection returned.
+  - The offline banner keeps a quiet Try again, for when the browser
+    never reports a change.
+- **Login** offline says "You're offline. Connect to sign in." and
+  doesn't try.
+- **Verified in a real browser** (Chromium, a production build via
+  `vite preview`, 320 px, local Supabase), 12 checks:
+  - the service worker takes control;
+  - offline, the app opens, stays signed in, uses its own fonts and says
+    so calmly (immediately when the browser reports offline; about 7 s
+    when it wrongly says online);
+  - `/dashboard` opens offline;
+  - back online, the screen loads by itself;
+  - no Supabase request is cached;
+  - a new build is offered on Home without reloading, and Refresh loads
+    it;
+  - Login offline.
+- **Testing note:** Playwright's offline mode changes `navigator.onLine`
+  on an open page, but not after a reload, and it doesn't fire the
+  browser's `online` / `offline` events. The checks send those events,
+  as a real device would.
+- **Not yet:** the supporter dashboard shows "Loading…" offline until its
+  requests fail, and uses its own messages. It doesn't store data
+  offline (by design). Check on a real iPhone that an installed app takes
+  up a new version on the next launch.

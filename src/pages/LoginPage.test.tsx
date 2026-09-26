@@ -53,4 +53,21 @@ describe("LoginPage", () => {
 
     expect(signUp).toHaveBeenCalledWith("person@example.com", "secret123");
   });
+
+  it("offline, says a connection is needed and doesn't try to sign in (PWA phase 2)", async () => {
+    Object.defineProperty(navigator, "onLine", { value: false, configurable: true });
+    const signIn = vi.fn();
+    const userEventInstance = userEvent.setup();
+    try {
+      render(<LoginPage signIn={signIn} signUp={vi.fn()} />);
+
+      expect(screen.getByRole("status")).toHaveTextContent("You’re offline. Connect to sign in.");
+      await userEventInstance.type(screen.getByLabelText(/email/i), "a@example.com");
+      await userEventInstance.type(screen.getByLabelText(/password/i), "secret");
+      expect(screen.getByRole("button", { name: /sign in/i })).toBeDisabled();
+      expect(signIn).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(navigator, "onLine", { value: true, configurable: true });
+    }
+  });
 });

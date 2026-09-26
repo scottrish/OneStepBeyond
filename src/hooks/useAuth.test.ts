@@ -56,6 +56,26 @@ describe("useAuth", () => {
     expect(result.current.user).toEqual(user);
   });
 
+  it("offline, a failed server check doesn't sign the student out (PWA phase 2)", async () => {
+    let finishGetUser: (value: unknown) => void = () => {};
+    mockedAuth.getUser.mockReturnValue(new Promise((resolve) => (finishGetUser = resolve)));
+
+    const { result } = renderHook(() => useAuth());
+    await waitFor(() => expect(mockedAuth.onAuthStateChange).toHaveBeenCalled());
+
+    // The session kept on the device is restored first…
+    const onAuthStateChange = mockedAuth.onAuthStateChange.mock.calls[0][0];
+    act(() => {
+      onAuthStateChange("INITIAL_SESSION", { user } as Session);
+    });
+    // …then the server check fails, because there's no connection.
+    await act(async () => {
+      finishGetUser({ data: { user: null }, error: new Error("Failed to fetch") });
+    });
+
+    expect(result.current.user).toEqual(user);
+  });
+
   it("signs in without alerting when credentials are valid", async () => {
     mockedAuth.signInWithPassword.mockResolvedValue({ error: null });
     const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
