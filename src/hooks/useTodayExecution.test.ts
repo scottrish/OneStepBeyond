@@ -6,6 +6,7 @@ vi.mock("../services/workSessionService", () => ({
   startWorkSession: vi.fn(),
   completeWorkSession: vi.fn(),
   reviseWorkSessionEstimate: vi.fn(),
+  rescheduleWorkSession: vi.fn(),
   deleteWorkSession: vi.fn(),
 }));
 vi.mock("../services/workItemService", () => ({
@@ -21,6 +22,7 @@ const mockedWorkSessionService = workSessionService as unknown as {
   startWorkSession: ReturnType<typeof vi.fn>;
   completeWorkSession: ReturnType<typeof vi.fn>;
   reviseWorkSessionEstimate: ReturnType<typeof vi.fn>;
+  rescheduleWorkSession: ReturnType<typeof vi.fn>;
   deleteWorkSession: ReturnType<typeof vi.fn>;
 };
 const mockedWorkItemService = workItemService as unknown as {
@@ -169,17 +171,29 @@ describe("useTodayExecution", () => {
     expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("s3");
   });
 
-  it("defer deletes the session and removes it locally", async () => {
-    mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session]);
-    mockedWorkSessionService.deleteWorkSession.mockResolvedValue(undefined);
+  it("reschedule to another day moves the session and drops it from today's list", async () => {
+    mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([{ ...session, status: "in_progress" }]);
+    mockedWorkSessionService.rescheduleWorkSession.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useTodayExecution("student-1", "2026-03-16"));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(() => result.current.defer("s1"));
+    await act(() => result.current.reschedule("s1", "2026-03-17", null));
 
-    expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("s1");
+    expect(mockedWorkSessionService.rescheduleWorkSession).toHaveBeenCalledWith("s1", "2026-03-17", null);
     expect(result.current.sessions).toEqual([]);
+  });
+
+  it("reschedule later today keeps it on today's list, planned, at the new time", async () => {
+    mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([{ ...session, status: "in_progress" }]);
+    mockedWorkSessionService.rescheduleWorkSession.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useTodayExecution("student-1", "2026-03-16"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(() => result.current.reschedule("s1", "2026-03-16", "19:00"));
+
+    expect(result.current.sessions[0]).toMatchObject({ status: "planned", startTime: "19:00", startedAt: null });
   });
 
   it("sets actionError when an action fails", async () => {

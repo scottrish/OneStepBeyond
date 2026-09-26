@@ -20,7 +20,20 @@ vi.mock("../services/workSessionService", () => ({
   startWorkSession: vi.fn(),
   completeWorkSession: vi.fn(),
   reviseWorkSessionEstimate: vi.fn(),
+  rescheduleWorkSession: vi.fn(),
   deleteWorkSession: vi.fn(),
+}));
+vi.mock("../services/coachingInteractionService", () => ({
+  recordFriction: vi.fn(),
+  resolveInteraction: vi.fn(),
+  listRecentDismissals: vi.fn(),
+}));
+vi.mock("../services/activityService", () => ({
+  listActivities: vi.fn(),
+}));
+vi.mock("../services/preferencesService", () => ({
+  getPreferences: vi.fn(),
+  DEFAULT_PREFERENCES: { weekdayFinishTime: "21:00", saturdayHours: 2, sundayHours: 2 },
 }));
 vi.mock("../services/decompositionAttemptService", () => ({
   recordDecompositionAttempt: vi.fn(),
@@ -34,6 +47,9 @@ import * as workItemService from "../services/workItemService";
 import * as courseService from "../services/courseService";
 import * as workSessionService from "../services/workSessionService";
 import * as reflectionService from "../services/reflectionService";
+import * as coachingInteractionService from "../services/coachingInteractionService";
+import * as activityService from "../services/activityService";
+import * as preferencesService from "../services/preferencesService";
 import TodayExecutionPage from "./TodayExecutionPage";
 
 const mockedAssignmentService = assignmentService as unknown as {
@@ -53,13 +69,23 @@ const mockedWorkSessionService = workSessionService as unknown as {
   startWorkSession: ReturnType<typeof vi.fn>;
   completeWorkSession: ReturnType<typeof vi.fn>;
   reviseWorkSessionEstimate: ReturnType<typeof vi.fn>;
+  rescheduleWorkSession: ReturnType<typeof vi.fn>;
   deleteWorkSession: ReturnType<typeof vi.fn>;
 };
+const mockedCoaching = coachingInteractionService as unknown as {
+  recordFriction: ReturnType<typeof vi.fn>;
+  resolveInteraction: ReturnType<typeof vi.fn>;
+  listRecentDismissals: ReturnType<typeof vi.fn>;
+};
+const mockedActivityService = activityService as unknown as { listActivities: ReturnType<typeof vi.fn> };
+const mockedPreferencesService = preferencesService as unknown as { getPreferences: ReturnType<typeof vi.fn> };
 const mockedReflectionService = reflectionService as unknown as {
   recordReflection: ReturnType<typeof vi.fn>;
 };
 
 const user = { id: "student-1", email: "person@example.com" } as User;
+// Where coaching can lead (Assignment Detail, Plan); tests that need them override these.
+const exits = { onOpenAssignment: vi.fn(), onChangePlan: vi.fn() };
 const course = { id: "course-1", name: "Biology", colorIndex: 0 };
 const assignment = {
   id: "a1",
@@ -116,6 +142,16 @@ beforeEach(() => {
   mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([]);
   mockedWorkSessionService.startWorkSession.mockResolvedValue("2026-03-16T16:00:00.000Z");
   mockedWorkSessionService.completeWorkSession.mockResolvedValue("2026-03-16T16:30:00.000Z");
+  mockedWorkSessionService.rescheduleWorkSession.mockResolvedValue(undefined);
+  mockedCoaching.recordFriction.mockResolvedValue("c1");
+  mockedCoaching.resolveInteraction.mockResolvedValue(undefined);
+  mockedCoaching.listRecentDismissals.mockResolvedValue([]);
+  mockedActivityService.listActivities.mockResolvedValue([]);
+  mockedPreferencesService.getPreferences.mockResolvedValue({
+    weekdayFinishTime: "21:00",
+    saturdayHours: 2,
+    sundayHours: 2,
+  });
 });
 
 afterEach(() => {
@@ -125,7 +161,7 @@ afterEach(() => {
 describe("TodayExecutionPage", () => {
   it("shows an empty state with a link back to Plan when nothing is planned today", async () => {
     const onBack = vi.fn();
-    render(<TodayExecutionPage user={user} onBack={onBack} />);
+    render(<TodayExecutionPage user={user} onBack={onBack} {...exits} />);
 
     expect(await screen.findByText(/nothing planned for today yet/i)).toBeInTheDocument();
 
@@ -136,7 +172,7 @@ describe("TodayExecutionPage", () => {
   it("shows the current task with its assignment/course context and a Start button while planned", async () => {
     mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session()]);
 
-    render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+    render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
 
     expect(await screen.findByText("Draft outline")).toBeInTheDocument();
     expect(screen.getByText(/cell structure project · biology/i)).toBeInTheDocument();
@@ -149,7 +185,7 @@ describe("TodayExecutionPage", () => {
     mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session()]);
     const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
-    render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+    render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
     await screen.findByText("Draft outline");
 
     await userEventInstance.click(screen.getByRole("button", { name: /^start$/i }));
@@ -168,7 +204,7 @@ describe("TodayExecutionPage", () => {
     mockedReflectionService.recordReflection.mockResolvedValue(undefined);
     const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
-    render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+    render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
     await screen.findByText("Draft outline");
 
     await userEventInstance.click(screen.getByRole("button", { name: /^done$/i }));
@@ -201,7 +237,7 @@ describe("TodayExecutionPage", () => {
     ]);
     const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
-    render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+    render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
     await screen.findByText("Draft outline");
     await userEventInstance.click(screen.getByRole("button", { name: /^done$/i }));
     await screen.findByText(/did this take longer than you expected/i);
@@ -220,10 +256,19 @@ describe("TodayExecutionPage", () => {
     mockedWorkSessionService.reviseWorkSessionEstimate.mockResolvedValue(undefined);
     const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
-    render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+    render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
     await screen.findByText("Draft outline");
 
     await userEventInstance.click(screen.getByRole("button", { name: /need more time/i }));
+
+    // Straight to the "taking longer" intervention — no picker.
+    expect(await screen.findByRole("dialog", { name: "Your first estimate may need updating." })).toBeInTheDocument();
+    expect(mockedCoaching.recordFriction).toHaveBeenCalledWith("student-1", expect.objectContaining({
+      stage: "in_progress",
+      frictionKind: "taking_longer",
+      interventionId: "revise-estimate",
+    }));
+    await userEventInstance.click(screen.getByRole("button", { name: "Add 10 min to my estimate" }));
 
     expect(mockedWorkSessionService.reviseWorkSessionEstimate).toHaveBeenCalledWith("s1", 40, 30);
     expect(await screen.findByText("about 40m · first planned 30m")).toBeInTheDocument();
@@ -235,63 +280,196 @@ describe("TodayExecutionPage", () => {
       session({ id: "s2", workItemId: "w2", startTime: "17:00", plannedMinutes: 40, originalPlannedMinutes: 30 }),
     ]);
 
-    render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+    render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
 
     expect(await screen.findByText("about 40m · first planned 30m")).toBeInTheDocument();
   });
 
-  it("I'm stuck shows non-judgmental coaching copy with keep-going and move-to-tomorrow choices", async () => {
-    mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
-      session({ status: "in_progress" }),
-    ]);
-    const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+  describe("coaching (execution-coaching-v0.1.md)", () => {
+    const inProgress = () =>
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session({ status: "in_progress" })]);
 
-    render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
-    await screen.findByText("Draft outline");
+    it("before starting, 'I'm stuck' and 'Not now' sit under Start; the old 'Move to tomorrow' is gone", async () => {
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session()]);
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
 
-    await userEventInstance.click(screen.getByRole("button", { name: /i.m stuck/i }));
+      await screen.findByText("Draft outline");
+      expect(screen.getByRole("button", { name: /i.m stuck/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Not now" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /move to tomorrow/i })).not.toBeInTheDocument();
+    });
 
-    expect(
-      screen.getByText(/being stuck is information, not failure/i),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /keep going/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /move to tomorrow/i })).toBeInTheDocument();
-  });
+    it("'I'm stuck' asks what's in the way, records the answer, and offers one intervention", async () => {
+      inProgress();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
 
-  it("Keep going returns to the normal task view without changing the session", async () => {
-    mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
-      session({ status: "in_progress" }),
-    ]);
-    const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      await userEventInstance.click(await screen.findByRole("button", { name: /i.m stuck/i }));
+      const picker = screen.getByRole("dialog", { name: "What's getting in the way?" });
+      expect(within(picker).getAllByRole("button").map((b) => b.textContent)).toEqual(
+        expect.arrayContaining(["It's taking longer than I expected", "Never mind"]),
+      );
+      await userEventInstance.click(within(picker).getByRole("button", { name: "I'm distracted" }));
 
-    render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
-    await screen.findByText("Draft outline");
-    await userEventInstance.click(screen.getByRole("button", { name: /i.m stuck/i }));
+      expect(mockedCoaching.recordFriction).toHaveBeenCalledWith("student-1", {
+        assignmentId: "a1",
+        workItemId: "w1",
+        workSessionId: "s1",
+        stage: "in_progress",
+        frictionKind: "distracted",
+        interventionId: "refocus",
+      });
+      const card = await screen.findByRole("dialog", {
+        name: "Attention drifts. That's normal, and you can steer it back.",
+      });
+      await userEventInstance.click(within(card).getByRole("button", { name: "Try five focused minutes" }));
 
-    await userEventInstance.click(screen.getByRole("button", { name: /keep going/i }));
+      expect(mockedCoaching.resolveInteraction).toHaveBeenCalledWith("c1", {
+        response: "selected",
+        actionId: "five_minutes",
+      });
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    });
 
-    expect(screen.getByRole("button", { name: /^done$/i })).toBeInTheDocument();
-    expect(mockedWorkSessionService.deleteWorkSession).not.toHaveBeenCalled();
-  });
+    it("'Never mind' closes the picker without recording anything", async () => {
+      inProgress();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
 
-  it("Move to tomorrow defers the session, dropping it out of today's list entirely", async () => {
-    mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([
-      session({ status: "in_progress" }),
-    ]);
-    mockedWorkSessionService.deleteWorkSession.mockResolvedValue(undefined);
-    const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      await userEventInstance.click(await screen.findByRole("button", { name: /i.m stuck/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: "Never mind" }));
 
-    render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
-    await screen.findByText("Draft outline");
-    await userEventInstance.click(screen.getByRole("button", { name: /i.m stuck/i }));
+      expect(mockedCoaching.recordFriction).not.toHaveBeenCalled();
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    });
 
-    await userEventInstance.click(screen.getByRole("button", { name: /move to tomorrow/i }));
+    it("closing the intervention sheet (Escape) counts as 'Not helpful right now'", async () => {
+      inProgress();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
 
-    await waitFor(() =>
-      expect(mockedWorkSessionService.deleteWorkSession).toHaveBeenCalledWith("s1"),
-    );
-    // No other session was planned today — dropping this one leaves none.
-    expect(await screen.findByText(/nothing planned for today yet/i)).toBeInTheDocument();
+      await userEventInstance.click(await screen.findByRole("button", { name: /i.m stuck/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: "I'm distracted" }));
+      await screen.findByRole("dialog", { name: /attention drifts/i });
+      await userEventInstance.keyboard("{Escape}");
+
+      expect(mockedCoaching.resolveInteraction).toHaveBeenCalledWith("c1", { response: "dismissed" });
+    });
+
+    it("a strategy dismissed twice recently isn't offered again: 'Something else' comes instead", async () => {
+      inProgress();
+      mockedCoaching.listRecentDismissals.mockResolvedValue(["refocus", "refocus"]);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
+
+      await userEventInstance.click(await screen.findByRole("button", { name: /i.m stuck/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: "I'm distracted" }));
+
+      expect(await screen.findByRole("dialog", { name: "Thanks for saying so." })).toBeInTheDocument();
+      expect(mockedCoaching.recordFriction).toHaveBeenCalledWith(
+        "student-1",
+        expect.objectContaining({ frictionKind: "distracted", interventionId: "open-choice" }),
+      );
+    });
+
+    it("'Pick my own first action' takes optional words and saves them as the note", async () => {
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session()]);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
+
+      await userEventInstance.click(await screen.findByRole("button", { name: /i.m stuck/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: "I can't get started" }));
+      await userEventInstance.click(await screen.findByRole("button", { name: "Pick my own first action" }));
+
+      const sheet = await screen.findByRole("dialog", { name: "What comes first?" });
+      await userEventInstance.type(
+        within(sheet).getByLabelText("In your own words — what comes first?"),
+        "Open the lab sheet",
+      );
+      await userEventInstance.click(within(sheet).getByRole("button", { name: "That's my first step" }));
+
+      expect(mockedCoaching.resolveInteraction).toHaveBeenCalledWith("c1", { note: "Open the lab sheet" });
+    });
+
+    it("'Revisit the breakdown' opens the assignment", async () => {
+      inProgress();
+      const onOpenAssignment = vi.fn();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} onOpenAssignment={onOpenAssignment} />);
+
+      await userEventInstance.click(await screen.findByRole("button", { name: /i.m stuck/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: "This is bigger than I thought" }));
+      await userEventInstance.click(await screen.findByRole("button", { name: "Revisit the breakdown" }));
+
+      expect(onOpenAssignment).toHaveBeenCalledWith("a1");
+    });
+
+    it("'Not now' reschedules: 'Later today' at the next free time, keeping it today", async () => {
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session()]);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
+
+      await userEventInstance.click(await screen.findByRole("button", { name: "Not now" }));
+      const sheet = screen.getByRole("dialog", { name: "When would you rather do this?" });
+      expect(within(sheet).queryByText(/worth knowing/i)).not.toBeInTheDocument();
+      // It's 9:00; the weekday window opens at 15:15 and nothing else is planned.
+      await userEventInstance.click(within(sheet).getByRole("button", { name: "Later today · 3:15 PM" }));
+
+      expect(mockedWorkSessionService.rescheduleWorkSession).toHaveBeenCalledWith("s1", "2026-03-16", "15:15");
+      expect(mockedCoaching.recordFriction).not.toHaveBeenCalled();
+    });
+
+    it("'Tomorrow' moves it off today; from 'Stop and replan' it resolves the interaction as replanned", async () => {
+      inProgress();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
+
+      await userEventInstance.click(await screen.findByRole("button", { name: /i.m stuck/i }));
+      await userEventInstance.click(screen.getByRole("button", { name: "I'm distracted" }));
+      await userEventInstance.click(await screen.findByRole("button", { name: "Stop and replan" }));
+      await userEventInstance.click(
+        within(await screen.findByRole("dialog", { name: "When would you rather do this?" })).getByRole("button", {
+          name: "Tomorrow",
+        }),
+      );
+
+      expect(mockedWorkSessionService.rescheduleWorkSession).toHaveBeenCalledWith("s1", "2026-03-17", null);
+      await waitFor(() =>
+        expect(mockedCoaching.resolveInteraction).toHaveBeenCalledWith("c1", { response: "replanned" }),
+      );
+      expect(await screen.findByText(/nothing planned for today yet/i)).toBeInTheDocument();
+    });
+
+    it("due today: says so calmly, and still offers Tomorrow with a hint", async () => {
+      mockedAssignmentService.listAssignments.mockResolvedValue([{ ...assignment, dueDate: "2026-03-16" }]);
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session()]);
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
+
+      await userEventInstance.click(await screen.findByRole("button", { name: "Not now" }));
+      const sheet = screen.getByRole("dialog", { name: "When would you rather do this?" });
+
+      expect(within(sheet).getByText("Worth knowing: this is due today.")).toBeInTheDocument();
+      expect(within(sheet).getByRole("button", { name: "Tomorrow" })).toHaveAccessibleDescription(
+        "This is due before then — you can still choose it.",
+      );
+      expect(within(sheet).queryByText(/\blate\b/i)).not.toBeInTheDocument();
+    });
+
+    it("'Choose another day' goes to Plan; 'Cancel' changes nothing", async () => {
+      mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session()]);
+      const onChangePlan = vi.fn();
+      const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} onChangePlan={onChangePlan} />);
+
+      await userEventInstance.click(await screen.findByRole("button", { name: "Not now" }));
+      await userEventInstance.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(mockedWorkSessionService.rescheduleWorkSession).not.toHaveBeenCalled();
+
+      await userEventInstance.click(screen.getByRole("button", { name: "Not now" }));
+      await userEventInstance.click(await screen.findByRole("button", { name: "Choose another day" }));
+      expect(onChangePlan).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("shows a lightweight 'After that' list without expanding later items", async () => {
@@ -304,7 +482,7 @@ describe("TodayExecutionPage", () => {
       session({ id: "s2", workItemId: "w2", startTime: "17:00", plannedMinutes: 20 }),
     ]);
 
-    render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+    render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
 
     expect(await screen.findByText("Draft outline")).toBeInTheDocument();
     expect(screen.getByText(/after that/i)).toBeInTheDocument();
@@ -323,7 +501,7 @@ describe("TodayExecutionPage", () => {
       session({ status: "done" }),
     ]);
 
-    render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+    render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
 
     expect(
       await screen.findByText(/that.s everything for today/i),
@@ -340,7 +518,7 @@ describe("TodayExecutionPage", () => {
       session({ status: "in_progress" }),
     ]);
 
-    render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+    render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
     await screen.findByText("Draft outline");
 
     expect(document.querySelector('[role="timer"]')).not.toBeInTheDocument();
@@ -349,7 +527,7 @@ describe("TodayExecutionPage", () => {
   it("Change today's plan is always available as an escape hatch", async () => {
     mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session()]);
     const onBack = vi.fn();
-    render(<TodayExecutionPage user={user} onBack={onBack} />);
+    render(<TodayExecutionPage user={user} onBack={onBack} {...exits} />);
     await screen.findByText("Draft outline");
 
     await userEvent.click(screen.getByRole("button", { name: /change today.s plan/i }));
@@ -366,7 +544,7 @@ describe("TodayExecutionPage", () => {
       mockedWorkSessionService.deleteWorkSession.mockResolvedValue(undefined);
       const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
-      render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
       await userEventInstance.click(await screen.findByRole("button", { name: /^done$/i }));
 
       expect(screen.getByRole("heading", { name: "Is the whole task done?" })).toBeInTheDocument();
@@ -388,7 +566,7 @@ describe("TodayExecutionPage", () => {
       mockedWorkSessionService.listWorkSessionsForStudent.mockResolvedValue([tomorrowSession]);
       const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
-      render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
       await userEventInstance.click(await screen.findByRole("button", { name: /^done$/i }));
       await userEventInstance.click(screen.getByRole("button", { name: "Not yet — keep the rest of the plan" }));
 
@@ -407,7 +585,7 @@ describe("TodayExecutionPage", () => {
       mockedAssignmentService.completeAssignment.mockResolvedValue(undefined);
       const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
-      render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
       await userEventInstance.click(await screen.findByRole("button", { name: /^done$/i }));
 
       expect(await screen.findByRole("heading", { name: "Is the whole assignment done?" })).toBeInTheDocument();
@@ -430,7 +608,7 @@ describe("TodayExecutionPage", () => {
       mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session({ status: "in_progress" })]);
       const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
-      render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
       await userEventInstance.click(await screen.findByRole("button", { name: /^done$/i }));
       await userEventInstance.click(await screen.findByRole("button", { name: "Not yet" }));
 
@@ -442,7 +620,7 @@ describe("TodayExecutionPage", () => {
       mockedWorkSessionService.listWorkSessionsForDate.mockResolvedValue([session({ status: "in_progress" })]);
       const userEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
-      render(<TodayExecutionPage user={user} onBack={vi.fn()} />);
+      render(<TodayExecutionPage user={user} onBack={vi.fn()} {...exits} />);
       await userEventInstance.click(await screen.findByRole("button", { name: /^done$/i }));
 
       expect(await screen.findByText(/did this take longer than you expected/i)).toBeInTheDocument();

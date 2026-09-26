@@ -49,7 +49,14 @@ stuck" without it feeling like failure.
     and `docs/decisions/20260925-execution-timing.md`.)*
   - **Need more time** → adds 10 minutes to the planned duration in place;
     no penalty framing. *(Amended 2026-09-25: the original estimate is
-    kept and shown, "about 40m · first planned 30m".)*
+    kept and shown, "about 40m · first planned 30m". Since part 12b it
+    first offers "Your first estimate may need updating.", whose "Add 10
+    min to my estimate" does this — `execution-coaching-v0.1.md`.)*
+  - *Superseded 2026-09-25 (`execution-coaching-v0.1.md`, part 12b): "I'm
+    stuck" now opens "What's getting in the way?" and one intervention,
+    before starting too, beside a new "Not now" that reschedules. "Move to
+    tomorrow" is retired; rescheduling's "Tomorrow" replaces it (decision
+    E4). The original text follows.*
   - **I'm stuck** → shows a coaching note: *"Being stuck is information,
     not failure. What is the smallest piece of this you could still do? Or
     do you want to move it to tomorrow?"* with two calm choices: "Move to

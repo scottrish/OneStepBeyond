@@ -329,7 +329,7 @@ which screen the client renders.
 
 # Phase 7 — Prototype parity: mobile-first redesign + planning, completion & coaching
 
-**Status: in progress. Steps 1 (2026-09-24) and 2–11 (2026-09-25) done, taken out of order at product-owner direction; the rest proposed.**
+**Status: in progress. Steps 1 (2026-09-24) and 2–12 (2026-09-25) done, taken out of order at product-owner direction; the rest proposed.**
 
 **Why this, why now:** `../OneStepBeyondPrototype` (this app's visual and
 behavioral source of truth, per CLAUDE.md) has moved on a lot since
@@ -388,7 +388,7 @@ All items are from [daily-planning-and-completion-v2-proposal.md](features/daily
 
 | # | Step | Spec | Decision needed first | Notes |
 |---|---|---|---|---|
-| 12 | 🟡 **12a done 2026-09-25** (timing, revised estimate, completion checks); **12b next** (friction picker, interventions, reschedule). Execution coaching: friction picker, interventions, repair flow, completion checks, automatic elapsed time, revised estimates | [execution-coaching-v0.1.md](features/execution-coaching-v0.1.md) | — (the spec already resolves its own open point by omitting the Assignment-Brief action) | Largest step. **New table + work-session changes**: tag, and run migration review. Needs steps 1, 6, and Plan. After it ships: add a friction-panel addendum to `coach-parent-dashboard-feature-spec-v0.1.md` |
+| 12 | ✅ **Done 2026-09-25** (12a timing, revised estimate, completion checks; 12b friction picker, interventions, reschedule). Execution coaching: friction picker, interventions, repair flow, completion checks, automatic elapsed time, revised estimates | [execution-coaching-v0.1.md](features/execution-coaching-v0.1.md) | — (the spec already resolves its own open point by omitting the Assignment-Brief action) | Largest step. **New table + work-session changes**: tag, and run migration review. Needs steps 1, 6, and Plan. After it ships: add a friction-panel addendum to `coach-parent-dashboard-feature-spec-v0.1.md` |
 
 ## After parity
 

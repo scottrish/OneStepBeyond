@@ -13,6 +13,7 @@ import {
   listWorkSessionsForDate,
   listWorkSessionsForStudent,
   reviseWorkSessionEstimate,
+  rescheduleWorkSession,
   startWorkSession,
   completeWorkSession,
   updateWorkSessionStartTimes,
@@ -210,6 +211,22 @@ describe("completeWorkSession", () => {
   it("throws when the update errors", async () => {
     mockedFrom.mockReturnValue(mockQuery({ data: null, error: new Error("boom") }));
     await expect(completeWorkSession("session-1")).rejects.toThrow("boom");
+  });
+});
+
+describe("rescheduleWorkSession", () => {
+  it("moves the session to a new day and time and back to planned", async () => {
+    const builder = mockQuery({ data: null, error: null });
+    mockedFrom.mockReturnValue(builder);
+
+    await rescheduleWorkSession("session-1", "2026-03-17", null);
+
+    expect(builder.update).toHaveBeenCalledWith({
+      date: "2026-03-17",
+      start_time: null,
+      status: "planned",
+      started_at: null,
+    });
   });
 });
 

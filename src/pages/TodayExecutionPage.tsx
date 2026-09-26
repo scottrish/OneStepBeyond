@@ -4,19 +4,34 @@ import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/EmptyState";
 import TurnedInReminder from "@/components/TurnedInReminder";
 import ErrorBanner from "../components/ErrorBanner";
+import { activityBlocks, sessionBlocks } from "../domain/defaultStartTimes";
 import { effortLabel } from "../domain/effortPresets";
+import {
+  isDueBeforeTomorrow,
+  isDueTodayOrEarlier,
+  laterTodayStart,
+  type ExecutionStage,
+  type FrictionKind,
+  type Intervention,
+  type InterventionAction,
+} from "../domain/executionCoaching";
 import { estimateLabel, otherOpenSessionsFor } from "../domain/executionTiming";
 import { isAssignmentFinishable } from "../domain/planningCandidates";
-import { longPlanDate, todayISODate } from "../domain/planningDate";
+import { addDaysISODate, longPlanDate, todayISODate } from "../domain/planningDate";
+import { activitiesOn, studySlots } from "../domain/studyCapacity";
 import { sortByStartTime } from "../domain/sessionOrder";
+import { useActivities } from "../hooks/useActivities";
 import { useAllWorkSessions } from "../hooks/useAllWorkSessions";
 import { useAssignmentsList } from "../hooks/useAssignmentsList";
 import { useCourses } from "../hooks/useCourses";
+import { useExecutionCoaching } from "../hooks/useExecutionCoaching";
+import { usePreferences } from "../hooks/usePreferences";
 import { useReflection } from "../hooks/useReflection";
 import { useTodayExecution } from "../hooks/useTodayExecution";
 import type { Assignment } from "../services/assignmentService";
 import type { WorkSession } from "../services/workSessionService";
 import ReflectionPrompt from "./ReflectionPrompt";
+import { FrictionSheet, InterventionSheet, OwnActionSheet, RepairSheet } from "./today/CoachingSheets";
 import CompletionCheck from "./today/CompletionCheck";
 import SessionReflection from "./today/SessionReflection";
 import TaskCard from "./today/TaskCard";
@@ -27,8 +42,29 @@ type TodayExecutionPageProps = {
   // Planning, and the all-done screen's own way back — all the same
   // action (docs/features/today-execution.md).
   onBack: () => void;
+  // "Revisit the breakdown" / "Look at the breakdown": Assignment Detail,
+  // where steps are edited. Closing it comes back here.
+  onOpenAssignment: (assignmentId: string) => void;
+  // "Choose another day": Plan, on today's plan, where a session can be
+  // moved to another day.
+  onChangePlan: () => void;
 };
 
+// The coaching sheet showing, if any (execution-coaching-v0.1.md). Each
+// carries the interaction it belongs to (null if recording it failed —
+// the student carries on regardless).
+type Overlay =
+  | { kind: "none" }
+  | { kind: "friction"; stage: ExecutionStage }
+  | { kind: "intervention"; interactionId: string | null; intervention: Intervention }
+  | { kind: "ownAction"; interactionId: string | null; intervention: Intervention }
+  | { kind: "repair"; interactionId: string | null; intervention: Intervention | null; nowMinutes: number };
+
+// Coaching (part 12b): "I'm stuck" / "Not now" / "Need more time" open
+// the sheets in ./today/CoachingSheets — what's in the way, one
+// intervention, an optional own first step, or rescheduling. All
+// student-initiated; nothing appears on its own.
+//
 // What happens after Done (execution-coaching-v0.1.md, "Completion-time
 // checks"; docs/decisions/20260925-execution-timing.md):
 // - "Is the whole task done?" — only if the step has other open sessions;
@@ -43,7 +79,12 @@ type Finish =
   | { stage: "reminder"; assignment: Assignment }
   | { stage: "sessionReflection"; session: WorkSession };
 
-export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageProps) {
+export default function TodayExecutionPage({
+  user,
+  onBack,
+  onOpenAssignment,
+  onChangePlan,
+}: TodayExecutionPageProps) {
   const studentId = user.id;
   const today = useMemo(() => todayISODate(), []);
 
@@ -56,7 +97,7 @@ export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageP
     start,
     complete,
     needMoreTime,
-    defer,
+    reschedule,
   } = useTodayExecution(studentId, today);
   const {
     assignments,
@@ -74,9 +115,13 @@ export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageP
     refetch: refetchAllSessions,
   } = useAllWorkSessions(studentId);
   const { courses } = useCourses(studentId);
+  // For "Later today": the day's activities and study windows.
+  const { activities } = useActivities(studentId);
+  const { preferences } = usePreferences(studentId);
+  const coaching = useExecutionCoaching(studentId);
   const { actionError: reflectionError, submitReflection } = useReflection(studentId);
 
-  const [stuckSessionId, setStuckSessionId] = useState<string | null>(null);
+  const [overlay, setOverlay] = useState<Overlay>({ kind: "none" });
   const [finish, setFinish] = useState<Finish | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -169,9 +214,68 @@ export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageP
     });
   }
 
-  async function handleMoveToTomorrow(sessionId: string) {
-    setStuckSessionId(null);
-    await defer(sessionId);
+  // ——— Coaching (execution-coaching-v0.1.md) ———
+
+  const closeOverlay = () => setOverlay({ kind: "none" });
+
+  // A reported friction: record it, then offer its one intervention.
+  async function reportFriction(session: WorkSession, stage: ExecutionStage, kind: FrictionKind) {
+    const { item, assignment } = contextFor(session);
+    if (!assignment) return closeOverlay();
+    const { interactionId, intervention } = await coaching.report({
+      assignmentId: assignment.id,
+      workItemId: item?.id ?? null,
+      workSessionId: session.id,
+      stage,
+      frictionKind: kind,
+    });
+    setOverlay({ kind: "intervention", interactionId, intervention });
+  }
+
+  function nowMinutes(): number {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  }
+
+  function openRepair(interactionId: string | null, intervention: Intervention | null) {
+    setOverlay({ kind: "repair", interactionId, intervention, nowMinutes: nowMinutes() });
+  }
+
+  function handleInterventionAction(session: WorkSession, action: InterventionAction) {
+    if (overlay.kind !== "intervention") return;
+    const { interactionId, intervention } = overlay;
+    coaching.resolve(interactionId, intervention, { response: "selected", actionId: action.id });
+    switch (action.effect) {
+      case "return_to_task":
+        return closeOverlay();
+      case "own_first_action":
+        return setOverlay({ kind: "ownAction", interactionId, intervention });
+      case "add_ten_minutes":
+        closeOverlay();
+        return void needMoreTime(session.id);
+      case "open_breakdown": {
+        closeOverlay();
+        const { assignment } = contextFor(session);
+        if (assignment) onOpenAssignment(assignment.id);
+        return;
+      }
+      case "open_repair":
+        return openRepair(interactionId, intervention);
+    }
+  }
+
+  function dismissIntervention() {
+    if (overlay.kind !== "intervention") return;
+    coaching.resolve(overlay.interactionId, overlay.intervention, { response: "dismissed" });
+    closeOverlay();
+  }
+
+  async function repairTo(session: WorkSession, toDate: string, startTime: string | null) {
+    if (overlay.kind !== "repair") return;
+    const { interactionId, intervention } = overlay;
+    closeOverlay();
+    const moved = await reschedule(session.id, toDate, startTime);
+    if (moved) coaching.resolve(interactionId, intervention, { response: "replanned" });
   }
 
   if (finish?.stage === "task") {
@@ -276,13 +380,17 @@ export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageP
                     context={
                       item && assignment ? `${assignment.title} · ${courseName(assignment.courseId)}` : null
                     }
-                    stuck={stuckSessionId === current.id}
                     onStart={() => void start(current.id)}
                     onDone={() => handleDone(current)}
-                    onNeedMoreTime={() => void needMoreTime(current.id)}
-                    onStuck={() => setStuckSessionId(current.id)}
-                    onKeepGoing={() => setStuckSessionId(null)}
-                    onMoveToTomorrow={() => void handleMoveToTomorrow(current.id)}
+                    onStuck={() =>
+                      setOverlay({
+                        kind: "friction",
+                        stage: current.status === "planned" ? "before_start" : "in_progress",
+                      })
+                    }
+                    onNotNow={() => openRepair(null, null)}
+                    // Straight to "Your first estimate may need updating."
+                    onNeedMoreTime={() => void reportFriction(current, "in_progress", "taking_longer")}
                   />
                 );
               })()}
@@ -312,6 +420,60 @@ export default function TodayExecutionPage({ user, onBack }: TodayExecutionPageP
               <Button variant="ghost" className="text-xs text-muted-foreground" onClick={onBack}>
                 Change today&rsquo;s plan
               </Button>
+
+              <FrictionSheet
+                stage={overlay.kind === "friction" ? overlay.stage : null}
+                onChoose={(kind) => {
+                  if (overlay.kind === "friction") void reportFriction(current, overlay.stage, kind);
+                }}
+                onClose={closeOverlay}
+              />
+              <InterventionSheet
+                intervention={overlay.kind === "intervention" ? overlay.intervention : null}
+                onAction={(action) => handleInterventionAction(current, action)}
+                onDismiss={dismissIntervention}
+              />
+              <OwnActionSheet
+                open={overlay.kind === "ownAction"}
+                prompt={overlay.kind === "ownAction" ? overlay.intervention.ownActionPrompt : undefined}
+                onSave={(text) => {
+                  if (overlay.kind === "ownAction") {
+                    coaching.resolve(overlay.interactionId, overlay.intervention, { note: text });
+                  }
+                  closeOverlay();
+                }}
+                onSkip={closeOverlay}
+              />
+              {(() => {
+                const { assignment } = contextFor(current);
+                const laterTodayAt =
+                  overlay.kind === "repair"
+                    ? laterTodayStart(
+                        current.plannedMinutes,
+                        sessionBlocks(sessions.filter((s) => s.id !== current.id && s.status !== "done")),
+                        activityBlocks(activitiesOn(activities, today)),
+                        studySlots(activities, today, preferences),
+                        overlay.nowMinutes,
+                      )
+                    : null;
+                return (
+                  <RepairSheet
+                    open={overlay.kind === "repair"}
+                    dueTodayOrEarlier={assignment ? isDueTodayOrEarlier(assignment.dueDate, today) : false}
+                    dueBeforeTomorrow={assignment ? isDueBeforeTomorrow(assignment.dueDate, today) : false}
+                    laterTodayAt={laterTodayAt}
+                    onLaterToday={() => {
+                      if (laterTodayAt) void repairTo(current, today, laterTodayAt);
+                    }}
+                    onTomorrow={() => void repairTo(current, addDaysISODate(today, 1), null)}
+                    onAnotherDay={() => {
+                      closeOverlay();
+                      onChangePlan();
+                    }}
+                    onCancel={closeOverlay}
+                  />
+                );
+              })()}
             </section>
           ) : null}
         </>

@@ -1,12 +1,12 @@
 # Feature: Execution Coaching (self-service "what's getting in the way?")
 
-**Status:** Approved 2026-09-25, built in two parts
-(`docs/decisions/20260925-execution-timing.md`). **Part 12a is built**
-(tag `v-pre-execution-timing` marks the state before): automatic elapsed
-time, the revised estimate, and the two completion-time checks. **Part
-12b is not yet built:** the friction picker, interventions, own first
-action and reschedule flow. See "Implementation Notes (as built)" at the
-end. Produced from a prototype-sync
+**Status:** Implemented 2026-09-25 in two parts
+(`docs/decisions/20260925-execution-timing.md`): **12a** (tag
+`v-pre-execution-timing` marks the state before) covers timing, the
+revised estimate and the completion checks; **12b** (tag
+`v-pre-execution-coaching`) covers the friction picker, interventions,
+own first action and rescheduling. See "Implementation Notes (as built)"
+at the end. Produced from a prototype-sync
 audit of `../OneStepBeyondPrototype` (baseline commit `834368f`; `main`
 HEAD `744026a`; re-synced 2026-09-24 against the unmerged
 `mobile-redesign` branch at `1ce3145`, which moves this feature's
@@ -277,8 +277,12 @@ with the original noted alongside it ("about {current} · first planned
   copy dynamically — the seven interventions above are fixed, written
   copy, same restriction `manual-work-breakdown-reflection-v0.1.md`
   already places on this app's other coaching-shaped features.
-- Reworking "defer" — it stays as today's simpler "drop from today's
-  list" action; the repair flow is additive, not a replacement.
+- ~~Reworking "defer" — it stays as today's simpler "drop from today's
+  list" action; the repair flow is additive, not a replacement.~~
+  *Corrected 2026-09-25 (decision E4): "I'm stuck" no longer leads to
+  "Move to tomorrow", so defer had no way in. It's retired, and the
+  reschedule flow's "Tomorrow" (which keeps and moves the session)
+  replaces it.*
 
 ## Implementation Notes (as built — part 12a, 2026-09-25)
 
@@ -306,3 +310,37 @@ with the original noted alongside it ("about {current} · first planned
   `ReflectionPrompt` and `TurnedInReminder` from steps 6 and 7.
 - **Not yet:** nothing reads elapsed time. The coach dashboard's friction
   panel and any risk or estimate coaching come in their own specs.
+
+## Implementation Notes (as built — part 12b, 2026-09-25)
+
+- **Migration** `20260925150000_create_coaching_interactions.sql`: one row
+  per reported friction (the Domain Model's Blocker) with the intervention
+  offered and the response (selected / dismissed / replanned), action and
+  note. `assignment_id` cascades; `work_item_id` and `work_session_id`
+  are set to null on delete, so the record survives a session being moved
+  or removed. The migration reviewer checked the course-delete cascade
+  against a throwaway database, with no problems. It found one policy
+  gap, now fixed: the step and session must be the student's own, not
+  just the assignment. Access is student-only; the coach dashboard adds
+  its own read policy later.
+- **Domain** (`src/domain/executionCoaching.ts`): the friction lists, the
+  seven interventions with the prototype's exact copy (without "Look at
+  the assignment brief"), `chooseIntervention` (the "twice among the last
+  8 dismissals → Something else" rule), and the reschedule helpers.
+- **"Later today"** uses the scheduler (decision E2): the first free
+  start after now and after today's other sessions, around activities.
+  It's hidden when nothing fits before midnight. "Tomorrow" moves the
+  session without a time. Both keep the session, set back to planned.
+- **Sheets:** `src/pages/today/CoachingSheets.tsx`, built on
+  `ResponsiveSheet`. Options are 48 px tall and wrap. Closing the
+  intervention sheet any way records a dismissal.
+- **Where these lead:** "Revisit / Look at the breakdown" opens Assignment
+  Detail over Today (closing it comes back). "Choose another day" opens
+  today's plan in Plan. "Not now" records no interaction.
+- **Recording never blocks the student:** if saving an interaction fails,
+  the intervention is still offered.
+- **Verified in a real browser** at 320 px against local Supabase: bottom
+  sheets, 48 px options, no overflow; a dismissal, a selection with
+  "Add 10 min", and a replan to tomorrow all saved as expected.
+- **Next, per the Roadmap:** the coach/parent dashboard's friction-panel
+  addendum.

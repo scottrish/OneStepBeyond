@@ -80,6 +80,10 @@ built.
 - `updateWorkSessionStatus` and `updateWorkSessionPlannedMinutes` are
   replaced by `startWorkSession`, `completeWorkSession` and
   `reviseWorkSessionEstimate`.
+- **Part 12b built** as settled above (E2, E4). Its migration's insert
+  and update policies also check that the step and session belong to the
+  student; the migration reviewer caught that, and it was fixed before
+  commit.
 - **A race found in the real-browser check, now fixed.** Home's "Start"
   used to save without waiting before opening Today, so Today could load
   the session as still "planned" and ask to Start it again, overwriting

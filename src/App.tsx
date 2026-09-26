@@ -251,7 +251,19 @@ export default function App() {
             }}
           />
         ) : executingToday ? (
-          <TodayExecutionPage user={user} onBack={() => setExecutingToday(false)} />
+          <TodayExecutionPage
+            user={user}
+            onBack={() => setExecutingToday(false)}
+            // Detail opens over Today; closing it comes back here.
+            onOpenAssignment={openAssignment}
+            // "Choose another day": today's plan in Plan, where the session's
+            // edit sheet can move it (execution-coaching-v0.1.md).
+            onChangePlan={() => {
+              setPlanDate(todayISODate());
+              setPlanStep("day");
+              handleTabChange("plan");
+            }}
+          />
         ) : secondary ? (
           renderSecondary(secondary, user)
         ) : (

@@ -15,11 +15,8 @@ export const NEED_MORE_TIME_MINUTES = 10;
 // Execution offers on the current task (docs/features/today-execution.md).
 // Mirrors useDailyPlanning's shape (fetch/retry/actionError), but the
 // underlying operations are different: no multi-row replace, just single-
-// row mutations (recording start/finish times — execution-coaching-
-// v0.1.md), or a delete for "move to tomorrow"
-// (same operation Daily Planning's Remove/Move already use — deferred
-// sessions "drop out of today's list entirely... not cancelled, just
-// moved").
+// row mutations (recording start/finish times, rescheduling —
+// execution-coaching-v0.1.md).
 export function useTodayExecution(studentId: string, date: string) {
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -103,12 +100,22 @@ export function useTodayExecution(studentId: string, date: string) {
     }
   }
 
-  // "I'm stuck" -> "Move to tomorrow".
-  async function defer(id: string): Promise<boolean> {
+  // "When would you rather do this?" (execution-coaching-v0.1.md): later
+  // today at a new time, or another day. Replaces the old "Move to
+  // tomorrow", which deleted the session (docs/decisions/
+  // 20260925-execution-timing.md, E4). A session moved off today leaves
+  // today's list; one kept today goes back to "planned" at its new time.
+  async function reschedule(id: string, toDate: string, startTime: string | null): Promise<boolean> {
     setActionError(null);
     try {
-      await workSessionService.deleteWorkSession(id);
-      setSessions((prev) => prev.filter((session) => session.id !== id));
+      await workSessionService.rescheduleWorkSession(id, toDate, startTime);
+      setSessions((prev) =>
+        toDate === date
+          ? prev.map((s) =>
+              s.id === id ? { ...s, date: toDate, startTime, status: "planned", startedAt: null } : s,
+            )
+          : prev.filter((s) => s.id !== id),
+      );
       return true;
     } catch (error) {
       setActionError(errorMessage(error));
@@ -125,6 +132,6 @@ export function useTodayExecution(studentId: string, date: string) {
     start,
     complete,
     needMoreTime,
-    defer,
+    reschedule,
   };
 }

@@ -156,6 +156,22 @@ export async function completeWorkSession(id: string): Promise<string> {
   return completedAt;
 }
 
+// Today Execution's reschedule ("When would you rather do this?"): moves
+// the session to a new day and time and back to "planned" — unlike Remove,
+// it keeps the session (execution-coaching-v0.1.md).
+export async function rescheduleWorkSession(
+  id: string,
+  date: string,
+  startTime: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from("work_sessions")
+    .update({ date, start_time: startTime, status: "planned", started_at: null })
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
 // A student-revised estimate ("Need more time"): plannedMinutes becomes the
 // new working number and, the first time only, the value it replaces is
 // kept as originalPlannedMinutes (E1). The caller computes both, in this
