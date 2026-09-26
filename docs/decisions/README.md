@@ -44,3 +44,4 @@ directory.
 | 25 | [Plan opens for one assignment, with its work already chosen](20260925-plan-target.md) | 2026-09-25 |
 | 26 | [Breakdown choices live on Assignment Detail; Plan lists every assignment](20260925-plan-rows-and-one-piece.md) | 2026-09-25 |
 | 27 | [Execution coaching, part one: timing, revised estimates, and completion checks](20260925-execution-timing.md) | 2026-09-25 |
+| 28 | [Light/dark choice: saved on the device, applied before the first paint](20260925-appearance-on-device.md) | 2026-09-25 |

@@ -2,6 +2,7 @@ import { StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import Root from './Root.tsx'
+import { initAppearance } from './lib/appearanceStore'
 
 // docs/features/coach-parent-dashboard-feature-spec-v0.1.md's
 // Implementation Note: the dashboard lives at its own distinct URL,
@@ -10,6 +11,9 @@ import Root from './Root.tsx'
 // "routing" this needs; see CLAUDE.md's "add [a router] when a feature
 // needs it." Root is lazy-loaded so a build split keeps the desktop-only
 // dashboard bundle out of the mobile student app's download.
+// Light or dark, as chosen in Settings (docs/features/appearance-light-dark-v0.1.md).
+initAppearance()
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Suspense fallback={null}>

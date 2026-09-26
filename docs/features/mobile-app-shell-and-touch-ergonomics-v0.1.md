@@ -500,6 +500,7 @@ None. This is a presentation and navigation change only.
 - Any change to the coach/parent dashboard. It shares none of the
   changed primitives and keeps its own `.dashboard-root` layout.
 - A light/dark theme toggle (unchanged from `design-system-adoption.md`).
+  *Since 2026-09-25: built as `appearance-light-dark-v0.1.md`.*
 - The prototype's dev-only Settings reset tools ("Reset with example
   data", "Clear all data", "Start completely fresh").
 

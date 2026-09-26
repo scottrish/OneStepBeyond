@@ -547,8 +547,11 @@ built — schedule it as one piece of work, not two.
   flagged as needed once that happened, never done. Discovered
   2026-08-17 while auditing this same file for the Assignment Detail
   global-overlay change; not fixed as part of that unrelated work.
-- **Choose light or dark mode in Settings** (added 2026-09-25 at
-  product-owner request). Today the app follows the device's setting
+- ✅ **Done 2026-09-25.** **Choose light or dark mode in Settings** (added 2026-09-25 at
+  product-owner request). **Spec:**
+  [appearance-light-dark-v0.1.md](features/appearance-light-dark-v0.1.md),
+  A1: saved on the device; A2: a sheet
+  (`docs/decisions/20260925-appearance-on-device.md`). Today the app follows the device's setting
   only (`prefers-color-scheme` in `src/index.css`). A manual toggle was
   deliberately left out of `design-system-adoption.md` and
   `mobile-app-shell-and-touch-ergonomics-v0.1.md`. Proposed shape: a

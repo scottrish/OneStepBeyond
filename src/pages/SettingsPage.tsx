@@ -1,5 +1,9 @@
-import { BookOpen, CalendarClock, ChevronRight, Clock, LogOut, Users } from "lucide-react";
+import { useState } from "react";
+import { BookOpen, CalendarClock, ChevronRight, Clock, LogOut, SunMoon, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ResponsiveSheet from "@/components/ResponsiveSheet";
+import { APPEARANCE_CHOICES, appearanceLabel } from "../domain/appearance";
+import { useAppearance } from "../hooks/useAppearance";
 
 type SettingsPageProps = {
   onBack: () => void;
@@ -25,6 +29,9 @@ export default function SettingsPage({
   onGoToSupport,
   signOut,
 }: SettingsPageProps) {
+  const [appearance, setAppearance] = useAppearance();
+  const [choosingAppearance, setChoosingAppearance] = useState(false);
+
   // Descriptions deliberately avoid each other's titles, so every row's
   // accessible name ("{title} {description}") matches only its own title.
   const destinations = [
@@ -46,6 +53,14 @@ export default function SettingsPage({
       description: "Invite a parent, coach, or teacher.",
       icon: Users,
       onSelect: onGoToSupport,
+    },
+    // Light or dark (docs/features/appearance-light-dark-v0.1.md): a sheet,
+    // not a screen — three choices. Its description is the current one.
+    {
+      label: "Appearance",
+      description: appearanceLabel(appearance),
+      icon: SunMoon,
+      onSelect: () => setChoosingAppearance(true),
     },
   ];
 
@@ -80,6 +95,33 @@ export default function SettingsPage({
           </li>
         ))}
       </ul>
+
+      <ResponsiveSheet open={choosingAppearance} onOpenChange={setChoosingAppearance} title="Appearance">
+        {/* Native radios: arrow keys and grouping for free. A choice applies
+            at once, so the student sees it; closing keeps it (no Save). */}
+        <fieldset className="flex flex-col gap-2">
+          <legend className="sr-only">Appearance</legend>
+          {APPEARANCE_CHOICES.map((option) => (
+            <label
+              key={option.value}
+              className="flex min-h-12 cursor-pointer items-start gap-3 rounded-2xl border border-border bg-card px-4 py-3 has-[:checked]:border-primary has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring"
+            >
+              <input
+                type="radio"
+                name="appearance"
+                value={option.value}
+                checked={appearance === option.value}
+                onChange={() => setAppearance(option.value)}
+                className="mt-0.5 size-4 shrink-0 accent-primary focus-visible:outline-none"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-foreground">{option.label}</span>
+                {option.hint && <span className="block text-xs text-muted-foreground">{option.hint}</span>}
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      </ResponsiveSheet>
 
       <Button
         variant="ghost"

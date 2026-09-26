@@ -124,6 +124,7 @@ business logic are affected.
 - Porting the prototype's full component library, or any prototype
   screen that doesn't correspond to something already built in
   OneStepBeyond.
+- *Since 2026-09-25: built as `appearance-light-dark-v0.1.md`.*
 - A manual light/dark theme toggle control — token *values* for both
   modes are ported via `prefers-color-scheme` (matching the convention
   `index.css` already uses), but a visible toggle switch is out of scope

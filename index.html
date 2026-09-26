@@ -9,14 +9,39 @@
       PWA phase 1 (installable, standalone; no service worker) —
       docs/decisions/20260924-pwa-in-two-phases.md and
       docs/features/mobile-app-shell-and-touch-ergonomics-v0.1.md §7.
-      theme-color values are the resolved --background token for each
-      color scheme in src/index.css; the manifest (one value only) uses
-      the light ones.
+      theme-color is the resolved --background token of the scheme being
+      shown (src/domain/appearance.ts THEME_COLORS); the manifest (one
+      value only) uses the light one.
     -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-    <meta name="theme-color" content="#fbf9f3" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#020618" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fbf9f3" />
+    <!--
+      Light or dark before the first paint, so there's never a flash of the
+      wrong colours (docs/features/appearance-light-dark-v0.1.md). Reads the
+      same storage key as src/services/appearanceService.ts; the app takes
+      over from src/lib/appearanceStore.ts once it has loaded. Keep in step
+      with both (a test checks the key and colours).
+    -->
+    <script>
+      (function () {
+        var choice = "system";
+        try {
+          var saved = window.localStorage.getItem("osb-appearance");
+          if (saved === "light" || saved === "dark" || saved === "system") choice = saved;
+        } catch (e) {}
+        var dark =
+          choice === "dark" ||
+          (choice === "system" &&
+            !!window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+        var root = document.documentElement;
+        root.setAttribute("data-theme", dark ? "dark" : "light");
+        root.style.colorScheme = dark ? "dark" : "light";
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", dark ? "#020618" : "#fbf9f3");
+      })();
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
